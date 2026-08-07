@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PS3 Pilotage ANADER – SaaS V13</title>
+  <title>PS3 Pilotage – ANADER</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
@@ -63,6 +63,16 @@
     .neutral{background:#eef4fb;color:var(--primary)}
     .list{display:grid;gap:10px}
     .list-item{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+    /* Hiérarchie visuelle activité (niveau 1) / sous-activité (niveau 2) */
+    .activite-bloc{background:#dfe9f4;border:1px solid #b9cee3;border-left:5px solid var(--primary);border-radius:12px;padding:14px;margin-bottom:14px}
+    .activite-bloc > .activite-entete strong{font-size:15px;color:var(--primary)}
+    .activite-bloc .sous-activites-liste{margin-top:8px;margin-left:16px;padding-left:12px;border-left:2px dashed #b9cee3}
+    .sous-activite-item{background:#ffffff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+    .sous-activite-item strong{font-weight:600}
+    .ordre-btns{display:inline-flex;gap:2px;flex-shrink:0}
+    .ordre-btns button{background:#fff;border:1px solid var(--line);color:var(--primary);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;padding:0}
+    .ordre-btns button:disabled{opacity:.35;cursor:default}
+    .ordre-badge{display:inline-block;min-width:22px;text-align:center;background:var(--primary);color:#fff;border-radius:6px;font-size:11px;font-weight:700;padding:2px 6px;margin-right:6px}
     .muted{color:var(--muted)}
     .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;max-height:520px}
     table{width:100%;border-collapse:collapse;font-size:14px}
@@ -230,7 +240,7 @@
     <div id="navOverlay" class="nav-overlay"></div>
     <aside class="sidebar" id="sidebarNav">
       <div class="brand">
-        <h2>PS3 Pilotage SaaS</h2>
+        <h2>PS3 Pilotage</h2>
         <p>Piloter, animer, préparer les revues et suivre les preuves du processus PS3, en équipe et en temps réel.</p>
       </div>
       <div class="profile">
@@ -408,7 +418,7 @@
           <div class="stat-grid stat-grid-compact" id="indicateursSuiviGrid"></div>
         </div>
 
-        <div class="footer">Version SaaS – données stockées et partagées via Supabase (base de données sécurisée en ligne).</div>
+        <div class="footer">Données stockées et partagées via une base de données sécurisée en ligne.</div>
       </section>
 
       <section id="actions" class="view">
@@ -527,10 +537,10 @@
           Étapes officielles du logigramme PS3, chargées depuis le référentiel partagé. Chaque étape peut être reliée à des non-conformités et réclamations constatées à ce niveau du processus.
         </div>
         <div class="card">
-          <div class="section-title"><div><h3>Étapes du processus</h3><p>Acteur responsable, entrée, sortie, point de contrôle, document associé et écarts liés.</p></div></div>
+          <div class="section-title"><div><h3>Étapes du processus</h3><p>Activité, modalités d'exécution (Comment), acteur responsable, entrée, sortie, point de contrôle, document associé et écarts liés.</p></div></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Étape</th><th>Activité</th><th>Acteur responsable</th><th>Entrée</th><th>Sortie</th><th>Point de contrôle</th><th>NC / Réclamations liées</th></tr></thead>
+              <thead><tr><th>Étape</th><th>Activité</th><th>Comment</th><th>Acteur responsable</th><th>Entrée</th><th>Sortie</th><th>Point de contrôle</th><th>Document associé</th><th>NC / Réclamations liées</th><th>Action</th></tr></thead>
               <tbody id="logigrammeTable"></tbody>
             </table>
           </div>
@@ -846,6 +856,23 @@
         </div>
       </section>
 
+      <section id="rapportRedaction" class="view">
+        <div class="topbar">
+          <div class="title"><h2 id="rapportRedactionTitre">Rédaction du rapport de revue</h2><p id="rapportRedactionSousTitre">Rédigez le corps du rapport ; les tableaux chiffrés sont générés automatiquement.</p></div>
+          <div class="toolbar">
+            <button class="btn primary" type="button" onclick="enregistrerNarratifRapport()">Enregistrer</button>
+            <button class="btn secondary" type="button" onclick="downloadBilanPdf(currentBilanId)">Aperçu / PDF</button>
+            <button class="btn secondary" type="button" onclick="downloadBilanWord(currentBilanId)">Word</button>
+            <button class="btn secondary" data-go-view="revues" type="button">Retour</button>
+          </div>
+        </div>
+        <div class="module-intro">
+          Chaque bloc ci-dessous correspond à une section rédigée du canevas <strong>EN8-PS3-V01</strong>. Les tableaux chiffrés du rapport sont produits automatiquement à partir des données de la plateforme : vous n'avez à rédiger que l'analyse. Les <strong>suggestions</strong> proposées sous chaque bloc sont calculées à partir de vos données réelles — cliquez sur « Reprendre » pour les insérer, puis reformulez librement.
+        </div>
+        <div id="rapportSectionsContainer"></div>
+        <div class="modal-actions" style="margin-top:18px"><button class="btn primary" type="button" onclick="enregistrerNarratifRapport()">Enregistrer le rapport</button></div>
+      </section>
+
       <section id="revueSeance" class="view">
         <div class="topbar">
           <div class="title"><h2 id="revueSeanceTitle">Séance de revue</h2><p id="revueSeanceSubtitle">Données agrégées, décisions et actions issues de la séance.</p></div>
@@ -953,7 +980,7 @@
         <div class="topbar"><div class="title"><h2>Aide et paramètres</h2><p>Repères simples pour utiliser l'outil.</p></div></div>
         <div class="grid">
           <div class="card">
-            <div class="section-title"><div><h3>Ce que cette version SaaS permet</h3><p>Utilisation partagée en ligne, en équipe.</p></div></div>
+            <div class="section-title"><div><h3>Ce que la plateforme permet</h3><p>Utilisation partagée en ligne, en équipe.</p></div></div>
             <div>
               <span class="badge neutral">Connexion sécurisée par compte</span>
               <span class="badge neutral">Données partagées en temps réel</span>
@@ -990,6 +1017,26 @@
           <div class="card" id="permissionsCard" style="display:none">
             <div class="section-title"><div><h3>Permissions par type de membre</h3><p>Le Pilote et les Co-pilotes ont accès à toutes les fonctionnalités. Choisissez ci-dessous ce qui est accessible aux Personnes ressources et aux Acteurs du processus.</p></div></div>
             <div id="rolePermissionsContainer" class="grid" style="grid-template-columns:1fr 1fr;gap:16px"></div>
+          </div>
+          <div class="card">
+            <div class="section-title"><div><h3>Sauvegarde des données</h3><p>Extraction brute et complète de toutes les données de la plateforme, tous exercices confondus.</p></div></div>
+            <div class="list">
+              <div class="list-item">
+                <strong>Sauvegarde Excel</strong>
+                <div class="muted">Un classeur avec un onglet par table (équipe, objectifs, risques, activités, actions, non-conformités, réclamations, audits, revues, indicateurs, preuves...). Format lisible et exploitable.</div>
+                <div style="margin-top:8px"><button class="btn primary" type="button" onclick="telechargerSauvegardeExcel()">Télécharger la sauvegarde Excel</button></div>
+              </div>
+              <div class="list-item">
+                <strong>Sauvegarde brute (JSON)</strong>
+                <div class="muted">Copie fidèle et intégrale de la base, champ par champ. À conserver pour une restauration technique éventuelle.</div>
+                <div style="margin-top:8px"><button class="btn secondary" type="button" onclick="telechargerSauvegardeJson()">Télécharger la sauvegarde brute</button></div>
+              </div>
+              <div class="list-item">
+                <strong>Conseil</strong>
+                <div class="muted">Vos données sont enregistrées en continu dans la base en ligne : ces sauvegardes sont un filet de sécurité supplémentaire. Un téléchargement mensuel, archivé hors de la plateforme, est une bonne pratique.</div>
+                <div class="muted" id="sauvegardeStatut" style="margin-top:6px"></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1347,6 +1394,27 @@
   </div>
 
 
+  <div class="modal" id="logigrammeCommentModal">
+    <div class="modal-box">
+      <div class="modal-head"><strong id="logiCommentTitre">Modalités d'exécution de l'étape</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
+      <div class="modal-body">
+        <form id="logigrammeCommentForm">
+          <input type="hidden" id="logiCommentEtape" />
+          <div class="form-grid">
+            <div class="field full"><label>Activité</label><input type="text" id="logiCommentActivite" readonly /></div>
+            <div class="field full">
+              <label>Comment (modalités d'exécution)</label>
+              <textarea id="logiCommentTexte" rows="8" placeholder="Décrire concrètement comment cette étape est réalisée : qui fait quoi, avec quel support, selon quelles règles, dans quel délai..."></textarea>
+            </div>
+            <div class="field full"><label>Point de contrôle</label><input type="text" id="logiCommentControle" /></div>
+            <div class="field full"><label>Document associé</label><input type="text" id="logiCommentDocument" /></div>
+          </div>
+          <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary">Enregistrer</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="membreModal">
     <div class="modal-box">
       <div class="modal-head"><strong id="membreModalTitle">Ajouter un membre de l'équipe PS3</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
@@ -1556,7 +1624,7 @@
 
   <script>
     // =========================================================
-    // PS3 Pilotage ANADER — SaaS V13 — Backend Supabase
+    // PS3 Pilotage — ANADER — Backend Supabase
     // =========================================================
     const SUPABASE_URL = "https://tcirboephslicjmhokbh.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjaXJib2VwaHNsaWNqbWhva2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNjYxNjUsImV4cCI6MjEwMDg0MjE2NX0.e3f1B__NmDVL5G1Cze1p115ya2Rs-ErzzTUr25UCKEg";
@@ -1832,7 +1900,8 @@
 
       state.actions = (actionsRes.data||[]).map(a=>({
         id:a.id_action, type:a.type_action, description:a.description, owner:a.responsable,
-        due:a.date_echeance, priority:a.priorite, status:a.statut, proof:a.preuve_id, validation:a.validation
+        due:a.date_echeance, priority:a.priorite, status:a.statut, proof:a.preuve_id, validation:a.validation,
+        ordre:a.ordre, created_at:a.created_at
       }));
       state.ncs = (ncsRes.data||[]).map(n=>({
         id:n.id_nc, origin:n.origine, description:n.description, cause:n.cause_racine,
@@ -1841,7 +1910,8 @@
       }));
       state.ncActionsLiees = (ncActionsLieesRes.data||[]).map(a=>({
         id:a.id_action_liee, ncId:a.id_nc, description:a.description, responsible:a.responsable,
-        dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||""
+        dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"",
+        ordre:a.ordre, created_at:a.created_at
       }));
       state.points = (pointsRes.data||[]).map(p=>({
         id:p.id_point, intitule:p.intitule_point, audit:p.intitule_audit, periode:p.periode_audit,
@@ -1850,7 +1920,8 @@
       }));
       state.auditActionsLiees = (auditActionsLieesRes.data||[]).map(a=>({
         id:a.id_action_liee, pointId:a.id_point, description:a.description, responsible:a.responsable,
-        dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||""
+        dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"",
+        ordre:a.ordre, created_at:a.created_at
       }));
       state.claims = (claimsRes.data||[]).map(c=>({
         id:c.id_reclamation, emitter:c.emetteur, object:c.objet, source:c.source, framework:c.cadre,
@@ -1863,7 +1934,7 @@
       (linkedActionsRes.data||[]).forEach(a=>{
         const key = a.traitement_id;
         if(!linkedByTraitement[key]) linkedByTraitement[key] = [];
-        linkedByTraitement[key].push({ id:a.id_action_liee, description:a.description, responsible:a.responsable, dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"", _persisted:true });
+        linkedByTraitement[key].push({ id:a.id_action_liee, description:a.description, responsible:a.responsable, dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"", ordre:a.ordre, created_at:a.created_at, _persisted:true });
       });
       state.claimTreatments = (treatmentsRes.data||[]).map(t=>({
         _dbId:t.id, claimId:t.id_reclamation, criticality:t.criticite, status:t.statut, escalation:t.escalade,
@@ -1888,7 +1959,8 @@
       }));
       state.revueActionsLiees = (revueActionsLieesRes.data||[]).map(a=>({
         id:a.id_action_liee, revueId:a.id_revue, pointId:a.id_point, description:a.description,
-        responsible:a.responsable, dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", commentaire:a.commentaire||""
+        responsible:a.responsable, dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", commentaire:a.commentaire||"",
+        ordre:a.ordre, created_at:a.created_at
       }));
       state.bilansAnimation = (bilansRes.data||[]).map(b=>({
         id:b.id_bilan, exerciceId:b.exercice_id, typePeriode:b.type_periode, periodeLibelle:b.periode_libelle,
@@ -2366,22 +2438,54 @@
           ...ncsLiees.map(n=>`<span class="badge bad" title="${n.description}">${n.id}</span>`),
           ...claimsLiees.map(c=>`<span class="badge warn" title="${c.object||c.description}">${c.id}</span>`)
         ].join(" ") || `<span class="muted">Aucun écart lié</span>`;
+        const peutEditer = currentUser && ["Pilote","Co-pilote","Ressource"].includes(currentUser.role);
         return `
         <tr>
-          <td>${l.etape}</td><td>${l.activite}</td><td>${l.acteur_responsable||"—"}</td><td>${l.entree||"—"}</td><td>${l.sortie||"—"}</td>
+          <td>${l.etape}</td><td>${l.activite}</td>
+          <td>${l.comment_execution ? String(l.comment_execution).replace(/\n/g,"<br>") : '<span class="muted">À renseigner</span>'}</td>
+          <td>${l.acteur_responsable||"—"}</td><td>${l.entree||"—"}</td><td>${l.sortie||"—"}</td>
+          <td>${l.point_controle||"—"}</td><td>${l.document_associe||"—"}</td>
           <td>
             <div style="margin-bottom:6px">${badges}</div>
             <button class="icon-btn" type="button" onclick="openNcModalForEtape(${l.etape})">+ NC</button>
             <button class="icon-btn" type="button" onclick="openClaimModalForEtape(${l.etape})">+ Réclamation</button>
           </td>
+          <td>${peutEditer ? `<button class="btn secondary" type="button" style="padding:6px 12px" onclick="openLogigrammeCommentModal(${l.etape})">Modifier</button>` : ""}</td>
         </tr>`;
-      }).join("") || `<tr><td colspan="6">Logigramme non renseigné.</td></tr>`;
+      }).join("") || `<tr><td colspan="10">Logigramme non renseigné.</td></tr>`;
 
       // Options des sélecteurs d'étape dans les formulaires NC / Réclamation
       const etapeOptions = `<option value="">Aucune</option>` + state.logigramme.map(l=>`<option value="${l.etape}">${l.etape}. ${l.activite}</option>`).join("");
       const ncSel = qs("#ncEtapeSelect"); if(ncSel) ncSel.innerHTML = etapeOptions;
       const claimSel = qs("#claimEtapeSelect"); if(claimSel) claimSel.innerHTML = etapeOptions;
     }
+    window.openLogigrammeCommentModal = function(etape){
+      const l = state.logigramme.find(x=>String(x.etape)===String(etape));
+      if(!l) return;
+      qs("#logigrammeCommentForm").reset();
+      qs("#logiCommentEtape").value = l.etape;
+      qs("#logiCommentTitre").textContent = `Étape ${l.etape} — modalités d'exécution`;
+      qs("#logiCommentActivite").value = l.activite || "";
+      qs("#logiCommentTexte").value = l.comment_execution || "";
+      qs("#logiCommentControle").value = l.point_controle || "";
+      qs("#logiCommentDocument").value = l.document_associe || "";
+      qs("#logigrammeCommentModal").classList.add("show");
+    };
+    qs("#logigrammeCommentForm").addEventListener("submit", async e=>{
+      e.preventDefault();
+      const etape = parseInt(qs("#logiCommentEtape").value, 10);
+      const payload = {
+        comment_execution: qs("#logiCommentTexte").value.trim() || null,
+        point_controle: qs("#logiCommentControle").value.trim() || null,
+        document_associe: qs("#logiCommentDocument").value.trim() || null
+      };
+      const { error } = await sb.from("logigramme").update(payload).eq("etape", etape);
+      if(error){ toast("Erreur : " + error.message, "error"); return; }
+      toast(`Étape ${etape} mise à jour.`, "ok");
+      qs("#logigrammeCommentModal").classList.remove("show");
+      await fetchAll(); renderAll();
+    });
+
     window.openNcModalForEtape = function(etape){
       qs("#ncModal").classList.add("show");
       const f = qs("#ncAutoId"); if(f) f.value = nextNcId();
@@ -2392,6 +2496,100 @@
       qs("#claimAutoId").value = nextClaimId();
       qs("#claimRegistrationDate").value = todayISO();
       const sel = qs("#claimEtapeSelect"); if(sel) sel.value = String(etape);
+    };
+
+    // ---------- Ordre d'exécution (activités, sous-activités, actions) ----------
+    // Tri par le champ "ordre" saisi par l'équipe ; les éléments sans ordre passent à la fin,
+    // départagés par leur date de saisie pour rester stables.
+    function trierParOrdre(liste){
+      return [...liste].sort((a,b)=>{
+        const oa = (a.ordre === null || a.ordre === undefined) ? Number.MAX_SAFE_INTEGER : a.ordre;
+        const ob = (b.ordre === null || b.ordre === undefined) ? Number.MAX_SAFE_INTEGER : b.ordre;
+        if(oa !== ob) return oa - ob;
+        return String(a.created_at||"").localeCompare(String(b.created_at||""));
+      });
+    }
+    const ORDRE_CONFIG = {
+      activite:      { table:"activites",                 idField:"id_activite" },
+      sousactivite:  { table:"sous_activites",            idField:"id_sous_activite" },
+      action:        { table:"actions_centralisees",      idField:"id_action" },
+      ncaction:      { table:"nc_actions_liees",          idField:"id_action_liee" },
+      auditaction:   { table:"audit_actions_liees",       idField:"id_action_liee" },
+      reclamaction:  { table:"reclamation_actions_liees", idField:"id_action_liee" },
+      revueaction:   { table:"revue_actions_liees",       idField:"id_action_liee" }
+    };
+    function ordreBtnsHtml(type, id, index, total){
+      const haut = index === 0;
+      const bas = index === total - 1;
+      return `<span class="ordre-btns">
+        <button type="button" title="Monter" ${haut?"disabled":""} onclick="deplacerElement('${type}','${id}',-1)">▲</button>
+        <button type="button" title="Descendre" ${bas?"disabled":""} onclick="deplacerElement('${type}','${id}',1)">▼</button>
+      </span>`;
+    }
+    // Renvoie la liste ordonnée des éléments frères (même parent) d'un élément donné
+    function fratrieOrdonnee(type, id){
+      if(type==="activite"){
+        const a = state.activites.find(x=>x.id_activite===id);
+        if(!a) return [];
+        const cle = a.type_cible==="Objectif" ? "id_objectif" : "id_risque";
+        return trierParOrdre(state.activites.filter(x=>x.type_cible===a.type_cible && x[cle]===a[cle]))
+          .map(x=>x.id_activite);
+      }
+      if(type==="sousactivite"){
+        const s = state.sousActivites.find(x=>x.id_sous_activite===id);
+        if(!s) return [];
+        return trierParOrdre(state.sousActivites.filter(x=>x.id_activite===s.id_activite))
+          .map(x=>x.id_sous_activite);
+      }
+      if(type==="action"){
+        const a = state.actions.find(x=>x.id===id);
+        if(!a) return [];
+        return trierParOrdre(state.actions.filter(x=>x.type===a.type)).map(x=>x.id);
+      }
+      if(type==="ncaction"){
+        const a = state.ncActionsLiees.find(x=>x.id===id);
+        if(!a) return [];
+        return trierParOrdre(state.ncActionsLiees.filter(x=>x.ncId===a.ncId)).map(x=>x.id);
+      }
+      if(type==="auditaction"){
+        const a = state.auditActionsLiees.find(x=>x.id===id);
+        if(!a) return [];
+        return trierParOrdre(state.auditActionsLiees.filter(x=>x.pointId===a.pointId)).map(x=>x.id);
+      }
+      if(type==="revueaction"){
+        const a = state.revueActionsLiees.find(x=>x.id===id);
+        if(!a) return [];
+        return trierParOrdre(state.revueActionsLiees.filter(x=>x.revueId===a.revueId)).map(x=>x.id);
+      }
+      if(type==="reclamaction"){
+        let parent = null, courante = null;
+        (state.claimTreatments||[]).forEach(t=>{
+          (t.linkedActions||[]).forEach(a=>{ if(a.id===id){ parent = t; courante = a; } });
+        });
+        if(!parent) return [];
+        return trierParOrdre(parent.linkedActions||[]).map(x=>x.id);
+      }
+      return [];
+    }
+    window.deplacerElement = async function(type, id, sens){
+      if(!currentUser || !["Pilote","Co-pilote","Ressource"].includes(currentUser.role)){
+        toast("Seuls le Pilote, les Co-pilotes et les Personnes ressources peuvent réordonner.", "error");
+        return;
+      }
+      const cfg = ORDRE_CONFIG[type];
+      if(!cfg) return;
+      const ids = fratrieOrdonnee(type, id);
+      const i = ids.indexOf(id);
+      const j = i + sens;
+      if(i < 0 || j < 0 || j >= ids.length) return;
+      // Permutation locale puis réécriture de l'ordre complet de la fratrie (1..n)
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+      for(let k = 0; k < ids.length; k++){
+        const { error } = await sb.from(cfg.table).update({ ordre: k + 1 }).eq(cfg.idField, ids[k]);
+        if(error){ toast("Erreur lors du réordonnancement : " + error.message, "error"); return; }
+      }
+      await fetchAll();
+      renderAll();
     };
 
     // ---------- Activités / sous-activités (Objectifs et Risques) ----------
@@ -2709,10 +2907,13 @@
       const moduleFilter = qs("#activitesFilterModule").value;
       const statutFilter = qs("#activitesFilterStatut").value;
       const q = qs("#activitesFilterSearch").value.toLowerCase().trim();
-      const rows = state.sousActivites.map(s=>{
-        const act = state.activites.find(a=>a.id_activite===s.id_activite);
-        return { s, act };
-      }).filter(({act})=>act);
+      // Regroupement par activité (elle-même ordonnée), puis sous-activités dans leur ordre d'exécution
+      const rows = [];
+      trierParOrdre(state.activites).forEach(act=>{
+        trierParOrdre(state.sousActivites.filter(s=>s.id_activite===act.id_activite)).forEach(s=>{
+          rows.push({ s, act });
+        });
+      });
       const filtered = rows.filter(({s,act})=>{
         if(moduleFilter && act.type_cible!==moduleFilter) return false;
         if(statutFilter && s.statut!==statutFilter) return false;
@@ -2746,26 +2947,32 @@
         container.innerHTML = `<div class="list-item"><strong>Aucune activité</strong><div class="muted">${filterCibleId ? "Aucune activité planifiée pour cet élément." : 'Cliquez sur "Ajouter une activité" pour planifier la première.'}</div></div>`;
         return;
       }
-      container.innerHTML = activites.map(act=>{
+      activites = trierParOrdre(activites);
+      const peutOrdonner = currentUser && ["Pilote","Co-pilote","Ressource"].includes(currentUser.role);
+      container.innerHTML = activites.map((act, idxAct)=>{
         const cibleId = typeCible==="Objectif" ? act.id_objectif : act.id_risque;
         const ref = refList.find(r=>r[refIdField]===cibleId);
-        const sousActs = state.sousActivites.filter(s=>s.id_activite===act.id_activite);
+        const sousActs = trierParOrdre(state.sousActivites.filter(s=>s.id_activite===act.id_activite));
         const verrouille = act.validation==="Oui";
-        const sousHtml = sousActs.length ? sousActs.map(s=>`
-          <div class="list-item" style="margin-left:18px;background:#f8fafc">
+        const sousHtml = sousActs.length ? sousActs.map((s, idxSous)=>`
+          <div class="sous-activite-item">
             <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
               <div>
+                <span class="ordre-badge">${idxSous+1}</span>
                 <span class="muted" style="font-size:11px">${s.id_sous_activite}</span>
                 <strong>${s.denomination}</strong>
                 <span class="badge ${badgeClass(s.statut)}">${s.statut||"Non démarré"}</span>
                 <span class="badge ${priorityClass(s.priorite)}">${s.priorite||"Moyenne"}</span>
               </div>
-              ${verrouille ? `<span class="muted" title="Activité validée : sous-activité verrouillée">🔒 Verrouillé</span>` : actionSelectHtml("sousactivite", s.id_sous_activite)}
+              <div style="display:flex;gap:6px;align-items:center">
+                ${peutOrdonner && !verrouille ? ordreBtnsHtml("sousactivite", s.id_sous_activite, idxSous, sousActs.length) : ""}
+                ${verrouille ? `<span class="muted" title="Activité validée : sous-activité verrouillée">🔒 Verrouillé</span>` : actionSelectHtml("sousactivite", s.id_sous_activite)}
+              </div>
             </div>
             <div class="muted" style="margin-top:4px">Échéance : ${fmtDate(s.date_limite)} ${s.date_realisation? " · Réalisée le : "+fmtDate(s.date_realisation) : ""} ${s.preuve? " · Preuve : "+s.preuve : ""}</div>
             ${s.commentaires ? `<div class="muted">${s.commentaires}</div>` : ""}
           </div>
-        `).join("") : `<div class="muted" style="margin-left:18px">Aucune sous-activité.</div>`;
+        `).join("") : `<div class="muted">Aucune sous-activité.</div>`;
         const validationControl = act.validation==="Oui"
           ? `<span class="badge ok">Validée</span>`
           : act.statut!=="Clôturé"
@@ -2774,9 +2981,10 @@
                 ? `<button class="btn primary" style="padding:6px 10px" type="button" onclick="approveActivite('${act.id_activite}')">Valider</button>`
                 : `<span class="badge warn">En attente de validation</span>`);
         return `
-        <div class="list-item">
-          <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div class="activite-bloc">
+          <div class="activite-entete" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div>
+              <span class="ordre-badge">${idxAct+1}</span>
               <span class="muted" style="font-size:11px">${act.id_activite}</span>
               <strong>${act.denomination}</strong>
               <div class="muted">Lié à : ${ref ? (ref[refLabelField]) : cibleId}</div>
@@ -2785,6 +2993,7 @@
               <span class="badge ${badgeClass(act.statut)}">${act.statut||"Non démarré"}</span>
               <span class="badge ${act.taux_avancement>=100?'ok':act.taux_avancement>0?'warn':'neutral'}">${act.taux_avancement||0}% avancement</span>
               ${validationControl}
+              ${peutOrdonner ? ordreBtnsHtml("activite", act.id_activite, idxAct, activites.length) : ""}
               ${actionSelectHtml("activite", act.id_activite)}
             </div>
           </div>
@@ -2793,8 +3002,8 @@
           </div>
           ${act.ecart_realisation ? `<div class="muted">Écart : ${act.ecart_realisation}</div>` : ""}
           ${act.commentaire_analyse ? `<div class="muted">Analyse : ${act.commentaire_analyse}</div>` : ""}
-          <div style="margin-top:10px"><strong style="font-size:13px">Sous-activités</strong></div>
-          ${sousHtml}
+          <div style="margin-top:10px"><strong style="font-size:13px">Sous-activités</strong> <span class="muted" style="font-size:12px">(dans l'ordre d'exécution)</span></div>
+          <div class="sous-activites-liste">${sousHtml}</div>
           <div style="margin-top:8px"><button class="btn secondary" style="padding:8px 10px" type="button" onclick="openSousActiviteModal('${act.id_activite}')">+ Ajouter une sous-activité</button></div>
         </div>`;
       }).join("");
@@ -3051,27 +3260,28 @@
       const statutFilter = qs("#actionsFilterStatut").value;
       const q = qs("#actionsFilterSearch").value.toLowerCase().trim();
 
-      const reclamationRows = allReclamationLinkedActionsFlat().map(a=>{
+      // Chaque famille d'actions est triée selon l'ordre d'exécution défini par l'équipe
+      const reclamationRows = trierParOrdre(allReclamationLinkedActionsFlat()).map(a=>{
         const claim = state.claims.find(c=>c.id===a.claimId);
-        return { module:"reclamation", moduleLabel:"Réclamations", id:a.id, parentId:a.claimId,
+        return { module:"reclamation", moduleLabel:"Réclamations", ordreType:"reclamaction", id:a.id, parentId:a.claimId,
           parentLabel: claim ? (claim.object || claim.description || claim.id) : a.claimId,
           description:a.description, responsible:a.responsible, dueDate:a.dueDate, treated:a.treated };
       });
-      const ncRows = state.ncActionsLiees.map(a=>{
+      const ncRows = trierParOrdre(state.ncActionsLiees).map(a=>{
         const nc = state.ncs.find(n=>n.id===a.ncId);
-        return { module:"nonconformite", moduleLabel:"Non-conformités", id:a.id, parentId:a.ncId,
+        return { module:"nonconformite", moduleLabel:"Non-conformités", ordreType:"ncaction", id:a.id, parentId:a.ncId,
           parentLabel: nc ? (nc.description || nc.id) : a.ncId,
           description:a.description, responsible:a.responsible, dueDate:a.dueDate, treated:a.treated };
       });
-      const auditRows = state.auditActionsLiees.map(a=>{
+      const auditRows = trierParOrdre(state.auditActionsLiees).map(a=>{
         const point = state.points.find(p=>p.id===a.pointId);
-        return { module:"audit", moduleLabel:"Audits", id:a.id, parentId:a.pointId,
+        return { module:"audit", moduleLabel:"Audits", ordreType:"auditaction", id:a.id, parentId:a.pointId,
           parentLabel: point ? (point.intitule || point.id) : a.pointId,
           description:a.description, responsible:a.responsible, dueDate:a.dueDate, treated:a.treated };
       });
-      const revueRows = state.revueActionsLiees.map(a=>{
+      const revueRows = trierParOrdre(state.revueActionsLiees).map(a=>{
         const revue = state.revues.find(r=>r.id===a.revueId);
-        return { module:"revue", moduleLabel:"Revues", id:a.id, parentId:a.revueId,
+        return { module:"revue", moduleLabel:"Revues", ordreType:"revueaction", id:a.id, parentId:a.revueId,
           parentLabel: revue ? (revue.periodeCouverte || revue.id) : a.revueId,
           description:a.description, responsible:a.responsible, dueDate:a.dueDate, treated:a.treated };
       });
@@ -3080,7 +3290,16 @@
       if(statutFilter) rows = rows.filter(r=>r.treated===statutFilter);
       if(q) rows = rows.filter(r=>[r.id,r.parentLabel,r.description,r.responsible].join(" ").toLowerCase().includes(q));
 
-      tbody.innerHTML = rows.length ? rows.map(r=>`
+      const peutOrdonner = currentUser && ["Pilote","Co-pilote","Ressource"].includes(currentUser.role);
+      // Position de chaque action au sein de sa propre fratrie (même parent) pour activer/désactiver les flèches
+      tbody.innerHTML = rows.length ? rows.map(r=>{
+        let ordreHtml = "";
+        if(peutOrdonner){
+          const fratrie = fratrieOrdonnee(r.ordreType, r.id);
+          const idx = fratrie.indexOf(r.id);
+          if(idx >= 0 && fratrie.length > 1) ordreHtml = ordreBtnsHtml(r.ordreType, r.id, idx, fratrie.length);
+        }
+        return `
         <tr>
           <td>${r.id}</td>
           <td>${r.moduleLabel}</td>
@@ -3089,9 +3308,9 @@
           <td>${r.responsible||"—"}</td>
           <td>${r.dueDate?fmtDate(r.dueDate):"—"}</td>
           <td><span class="badge ${r.treated==='Oui'?'ok':'warn'}">${r.treated==='Oui'?'Traitée':'Non traitée'}</span></td>
-          <td>${actionLieeSelectHtml(r.module, r.id)}</td>
-        </tr>
-      `).join("") : `<tr><td colspan="8">Aucune action liée ne correspond aux filtres.</td></tr>`;
+          <td><div style="display:flex;gap:6px;align-items:center">${ordreHtml}${actionLieeSelectHtml(r.module, r.id)}</div></td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="8">Aucune action liée ne correspond aux filtres.</td></tr>`;
     }
 
     function allLinkedActionsForNc(ncId){
@@ -3913,11 +4132,317 @@
       const id = "BIL-" + now.getFullYear() + "-" + type.slice(0,4).toUpperCase() + "-" + Date.now().toString().slice(-4);
       const { error } = await sb.from("bilans_animation").insert({ id_bilan:id, exercice_id: currentExercice, type_periode:type, periode_libelle:libelle });
       if(error){ toast("Erreur : " + error.message, "error"); return; }
-      toast("Bilan " + libelle + " généré.", "ok");
+      toast("Bilan " + libelle + " créé. Rédigez maintenant le rapport.", "ok");
       await fetchAll();
       renderRevuesProgramme();
-      downloadBilanPdf(id);
+      // On ouvre directement l'écran de rédaction : le rapport se complète par le narratif
+      // avant d'être exporté en PDF ou en Word.
+      ouvrirRedactionRapport(id);
     };
+
+    // ---------- Rédaction du narratif du rapport de revue de processus ----------
+    // Sections rédigées du canevas EN8-PS3-V01. L'ordre correspond à celui du rapport final.
+    const RAPPORT_SECTIONS = [
+      { key:"contexte", titre:"Contexte et justification",
+        aide:"Rappelez le cadre de la revue : période couverte, cadre normatif (ISO 9001), finalité de l'exercice et destinataires du rapport." },
+      { key:"finalite", titre:"1.2. Présentation et finalité du processus",
+        aide:"Décrivez la raison d'être du processus PS3, son périmètre et sa contribution aux orientations de l'ANADER." },
+      { key:"com_t2", titre:"Commentaire — Tableau 2 : actions décidées lors de la précédente revue",
+        aide:"Analysez le niveau de mise en œuvre des décisions antérieures et expliquez les écarts." },
+      { key:"com_t3", titre:"Commentaire — Tableau 3 : mesure des indicateurs",
+        aide:"Commentez la couverture de mesure : indicateurs renseignés, non renseignés, et causes." },
+      { key:"com_t4", titre:"Commentaire — Tableau 4 : réalisation des actions face aux objectifs",
+        aide:"Analysez le taux de réalisation global et par objectif ; distinguez ce qui avance de ce qui bloque." },
+      { key:"com_t5", titre:"Commentaire — Tableau 5 : respect des délais",
+        aide:"Expliquez les retards constatés et leurs causes (ressources, dépendances externes, arbitrages)." },
+      { key:"com_t6", titre:"Commentaire — Tableau 6 : efficacité des actions",
+        aide:"Une action réalisée n'est pas forcément efficace : appréciez l'atteinte réelle de la cible." },
+      { key:"com_t7", titre:"Commentaire — Tableau 7 : performance du processus",
+        aide:"Portez un jugement d'ensemble sur la performance du processus au regard des objectifs qualité." },
+      { key:"com_t8", titre:"Commentaire — Tableaux 8 à 10 : non-conformités et actions correctives",
+        aide:"Analysez le volume, la nature récurrente et le traitement des non-conformités, ainsi que l'efficacité des corrections." },
+      { key:"com_t12", titre:"Commentaire — Tableaux 11 et 12 : résultats d'audit",
+        aide:"Commentez la mise en œuvre des recommandations d'audit et le traitement des écarts relevés." },
+      { key:"com_t13", titre:"Commentaire — Tableaux 13 à 15 : risques et opportunités",
+        aide:"Appréciez la maîtrise effective des risques et la valorisation des opportunités identifiées." },
+      { key:"com_t16", titre:"Commentaire — Tableau 16 : tenue des revues de processus",
+        aide:"Commentez le respect du programme de revues et la qualité de l'animation du processus." },
+      { key:"difficultes", titre:"2.7. Difficultés rencontrées",
+        aide:"Recensez les obstacles rencontrés dans l'animation et l'exécution du processus sur la période." },
+      { key:"opportunites", titre:"3.1. Opportunités d'amélioration",
+        aide:"Formulez les décisions et actions d'amélioration retenues après analyse des éléments d'entrée (section II)." },
+      { key:"besoins_changement", titre:"3.2. Besoins du changement",
+        aide:"Recensez les besoins d'évolution : procédures, organisation, outils, compétences." },
+      { key:"besoins_ressources", titre:"3.3. Besoins en ressources",
+        aide:"Recensez les ressources nécessaires (humaines, matérielles, financières) découlant des points précédents." },
+      { key:"conclusion", titre:"Conclusion générale",
+        aide:"Synthétisez l'appréciation globale du processus sur la période et les priorités pour la période suivante." }
+    ];
+
+    let currentBilanId = null;
+    let narratifsCharges = {};
+
+    // Suggestions calculées à partir des données réelles de la plateforme.
+    // Elles ne remplacent pas la rédaction : elles fournissent les faits chiffrés à commenter.
+    function suggestionsRapport(b){
+      const s = {};
+      const pct = (n,d)=> d ? Math.round((n/d)*100) : 0;
+      const revuesPeriode = revuesForBilanPeriod(b);
+      const tenues = revuesPeriode.filter(r=>r.statut==="Tenue"||r.statut==="Clôturée");
+
+      s.contexte = [
+        `La présente revue couvre la période ${b.periodeLibelle} (bilan ${b.typePeriode.toLowerCase()}) du processus support PS3 « Gérer le patrimoine ».`,
+        `Elle s'inscrit dans le cadre du système de management de la qualité de l'ANADER, conformément aux exigences de la norme ISO 9001 relatives à la revue de processus.`,
+        `${revuesPeriode.length} séance(s) de revue étaient programmées sur la période, dont ${tenues.length} effectivement tenue(s).`
+      ];
+      s.finalite = [
+        `Le processus PS3 a pour finalité d'améliorer les conditions de travail en optimisant la gestion du patrimoine de l'ANADER.`,
+        `Il couvre l'expression des besoins, l'acquisition, la réception, la codification, l'attribution, le suivi d'utilisation, l'inventaire et la réforme des biens.`
+      ];
+
+      // Actions décidées lors des revues antérieures
+      const dateDebut = revuesPeriode.length ? revuesPeriode.reduce((min,r)=>r.datePrevue<min?r.datePrevue:min, revuesPeriode[0].datePrevue) : null;
+      const actionsAnt = dateDebut ? state.revues.filter(r=>r.datePrevue<dateDebut).flatMap(r=>allLinkedActionsForRevue(r.id)) : [];
+      const realiseesAnt = actionsAnt.filter(a=>a.treated==="Oui").length;
+      s.com_t2 = actionsAnt.length
+        ? [ `Sur ${actionsAnt.length} action(s) décidée(s) lors des revues antérieures, ${realiseesAnt} ont été réalisée(s), soit un taux de ${pct(realiseesAnt, actionsAnt.length)}%.`,
+            realiseesAnt < actionsAnt.length
+              ? `${actionsAnt.length - realiseesAnt} action(s) restent en cours : ${actionsAnt.filter(a=>a.treated!=="Oui").slice(0,3).map(a=>a.description).join(" ; ")}. Les causes de non-réalisation doivent être analysées.`
+              : `L'ensemble des décisions antérieures a été mis en œuvre, ce qui traduit une bonne dynamique de suivi.` ]
+        : [ `Aucune action issue d'une revue antérieure n'était en portefeuille au début de la période : il s'agit du premier cycle de revue documenté sur la plateforme.` ];
+
+      // Indicateurs
+      const indMesures = state.indicateurs.filter(i=>mesuresForIndicateur(i.id, undefined).length>0);
+      const indNonMesures = state.indicateurs.filter(i=>mesuresForIndicateur(i.id, undefined).length===0);
+      s.com_t3 = [
+        `${indMesures.length} indicateur(s) sur ${state.indicateurs.length} ont fait l'objet d'une mesure, soit un taux de couverture de ${pct(indMesures.length, state.indicateurs.length)}%.`,
+        indNonMesures.length
+          ? `Les indicateurs non renseignés (${indNonMesures.map(i=>i.id).join(", ")}) doivent être documentés pour fiabiliser l'appréciation de la performance.`
+          : `L'ensemble des indicateurs statutaires du processus est renseigné.`
+      ];
+      const indAtteints = state.indicateurs.filter(i=>{
+        const t = computeTauxIndicateur(i, mesuresForIndicateur(i.id, undefined));
+        return t !== null && t >= (Number(i.valeurCible)||100)/100;
+      });
+      const indSousCible = state.indicateurs.filter(i=>{
+        const t = computeTauxIndicateur(i, mesuresForIndicateur(i.id, undefined));
+        return t !== null && t < (Number(i.valeurCible)||100)/100;
+      });
+      s.com_t7 = [
+        `${indAtteints.length} indicateur(s) atteignent leur valeur cible sur ${indMesures.length} mesuré(s).`,
+        indSousCible.length
+          ? `Les indicateurs en deçà de la cible sont : ${indSousCible.map(i=>`${i.id} (${i.intitule})`).join(" ; ")}. Ces écarts appellent des mesures correctives ciblées.`
+          : `Aucun indicateur mesuré ne se situe en deçà de sa valeur cible sur la période.`,
+        `Nota : le calcul du taux de réalisation des objectifs ne prend en compte que les objectifs dont l'indicateur est explicitement rattaché dans le tableau de bord.`
+      ];
+
+      // Activités face aux objectifs
+      const actObj = state.activites.filter(a=>a.type_cible==="Objectif");
+      const actObjClot = actObj.filter(a=>a.statut==="Clôturé");
+      const actObjDelai = actObjClot.filter(a=>a.date_reelle && a.date_prevue && a.date_reelle<=a.date_prevue);
+      const actObjRetard = actObj.filter(a=>a.statut!=="Clôturé" && a.date_prevue && new Date(a.date_prevue) < new Date());
+      s.com_t4 = [
+        `${actObjClot.length} activité(s) sur ${actObj.length} planifiée(s) face aux objectifs ont été clôturée(s), soit un taux de réalisation de ${pct(actObjClot.length, actObj.length)}%.`,
+        actObjRetard.length
+          ? `${actObjRetard.length} activité(s) accusent un retard par rapport à leur date prévue, notamment : ${actObjRetard.slice(0,3).map(a=>a.denomination).join(" ; ")}.`
+          : `Aucune activité n'accuse de retard par rapport à son échéance prévue.`
+      ];
+      s.com_t5 = [
+        `${actObjDelai.length} activité(s) clôturée(s) l'ont été dans le délai prévu, soit ${pct(actObjDelai.length, actObj.length)}% des activités planifiées.`,
+        actObjClot.length > actObjDelai.length
+          ? `${actObjClot.length - actObjDelai.length} activité(s) ont été réalisées hors délai : les causes de dérive doivent être documentées dans la fiche de chaque activité.`
+          : `Le respect des délais est satisfaisant sur la période.`
+      ];
+      s.com_t6 = [
+        `L'efficacité des actions s'apprécie au regard de l'atteinte de la valeur cible de l'indicateur rattaché à chaque objectif.`,
+        indAtteints.length
+          ? `Les actions rattachées aux objectifs suivants ont produit l'effet attendu : ${indAtteints.map(i=>i.objectifLie||i.id).join(", ")}.`
+          : `Aucun objectif ne dispose à ce stade d'un indicateur ayant atteint sa cible : l'efficacité des actions ne peut être établie formellement.`
+      ];
+
+      // Non-conformités
+      const ncTraitees = state.ncs.filter(isNcClosed);
+      const ncEfficaces = state.ncs.filter(n=>n.efficacy==="Oui");
+      const ncOuvertes = state.ncs.filter(n=>!isNcClosed(n));
+      s.com_t8 = [
+        `${state.ncs.length} non-conformité(s) ont été enregistrée(s) sur le processus, dont ${ncTraitees.length} traitée(s), soit un taux de traitement de ${pct(ncTraitees.length, state.ncs.length)}%.`,
+        ncOuvertes.length
+          ? `${ncOuvertes.length} non-conformité(s) demeurent ouvertes : ${ncOuvertes.slice(0,3).map(n=>`${n.id} — ${n.description}`).join(" ; ")}.`
+          : `Toutes les non-conformités enregistrées ont été traitées.`,
+        `L'efficacité des actions correctives est vérifiée pour ${ncEfficaces.length} non-conformité(s), soit ${pct(ncEfficaces.length, ncTraitees.length)}% des non-conformités traitées.`,
+        (()=>{
+          const causes = state.ncs.map(n=>n.cause).filter(Boolean);
+          return causes.length ? `Les causes racines les plus fréquemment identifiées sont : ${[...new Set(causes)].slice(0,3).join(" ; ")}.` : null;
+        })()
+      ].filter(Boolean);
+
+      // Audits
+      const ptsTraites = state.points.filter(isPointClosed);
+      const ptsOuverts = state.points.filter(p=>!isPointClosed(p));
+      s.com_t12 = [
+        `${state.points.length} point(s) d'amélioration issus des audits sont suivis, dont ${ptsTraites.length} traité(s), soit ${pct(ptsTraites.length, state.points.length)}%.`,
+        ptsOuverts.length
+          ? `Les points restant à solder sont : ${ptsOuverts.map(p=>p.intitule).join(" ; ")}.`
+          : `L'ensemble des points d'amélioration issus des audits a été soldé.`
+      ];
+
+      // Risques et opportunités
+      const actRisq = state.activites.filter(a=>a.type_cible==="Risque");
+      const actRisqClot = actRisq.filter(a=>a.statut==="Clôturé");
+      const risquesCritiques = state.risquesRef.filter(r=>Number(r.criticite) >= 15);
+      s.com_t13 = [
+        `${actRisqClot.length} activité(s) de maîtrise sur ${actRisq.length} planifiée(s) ont été clôturée(s), soit ${pct(actRisqClot.length, actRisq.length)}%.`,
+        risquesCritiques.length
+          ? `Les risques de criticité élevée (≥ 15) restent : ${risquesCritiques.map(r=>`${r.id_risque} — ${r.description}`).join(" ; ")}. Leur niveau de maîtrise doit être réapprécié.`
+          : `Aucun risque de criticité élevée n'est recensé sur le processus.`
+      ];
+
+      // Revues
+      s.com_t16 = [
+        `${tenues.length} revue(s) tenue(s) sur ${revuesPeriode.length} programmée(s), soit un taux de réalisation du programme de ${pct(tenues.length, revuesPeriode.length)}%.`,
+        revuesPeriode.length > tenues.length
+          ? `${revuesPeriode.length - tenues.length} séance(s) n'ont pas été tenues à ce jour : le respect du rythme d'animation (2ᵉ et 4ᵉ jeudis) doit être renforcé.`
+          : `Le programme d'animation du processus a été intégralement respecté sur la période.`
+      ];
+
+      // Difficultés
+      const terrains = revuesPeriode.filter(r=>r.pointsTerrain).map(r=>r.pointsTerrain);
+      s.difficultes = terrains.length
+        ? terrains.map(t=>`Point relevé en séance : ${t}`)
+        : [ `Aucune difficulté n'a été consignée dans les points de terrain des séances de la période. Complétez ce bloc à partir des échanges tenus en séance (contraintes budgétaires, disponibilité des acteurs, infrastructures, délais fournisseurs...).` ];
+
+      // Opportunités d'amélioration
+      const decisions = revuesPeriode.flatMap(r=>state.revuePoints.filter(p=>p.revueId===r.id)).filter(p=>p.decision);
+      s.opportunites = decisions.length
+        ? decisions.map(p=>`${p.categorie} — Constat : ${p.constat} → Décision : ${p.decision}`)
+        : [ `Aucune décision d'amélioration n'a encore été consignée dans les séances de la période. Les constats analysés en section II doivent déboucher sur des décisions formalisées.` ];
+
+      s.besoins_changement = [
+        ncOuvertes.length || ptsOuverts.length
+          ? `Les non-conformités et points d'audit non soldés suggèrent des besoins d'évolution des procédures et des pratiques : ${[...ncOuvertes.map(n=>n.cause), ...ptsOuverts.map(p=>p.intitule)].filter(Boolean).slice(0,3).join(" ; ")}.`
+          : `Aucun besoin de changement majeur n'émerge des éléments d'entrée de la période.`,
+        `Précisez ici les évolutions attendues en matière d'organisation, de procédures, d'outils numériques et de compétences des acteurs.`
+      ];
+      s.besoins_ressources = [
+        `Recensez les ressources nécessaires à la mise en œuvre des opportunités d'amélioration et des besoins de changement identifiés ci-dessus.`,
+        indNonMesures.length || ncOuvertes.length
+          ? `Les difficultés de renseignement des données et de traitement des écarts peuvent traduire un besoin en ressources humaines dédiées, en formation des acteurs relais ou en moyens techniques (connexion, équipements).`
+          : `Aucun besoin en ressources critique n'est identifié à ce stade.`
+      ];
+      s.conclusion = [
+        `Sur la période ${b.periodeLibelle}, le processus PS3 affiche un taux de réalisation des activités de ${pct(actObjClot.length + actRisqClot.length, actObj.length + actRisq.length)}%, un taux de traitement des non-conformités de ${pct(ncTraitees.length, state.ncs.length)}% et un taux de tenue des revues de ${pct(tenues.length, revuesPeriode.length)}%.`,
+        (indSousCible.length || ncOuvertes.length || actObjRetard.length)
+          ? `Les priorités pour la période suivante portent sur le redressement des indicateurs en deçà de la cible, la clôture des non-conformités ouvertes et la résorption des retards d'exécution.`
+          : `Les résultats de la période traduisent une maîtrise satisfaisante du processus ; l'enjeu de la période suivante est la consolidation de cette performance.`
+      ];
+      return s;
+    }
+
+    function narratifValeur(key){
+      return (narratifsCharges[key] && narratifsCharges[key].contenu) || "";
+    }
+    window.ouvrirRedactionRapport = async function(bilanId){
+      const b = state.bilansAnimation.find(x=>x.id===bilanId);
+      if(!b) return;
+      currentBilanId = bilanId;
+      const { data, error } = await sb.from("bilan_narratifs").select("*").eq("id_bilan", bilanId);
+      if(error){ toast("Erreur de chargement : " + error.message, "error"); return; }
+      narratifsCharges = {};
+      (data||[]).forEach(r=>{ narratifsCharges[r.section] = r; });
+      qs("#rapportRedactionTitre").textContent = `Rédaction du rapport — ${b.periodeLibelle}`;
+      qs("#rapportRedactionSousTitre").textContent = `Bilan ${b.typePeriode.toLowerCase()} · ${b.id}`;
+      const sugg = suggestionsRapport(b);
+      qs("#rapportSectionsContainer").innerHTML = RAPPORT_SECTIONS.map(sec=>{
+        const propositions = (sugg[sec.key]||[]).filter(Boolean);
+        const redacteur = narratifsCharges[sec.key] && narratifsCharges[sec.key].redige_par;
+        return `
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title">
+            <div><h3>${sec.titre}</h3><p>${sec.aide}</p></div>
+            ${redacteur ? `<span class="badge neutral">Rédigé par ${redacteur}</span>` : `<span class="badge warn">À rédiger</span>`}
+          </div>
+          <textarea id="narratif_${sec.key}" rows="6" style="width:100%" placeholder="Rédigez cette section...">${auditEscape(narratifValeur(sec.key))}</textarea>
+          ${propositions.length ? `
+            <div style="margin-top:10px">
+              <strong style="font-size:13px">Suggestions issues de vos données</strong>
+              <div class="list" style="margin-top:6px">
+                ${propositions.map((p,i)=>`
+                  <div class="list-item" style="background:#f8fafc">
+                    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+                      <div class="muted" style="flex:1">${auditEscape(p)}</div>
+                      <button class="btn secondary" type="button" style="padding:6px 12px;flex-shrink:0" onclick="reprendreSuggestion('${sec.key}',${i})">Reprendre</button>
+                    </div>
+                  </div>`).join("")}
+                <div><button class="btn ghost" type="button" onclick="reprendreToutesSuggestions('${sec.key}')">Reprendre toutes les suggestions</button></div>
+              </div>
+            </div>` : ""}
+        </div>`;
+      }).join("");
+      // Mémorisation des suggestions pour les boutons "Reprendre"
+      window._suggestionsCourantes = sugg;
+      goToView("rapportRedaction");
+    };
+    window.reprendreSuggestion = function(key, index){
+      const sugg = (window._suggestionsCourantes || {})[key] || [];
+      const texte = sugg[index];
+      if(!texte) return;
+      const ta = qs("#narratif_"+key);
+      ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + texte;
+      ta.focus();
+    };
+    window.reprendreToutesSuggestions = function(key){
+      const sugg = ((window._suggestionsCourantes || {})[key] || []).filter(Boolean);
+      if(!sugg.length) return;
+      const ta = qs("#narratif_"+key);
+      ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + sugg.join(" ");
+      ta.focus();
+    };
+    window.enregistrerNarratifRapport = async function(){
+      if(!currentBilanId){ toast("Aucun rapport sélectionné.", "error"); return; }
+      if(!currentUser || !["Pilote","Co-pilote","Ressource"].includes(currentUser.role)){
+        toast("Seuls le Pilote, les Co-pilotes et les Personnes ressources peuvent rédiger le rapport.", "error");
+        return;
+      }
+      const lignes = RAPPORT_SECTIONS.map(sec=>({
+        id_bilan: currentBilanId,
+        section: sec.key,
+        contenu: qs("#narratif_"+sec.key).value.trim() || null,
+        redige_par: currentUser.name,
+        updated_at: new Date().toISOString()
+      })).filter(l=>l.contenu !== null);
+      // Les sections vidées sont supprimées pour ne pas laisser de blocs fantômes dans le rapport
+      const clesRemplies = lignes.map(l=>l.section);
+      const clesASupprimer = RAPPORT_SECTIONS.map(s=>s.key).filter(k=>!clesRemplies.includes(k));
+      if(clesASupprimer.length){
+        await sb.from("bilan_narratifs").delete().eq("id_bilan", currentBilanId).in("section", clesASupprimer);
+      }
+      if(lignes.length){
+        const { error } = await sb.from("bilan_narratifs").upsert(lignes, { onConflict: "id_bilan,section" });
+        if(error){ toast("Erreur d'enregistrement : " + error.message, "error"); return; }
+      }
+      toast(`Rapport enregistré (${lignes.length} section(s) rédigée(s)).`, "ok");
+      await chargerNarratifsPourRapport(currentBilanId);
+      // Rafraîchit les badges « Rédigé par / À rédiger » sans quitter l'écran
+      await ouvrirRedactionRapport(currentBilanId);
+    };
+    // Cache des narratifs utilisé lors de la génération du document final
+    let narratifsRapportCache = {};
+    async function chargerNarratifsPourRapport(bilanId){
+      const { data } = await sb.from("bilan_narratifs").select("*").eq("id_bilan", bilanId);
+      narratifsRapportCache = {};
+      (data||[]).forEach(r=>{ narratifsRapportCache[r.section] = r.contenu || ""; });
+      return narratifsRapportCache;
+    }
+    // Rendu d'un bloc narratif dans le document : paragraphes séparés, ou mention explicite si non rédigé
+    function narratifHtml(key, obligatoire){
+      const txt = (narratifsRapportCache[key] || "").trim();
+      if(!txt){
+        return obligatoire
+          ? `<p style="color:#888"><em>[Section à rédiger dans la plateforme — écran « Rédiger le rapport »]</em></p>`
+          : "";
+      }
+      return txt.split(/\n{1,}/).filter(l=>l.trim()).map(l=>`<p>${l.replace(/</g,"&lt;")}</p>`).join("");
+    }
 
     // ---------- Rapport de revue de processus — structure conforme au canevas EN8-PS3-V01 ----------
     function buildRapportRevueProcessusHtml(b){
@@ -4021,9 +4546,11 @@
 
       return anaderLetterheadHtml("RAPPORT DE REVUE DE PROCESSUS", `Gérer le patrimoine — ${b.periodeLibelle} (${b.typePeriode})`) + `
         <h2>CONTEXTE ET JUSTIFICATION</h2>
+        ${narratifHtml("contexte", true)}
         <h3>I. Présentation du processus</h3>
         <p><strong>1.1. Liste des pilotes et co-pilotes du processus :</strong> ${pilotesCopilotes.map(a=>`${a.nom_prenoms} (${a.role})`).join(", ")||"—"}</p>
-        <p><strong>1.2. Finalité du processus :</strong> Améliorer les conditions de travail en optimisant la gestion du patrimoine de l'ANADER.</p>
+        <p><strong>1.2. Présentation et finalité du processus</strong></p>
+        ${narratifHtml("finalite", true)}
         <p><strong>1.3. Rappel des objectifs du processus</strong></p>
         <p><em>Tableau 1 : Liste des objectifs du processus</em></p>
         <table><tr><th>Objectifs stratégiques</th><th>Objectifs opérationnels</th><th>Indicateurs de performance</th><th>Valeur cible</th></tr>${tab1}</table>
@@ -4032,25 +4559,38 @@
         <p><strong>2.1. État d'avancement des actions décidées lors de la précédente revue</strong></p>
         <p><em>Tableau 2 : Situation état d'avancement des actions décidées lors de la précédente revue</em></p>
         <table><tr><th>Indicateurs</th><th>Prévues</th><th>Réalisées</th><th>Taux de réalisation</th></tr>${tab2}</table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t2", true)}
 
         <p><strong>2.2. Degré de réalisation des objectifs qualité</strong></p>
         <p><strong>2.2.1. Mesure des indicateurs des processus</strong></p>
         <p><em>Tableau 3 : Situation du niveau de réalisation des indicateurs des processus</em></p>
         <table><tr><th>Processus</th><th>Nombre total d'indicateurs à mesurer</th><th>Nombre d'indicateurs mesurés</th><th>Taux d'indicateurs mesurés</th></tr>${tab3}</table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t3", true)}
+        <p><strong>Résultats de la mesure des indicateurs</strong></p>
         ${indicateurBullets}
 
         <p><strong>2.2.2. Mise en œuvre des actions face aux objectifs</strong></p>
         <p><em>Tableau 4 : Niveau de réalisation des actions planifiées face aux objectifs</em></p>
         <table><tr><th>Objectifs du processus</th><th>Nombre d'actions planifiées</th><th>Nombre d'actions réalisées</th><th>Taux de réalisation</th></tr>${tab4}<tr><td>TOTAL</td><td>${totalObjPlan}</td><td>${totalObjReal}</td><td>${totalObjPlan?Math.round((totalObjReal/totalObjPlan)*100):0}%</td></tr></table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t4", true)}
         <p><em>Tableau 5 : Niveau de réalisation des actions planifiées face aux objectifs selon le délai</em></p>
         <table><tr><th>Objectifs du processus</th><th>Nombre d'actions planifiées</th><th>Nombre réalisées dans le délai</th><th>Proportion dans le délai</th></tr>${tab5}<tr><td>TOTAL</td><td>${totalObjPlan}</td><td>${totalObjDelai}</td><td>${totalObjPlan?Math.round((totalObjDelai/totalObjPlan)*100):0}%</td></tr></table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t5", true)}
         <p><em>Tableau 6 : Niveau de réalisation des actions planifiées ayant atteint la cible</em></p>
         <table><tr><th>Objectifs du processus</th><th>Nombre d'actions planifiées</th><th>Nombre ayant atteint la cible</th><th>Taux d'efficacité</th></tr>${tab6}</table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t6", true)}
 
         <p><strong>2.2.3. Performance des processus</strong></p>
         <p><em>Tableau 7 : Niveau de réalisation des objectifs des processus</em></p>
         <table><tr><th>Processus</th><th>Nombre total d'objectifs</th><th>Nombre d'objectifs ayant atteint la cible</th><th>Taux de réalisation</th></tr>${tab7}</table>
         <p class="muted" style="font-size:9pt">Nota : seuls les objectifs dont l'indicateur associé est explicitement lié dans le tableau de bord entrent dans ce calcul.</p>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t7", true)}
 
         <p><strong>2.3. Non-conformités et actions correctives</strong></p>
         <p><em>Tableau 8 : Situation des non-conformités enregistrées</em></p>
@@ -4059,12 +4599,16 @@
         <table><tr><th>Processus</th><th>Nombre enregistrées</th><th>Nombre traitées</th><th>Taux</th></tr>${tab9}</table>
         <p><em>Tableau 10 : Situation des non-conformités ayant atteint la cible (efficacité)</em></p>
         <table><tr><th>Processus</th><th>Nombre total d'actions correctives</th><th>Nombre efficaces</th><th>Taux d'efficacité</th></tr>${tab10}</table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t8", true)}
 
         <p><strong>2.4. Résultats d'audit</strong></p>
         <p><em>Tableau 11 : Situation de la mise en œuvre des audits du processus</em></p>
         <table><tr><th>Processus</th><th>Nombre planifié</th><th>Nombre réalisé</th><th>Taux de réalisation</th></tr>${tab11}</table>
         <p><em>Tableau 12 : Situation du traitement des non-conformités enregistrées sur les audits</em></p>
         <table><tr><th>Processus</th><th>Nombre total</th><th>Nombre traitées</th><th>Taux</th></tr>${tab12}</table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t12", true)}
 
         <p><strong>2.5. Efficacité des actions mises en œuvre face aux risques et opportunités</strong></p>
         <p><em>Tableau 13 : Niveau de réalisation des actions planifiées face aux risques et opportunités</em></p>
@@ -4073,21 +4617,31 @@
         <table><tr><th>Risques du processus</th><th>Nombre d'actions planifiées</th><th>Nombre dans le délai</th><th>Proportion</th></tr>${tab14}</table>
         <p><em>Tableau 15 : Niveau de réalisation des actions planifiées face aux risques et opportunités ayant atteint la cible</em></p>
         <table><tr><th>Risques du processus</th><th>Nombre d'actions planifiées</th><th>Nombre efficaces</th><th>Taux</th></tr>${tab15}</table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t13", true)}
 
         <p><strong>2.6. Revue de processus</strong></p>
         <p><em>Tableau 16 : Situation de la réalisation des revues de processus</em></p>
         <table><tr><th>Processus</th><th>Nombre de revues planifiées</th><th>Nombre de revues réalisées</th><th>Taux de réalisation du programme</th></tr>${tab16}</table>
+        <p><strong>Commentaire :</strong></p>
+        ${narratifHtml("com_t16", true)}
 
         <p><strong>2.7. Difficultés rencontrées</strong></p>
+        ${narratifHtml("difficultes", true)}
+        <p><em>Points de terrain consignés en séance :</em></p>
         <ul>${difficultes}</ul>
 
         <h3>III. Éléments de sortie de la revue de processus</h3>
         <p><strong>3.1. Opportunités d'amélioration</strong></p>
+        ${narratifHtml("opportunites", true)}
+        <p><em>Décisions consignées en séance sur la période :</em></p>
         <table><tr><th>Catégorie</th><th>Constat</th><th>Décision</th></tr>${opportunites}</table>
         <p><strong>3.2. Besoins du changement</strong></p>
-        <p>À compléter par le Pilote à l'issue de l'analyse de la revue.</p>
+        ${narratifHtml("besoins_changement", true)}
         <p><strong>3.3. Besoins en ressources</strong></p>
-        <p>À compléter par le Pilote à l'issue de l'analyse de la revue.</p>
+        ${narratifHtml("besoins_ressources", true)}
+
+        ${narratifsRapportCache["conclusion"] ? `<h3>CONCLUSION</h3>${narratifHtml("conclusion", false)}` : ""}
 
         <h3>ANNEXE</h3>
         <p><strong>Annexe 1 : Planification des actions et décisions d'amélioration</strong></p>
@@ -4101,17 +4655,19 @@
         <p><strong>Annexe 5 :</strong> Suivi des actions planifiées face aux risques et opportunités — voir module Activités consolidées.</p>
       `;
     }
-    window.downloadBilanPdf = function(bilanId){
+    window.downloadBilanPdf = async function(bilanId){
       const b = state.bilansAnimation.find(x=>x.id===bilanId);
       if(!b) return;
+      await chargerNarratifsPourRapport(bilanId);
       const win = window.open("", "_blank");
       win.document.write(claimsHtmlDocument(`Rapport de revue de processus — ${b.periodeLibelle}`, buildRapportRevueProcessusHtml(b)));
       win.document.close();
       win.print();
     };
-    window.downloadBilanWord = function(bilanId){
+    window.downloadBilanWord = async function(bilanId){
       const b = state.bilansAnimation.find(x=>x.id===bilanId);
       if(!b) return;
+      await chargerNarratifsPourRapport(bilanId);
       simpleDownload(`Rapport_revue_processus_${b.periodeLibelle.replace(/\s+/g,"_")}.doc`, claimsHtmlDocument(`Rapport de revue de processus — ${b.periodeLibelle}`, buildRapportRevueProcessusHtml(b)), "application/msword");
     };
 
@@ -4844,11 +5400,13 @@
 
       const blist = qs("#bilansList");
       if(blist){
+        const peutRediger = currentUser && ["Pilote","Co-pilote","Ressource"].includes(currentUser.role);
         blist.innerHTML = state.bilansAnimation.length ? state.bilansAnimation.map(b=>`
           <div class="list-item">
             <strong>${b.periodeLibelle} (${b.typePeriode})</strong>
             <div class="muted">Généré le ${b.dateGeneration ? fmtDate(b.dateGeneration.slice(0,10)) : "—"}</div>
-            <div style="margin-top:8px;display:flex;gap:8px">
+            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+              ${peutRediger ? `<button class="btn primary" type="button" onclick="ouvrirRedactionRapport('${b.id}')">Rédiger le rapport</button>` : ""}
               <button class="btn secondary" type="button" onclick="downloadBilanPdf('${b.id}')">PDF</button>
               <button class="btn secondary" type="button" onclick="downloadBilanWord('${b.id}')">Word</button>
             </div>
@@ -5044,6 +5602,93 @@
       XLSX.writeFile(wb, `PS3_Export_${todayISO()}.xlsx`);
       toast("Export Excel généré.", "ok");
     });
+
+    // ---------- Sauvegarde complète des données ----------
+    const SAUVEGARDE_TABLES = [
+      { table:"acteurs", feuille:"Equipe_PS3", ordre:"id_acteur" },
+      { table:"exercices", feuille:"Exercices", ordre:"id_exercice" },
+      { table:"logigramme", feuille:"Logigramme", ordre:"etape" },
+      { table:"objectifs_indicateurs", feuille:"Objectifs", ordre:"id_objectif" },
+      { table:"risques_opportunites", feuille:"Risques", ordre:"id_risque" },
+      { table:"activites", feuille:"Activites", ordre:"id_activite" },
+      { table:"sous_activites", feuille:"Sous_Activites", ordre:"id_sous_activite" },
+      { table:"actions_centralisees", feuille:"Actions_Consolidees", ordre:"id_action" },
+      { table:"non_conformites", feuille:"Non_Conformites", ordre:"id_nc" },
+      { table:"nc_actions_liees", feuille:"NC_Actions_Liees", ordre:"id_action_liee" },
+      { table:"reclamations", feuille:"Reclamations", ordre:"id_reclamation" },
+      { table:"reclamation_traitements", feuille:"Reclam_Traitements", ordre:"id" },
+      { table:"reclamation_actions_liees", feuille:"Reclam_Actions_Liees", ordre:"id_action_liee" },
+      { table:"points_amelioration", feuille:"Points_Amelioration", ordre:"id_point" },
+      { table:"audit_actions_liees", feuille:"Audit_Actions_Liees", ordre:"id_action_liee" },
+      { table:"indicateurs_performance", feuille:"Indicateurs", ordre:"id_indicateur" },
+      { table:"indicateurs_mesures", feuille:"Indicateurs_Mesures", ordre:"id_mesure" },
+      { table:"revues", feuille:"Revues", ordre:"date_prevue" },
+      { table:"revue_points", feuille:"Revue_Points", ordre:"id_point" },
+      { table:"revue_actions_liees", feuille:"Revue_Actions_Liees", ordre:"id_action_liee" },
+      { table:"bilans_animation", feuille:"Bilans_Animation", ordre:"id_bilan" },
+      { table:"bilan_narratifs", feuille:"Rapports_Narratif", ordre:"id_bilan" },
+      { table:"registre_preuves", feuille:"Pieces_Justificatives", ordre:"id_preuve" },
+      { table:"role_permissions", feuille:"Permissions_Roles", ordre:"role" }
+    ];
+    function sauvegardeStatut(msg){
+      const el = qs("#sauvegardeStatut");
+      if(el) el.textContent = msg || "";
+    }
+    async function collecterSauvegarde(){
+      const resultat = {};
+      let erreurs = [];
+      for(const def of SAUVEGARDE_TABLES){
+        sauvegardeStatut(`Extraction en cours : ${def.feuille}...`);
+        const { data, error } = await sb.from(def.table).select("*").order(def.ordre, { ascending:true });
+        if(error){ erreurs.push(`${def.table} : ${error.message}`); resultat[def.table] = []; }
+        else resultat[def.table] = data || [];
+      }
+      sauvegardeStatut("");
+      return { resultat, erreurs };
+    }
+    function aplatirValeur(v){
+      if(v === null || v === undefined) return "";
+      if(Array.isArray(v)) return v.join(" | ");
+      if(typeof v === "object") return JSON.stringify(v);
+      return v;
+    }
+    window.telechargerSauvegardeExcel = async function(){
+      if(typeof XLSX === "undefined"){ toast("Bibliothèque Excel indisponible (hors ligne ?).", "error"); return; }
+      toast("Extraction des données en cours...", "ok");
+      const { resultat, erreurs } = await collecterSauvegarde();
+      const wb = XLSX.utils.book_new();
+      let totalLignes = 0;
+      SAUVEGARDE_TABLES.forEach(def=>{
+        const rows = (resultat[def.table] || []).map(r=>{
+          const plat = {};
+          Object.keys(r).forEach(k=>{ plat[k] = aplatirValeur(r[k]); });
+          return plat;
+        });
+        totalLignes += rows.length;
+        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{Info:"Aucune donnée enregistrée"}]);
+        XLSX.utils.book_append_sheet(wb, ws, def.feuille.slice(0,31));
+      });
+      XLSX.writeFile(wb, `PS3_Sauvegarde_${todayISO()}.xlsx`);
+      if(erreurs.length) toast(`Sauvegarde générée avec ${erreurs.length} table(s) inaccessible(s).`, "error");
+      else toast(`Sauvegarde Excel générée : ${totalLignes} enregistrements.`, "ok");
+    };
+    window.telechargerSauvegardeJson = async function(){
+      toast("Extraction des données en cours...", "ok");
+      const { resultat, erreurs } = await collecterSauvegarde();
+      const totalLignes = Object.values(resultat).reduce((s,arr)=>s+arr.length, 0);
+      const paquet = {
+        plateforme: "PS3 Pilotage – ANADER",
+        date_sauvegarde: new Date().toISOString(),
+        realisee_par: currentUser ? `${currentUser.name} (${currentUser.role})` : "—",
+        nombre_tables: SAUVEGARDE_TABLES.length,
+        nombre_enregistrements: totalLignes,
+        tables_en_erreur: erreurs,
+        donnees: resultat
+      };
+      simpleDownload(`PS3_Sauvegarde_Brute_${todayISO()}.json`, JSON.stringify(paquet, null, 2), "application/json");
+      if(erreurs.length) toast(`Sauvegarde générée avec ${erreurs.length} table(s) inaccessible(s).`, "error");
+      else toast(`Sauvegarde brute générée : ${totalLignes} enregistrements.`, "ok");
+    };
 
     // ---------- Actions : mode Planifier / Exécuter ----------
     function applyActionMode(mode){
