@@ -36,8 +36,16 @@
     .nav-title{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.6);margin:10px 8px 8px}
     .nav button{width:100%;text-align:left;border:none;background:transparent;color:#fff;padding:11px 12px;border-radius:12px;margin:4px 0;cursor:pointer}
     .nav button:hover,.nav button.active{background:rgba(255,255,255,.12)}
+    /* Modules de traitement des écarts : signalés en rouge dans la navigation */
+    .nav button.nav-alerte{background:rgba(207,63,63,.28);color:#ffe4e4;font-weight:700}
+    .nav button.nav-alerte:hover,.nav button.nav-alerte.active{background:rgba(207,63,63,.55);color:#fff}
     .main{padding:20px}
     .topbar{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px}
+    /* Barre de raccourcis unique de l'accueil : tous les modules sur une seule ligne */
+    .raccourcis{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:4px;max-width:100%}
+    .raccourcis .btn{padding:8px 11px;font-size:12.5px;white-space:nowrap;flex-shrink:0}
+    .raccourcis .btn.danger{background:var(--bad);color:#fff}
+    .raccourcis .btn.danger:hover{background:#b93636}
     .title h1,.title h2{margin:0 0 6px}
     .title p{margin:0;color:var(--muted);line-height:1.45}
     .toolbar,.form-row,.profile-actions,.stats{display:flex;gap:10px;flex-wrap:wrap}
@@ -246,7 +254,8 @@
       <div class="profile">
         <strong id="currentUserName">—</strong>
         <small id="currentUserRole">—</small>
-        <div class="profile-actions" style="margin-top:10px">
+        <div class="profile-actions" style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+          <button class="btn ghost" type="button" onclick="openChangerMotDePasseModal()">Changer mon mot de passe</button>
           <button id="logoutBtn" class="btn ghost" type="button">Déconnexion</button>
         </div>
       </div>
@@ -263,15 +272,15 @@
         <button data-view="flowchart">Logigramme</button>
         <button data-view="objectives">Objectifs</button>
         <button data-view="risks">Risques</button>
-        <button data-view="claims">Réclamations</button>
-        <button data-view="ncs">Non conformités</button>
+        <button class="nav-alerte" data-view="claims">Réclamations</button>
+        <button class="nav-alerte" data-view="ncs">Non conformités</button>
         <button data-view="audits">Audits</button>
         <button data-view="dashboard">Tableau de bord</button>
+        <button data-view="revues">Revue de processus</button>
         <div class="nav-title">Appui</div>
         <button data-view="actions">Actions consolidées</button>
         <button data-view="activitesConsolidees">Activités consolidées</button>
         <button data-view="proofs">Pièces justificatives</button>
-        <button data-view="revues">Revue de processus</button>
         <button data-view="notifications">Alertes</button>
         <button data-view="auditLog" id="auditLogNavBtn">Journal d'audit</button>
         <button data-view="settings">Aide & paramètres</button>
@@ -286,34 +295,23 @@
             <h1>Accueil</h1>
             <p>Point d'entrée simple pour utiliser l'outil selon votre rôle dans l'animation du processus PS3.</p>
           </div>
-          <div class="toolbar">
+          <div class="toolbar raccourcis">
             <button class="btn primary" data-go-view="flowchart" type="button">Logigramme</button>
             <button class="btn secondary" data-go-view="objectives" type="button">Objectifs</button>
             <button class="btn secondary" data-go-view="risks" type="button">Risques</button>
+            <button class="btn danger" data-go-view="claims" type="button">Réclamations</button>
+            <button class="btn danger" data-go-view="ncs" type="button">Non conformités</button>
+            <button class="btn secondary" data-go-view="audits" type="button">Audits</button>
             <button class="btn secondary" data-go-view="dashboard" type="button">Tableau de bord</button>
+            <button class="btn secondary" data-go-view="revues" type="button">Revue</button>
+            <button class="btn secondary" data-go-view="actions" type="button">Actions</button>
+            <button class="btn secondary" data-go-view="activitesConsolidees" type="button">Activités</button>
+            <button class="btn secondary" data-go-view="proofs" type="button">Pièces</button>
           </div>
         </div>
 
         <div class="help">
           <strong>Logique de l'outil :</strong> il aide à appliquer le cycle d'animation du processus : planifier les actions, suivre leur réalisation, collecter les preuves, traiter les écarts, préparer les revues et décider des améliorations. Toutes les données sont désormais partagées en temps réel entre le pilote, les co-pilotes et la personne ressource.
-        </div>
-
-        <div class="card" style="margin-bottom:18px">
-          <div class="section-title">
-            <div>
-              <h3>Accès rapide aux modules</h3>
-              <p>Cliquez sur un module pour accéder à son contenu.</p>
-            </div>
-          </div>
-          <div class="grid kpis">
-            <button class="btn secondary" data-go-view="flowchart" type="button">Logigramme</button>
-            <button class="btn secondary" data-go-view="objectives" type="button">Objectifs</button>
-            <button class="btn secondary" data-go-view="risks" type="button">Risques</button>
-            <button class="btn secondary" data-go-view="claims" type="button">Réclamations</button>
-            <button class="btn secondary" data-go-view="ncs" type="button">Non conformités</button>
-            <button class="btn secondary" data-go-view="audits" type="button">Audits</button>
-            <button class="btn primary" data-go-view="dashboard" type="button">Tableau de bord</button>
-          </div>
         </div>
 
         <div class="grid kpis">
@@ -338,20 +336,12 @@
             <div class="card">
               <div class="section-title">
                 <div>
-                  <h3>Préparer la prochaine revue de processus</h3>
-                  <p>Checklist pratique : objectifs, actions, NC, audits, risques, difficultés et décisions.</p>
+                  <h3 id="prepRevueTitre">Préparer la prochaine revue de processus</h3>
+                  <p id="prepRevueSousTitre">Checklist partagée : l'état est enregistré et visible par toute l'équipe.</p>
                 </div>
+                <span class="badge neutral" id="reviewPrepScore">0/7 préparé</span>
               </div>
-              <div class="list">
-                <label class="list-item"><input type="checkbox" class="review-check"> Tableau de bord et indicateurs du processus disponibles</label>
-                <label class="list-item"><input type="checkbox" class="review-check"> Actions face aux objectifs renseignées</label>
-                <label class="list-item"><input type="checkbox" class="review-check"> Actions face aux risques/opportunités renseignées</label>
-                <label class="list-item"><input type="checkbox" class="review-check"> Non-conformités et actions correctives mises à jour</label>
-                <label class="list-item"><input type="checkbox" class="review-check"> Réclamations et difficultés consolidées</label>
-                <label class="list-item"><input type="checkbox" class="review-check"> Pièces justificatives disponibles et auditables</label>
-                <label class="list-item"><input type="checkbox" class="review-check"> Décisions et opportunités d'amélioration formulées</label>
-              </div>
-              <div style="margin-top:12px"><span class="badge neutral" id="reviewPrepScore">0/7 préparé</span></div>
+              <div class="list" id="prepRevueChecklist"></div>
             </div>
           </div>
 
@@ -365,25 +355,15 @@
               </div>
               <div id="roleGuide" class="list"></div>
             </div>
-
-            <div class="card">
-              <div class="section-title">
-                <div>
-                  <h3>Actions rapides</h3>
-                  <p>Boutons utiles pour le travail quotidien.</p>
-                </div>
-              </div>
-              <div class="grid">
-                <button class="btn primary" data-go-view="flowchart" type="button">Ouvrir le logigramme</button>
-                <button class="btn secondary" data-go-view="objectives" type="button">Suivre les objectifs</button>
-                <button class="btn secondary" data-go-view="risks" type="button">Suivre les risques</button>
-                <button class="btn secondary" data-go-view="claims" type="button">Suivre les réclamations</button>
-                <button class="btn secondary" data-go-view="ncs" type="button">Suivre les non conformités</button>
-                <button class="btn secondary" data-go-view="audits" type="button">Suivre les audits</button>
-                <button class="btn secondary" data-go-view="dashboard" type="button">Ouvrir le tableau de bord</button>
-              </div>
-            </div>
           </div>
+        </div>
+
+        <div class="card" style="margin-top:18px">
+          <div class="section-title">
+            <div><h3>Schéma du processus PS3</h3><p>Représentation graphique du logigramme « Gérer le patrimoine ».</p></div>
+            <button class="btn secondary" type="button" data-go-view="flowchart">Ouvrir le logigramme</button>
+          </div>
+          <div id="homeLogigrammeSchema" style="overflow-x:auto"></div>
         </div>
       </section>
 
@@ -432,16 +412,17 @@
               <option value="audit">Audits</option>
               <option value="revue">Revues</option>
             </select>
-            <select id="actionsFilterStatut" style="width:120px;flex:0 0 auto">
+            <select id="actionsFilterStatut" style="width:125px;flex:0 0 auto">
               <option value="">Statuts</option>
-              <option value="Oui">Traitée</option>
-              <option value="Non">Non traitée</option>
+              <option>Non démarré</option><option>En cours</option><option>Clôturé</option>
             </select>
-            <input id="actionsFilterSearch" type="search" placeholder="Rechercher..." style="width:150px;flex:1 1 auto;min-width:90px" />
+            <select id="actionsFilterRespExec" style="width:140px;flex:0 0 auto"><option value="">Resp. exécution</option></select>
+            <select id="actionsFilterRespSuivi" style="width:130px;flex:0 0 auto"><option value="">Resp. suivi</option></select>
+            <input id="actionsFilterSearch" type="search" placeholder="Rechercher..." style="width:130px;flex:1 1 auto;min-width:90px" />
           </div>
         </div>
         <div class="card"><div class="table-wrap"><table>
-          <thead><tr><th>ID</th><th>Module</th><th>Élément lié</th><th>Description de l'action</th><th>Responsable</th><th>Échéance</th><th>Statut</th><th>Action</th></tr></thead>
+          <thead><tr><th>ID</th><th>Module</th><th>Élément lié</th><th>Description de l'action</th><th>Resp. exécution</th><th>Resp. suivi</th><th>Échéance</th><th>Statut</th><th>Action</th></tr></thead>
           <tbody id="actionsConsolideesTable"></tbody>
         </table></div></div>
       </section>
@@ -450,20 +431,23 @@
         <div class="topbar">
           <div class="title"><h2>Activités</h2><p>Registre consolidé de toutes les sous-activités des modules Objectifs et Risques.</p></div>
           <div class="toolbar" style="flex-wrap:nowrap;gap:8px">
-            <select id="activitesFilterModule" style="width:110px;flex:0 0 auto">
+            <select id="activitesFilterModule" style="width:115px;flex:0 0 auto">
               <option value="">Modules</option>
               <option value="Objectif">Objectifs</option>
               <option value="Risque">Risques</option>
+              <option value="Logigramme">Logigramme</option>
             </select>
-            <select id="activitesFilterStatut" style="width:120px;flex:0 0 auto">
+            <select id="activitesFilterStatut" style="width:125px;flex:0 0 auto">
               <option value="">Statuts</option>
               <option>Non démarré</option><option>En cours</option><option>Clôturé</option>
             </select>
-            <input id="activitesFilterSearch" type="search" placeholder="Rechercher..." style="width:150px;flex:1 1 auto;min-width:90px" />
+            <select id="activitesFilterRespExec" style="width:140px;flex:0 0 auto"><option value="">Resp. exécution</option></select>
+            <select id="activitesFilterRespSuivi" style="width:130px;flex:0 0 auto"><option value="">Resp. suivi</option></select>
+            <input id="activitesFilterSearch" type="search" placeholder="Rechercher..." style="width:130px;flex:1 1 auto;min-width:90px" />
           </div>
         </div>
         <div class="card"><div class="table-wrap"><table>
-          <thead><tr><th>ID</th><th>Module</th><th>Activité</th><th>Sous-activité</th><th>Priorité</th><th>Statut</th><th>Échéance</th><th>Réalisée le</th><th>Action</th></tr></thead>
+          <thead><tr><th>ID</th><th>Module</th><th>Activité</th><th>Sous-activité</th><th>Priorité</th><th>Statut</th><th>Échéance</th><th>Réalisée le</th><th>Resp. exécution</th><th>Resp. suivi</th><th>Action</th></tr></thead>
           <tbody id="activitesConsolideesTable"></tbody>
         </table></div></div>
       </section>
@@ -532,11 +516,28 @@
             <h2>Logigramme</h2>
             <p>Déroulement officiel du processus PS3 (référentiel 1.5 du cadre de travail).</p>
           </div>
+          <div class="toolbar">
+            <button class="btn secondary" type="button" onclick="openEtapeModal()">Ajouter une étape</button>
+            <button class="btn primary" type="button" onclick="openActiviteModal('Logigramme')">Ajouter une activité</button>
+          </div>
         </div>
         <div class="module-intro">
-          Étapes officielles du logigramme PS3, chargées depuis le référentiel partagé. Chaque étape peut être reliée à des non-conformités et réclamations constatées à ce niveau du processus.
+          Étapes officielles du logigramme PS3. Chaque étape peut être reliée à des non-conformités et réclamations constatées à ce niveau du processus, et porter ses propres activités et sous-activités d'amélioration.
         </div>
-        <div class="card">
+
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title">
+            <div><h3>Schéma du processus</h3><p>Représentation graphique : ovales pour le début et la fin, rectangles pour les activités, losanges pour les points de contrôle.</p></div>
+            <div class="toolbar">
+              <button class="btn secondary" type="button" onclick="telechargerSchemaLogigramme('svg')">Télécharger (SVG)</button>
+              <button class="btn secondary" type="button" onclick="telechargerSchemaLogigramme('png')">Télécharger (PNG)</button>
+              <button class="btn secondary" type="button" onclick="imprimerSchemaLogigramme()">Imprimer / PDF</button>
+            </div>
+          </div>
+          <div id="logigrammeSchema" style="overflow-x:auto"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:18px">
           <div class="section-title"><div><h3>Étapes du processus</h3><p>Activité, modalités d'exécution (Comment), acteur responsable, entrée, sortie, point de contrôle, document associé et écarts liés.</p></div></div>
           <div class="table-wrap">
             <table>
@@ -544,6 +545,13 @@
               <tbody id="logigrammeTable"></tbody>
             </table>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title"><div><h3>Activités planifiées sur les étapes du processus</h3><p>Sélectionnez une étape pour voir les activités qui s'y rattachent.</p></div>
+            <select id="flowchartActivitesFilter" style="min-width:260px"><option value="">Toutes les étapes</option></select>
+          </div>
+          <div class="list" id="flowchartActivitesList"></div>
         </div>
       </section>
 
@@ -1126,10 +1134,12 @@
               <textarea id="linkedNcActionDesc" placeholder="Décrire précisément l'action corrective à mener" required></textarea>
             </div>
             <div class="field">
-              <label>Responsable</label>
-              <select id="linkedNcActionResp">
-                <option>Pilote</option><option>Co-pilotes</option><option>Personne ressource</option><option>Acteur concerné</option>
-              </select>
+              <label>Responsable d'exécution</label>
+              <input id="linkedNcActionResp" placeholder="Nom, fonction ou entité" />
+            </div>
+            <div class="field">
+              <label>Responsable de suivi</label>
+              <select id="linkedNcActionRespSuivi" data-acteurs-suivi></select>
             </div>
             <div class="field">
               <label>Date d'échéance prévue</label>
@@ -1249,10 +1259,12 @@
               <textarea id="linkedAuditActionDesc" placeholder="Décrire précisément l'action corrective à mener" required></textarea>
             </div>
             <div class="field">
-              <label>Responsable</label>
-              <select id="linkedAuditActionResp">
-                <option>Pilote</option><option>Co-pilotes</option><option>Personne ressource</option><option>Acteur concerné</option>
-              </select>
+              <label>Responsable d'exécution</label>
+              <input id="linkedAuditActionResp" placeholder="Nom, fonction ou entité" />
+            </div>
+            <div class="field">
+              <label>Responsable de suivi</label>
+              <select id="linkedAuditActionRespSuivi" data-acteurs-suivi></select>
             </div>
             <div class="field">
               <label>Date d'échéance prévue</label>
@@ -1384,7 +1396,8 @@
           <input type="hidden" id="linkedRevueActionPointId" />
           <div class="form-grid">
             <div class="field full"><label>Description de l'action <span style="color:red">*</span></label><textarea id="linkedRevueActionDesc" required></textarea></div>
-            <div class="field"><label>Responsable</label><select id="linkedRevueActionResp"><option>Pilote</option><option>Co-pilotes</option><option>Personne ressource</option><option>Acteur concerné</option></select></div>
+            <div class="field"><label>Responsable d'exécution</label><input id="linkedRevueActionResp" placeholder="Nom, fonction ou entité" /></div>
+            <div class="field"><label>Responsable de suivi</label><select id="linkedRevueActionRespSuivi" data-acteurs-suivi></select></div>
             <div class="field"><label>Échéance</label><input type="date" id="linkedRevueActionDue" /></div>
           </div>
           <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary">Ajouter</button></div>
@@ -1393,6 +1406,46 @@
     </div>
   </div>
 
+
+  <div class="modal" id="changePasswordModal">
+    <div class="modal-box">
+      <div class="modal-head"><strong>Changer mon mot de passe</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
+      <div class="modal-body">
+        <div id="changePasswordMessages"></div>
+        <form id="changePasswordForm">
+          <div class="form-grid">
+            <div class="field full"><label>Mot de passe actuel <span style="color:red">*</span></label><input type="password" id="currentPassword" required autocomplete="current-password" /></div>
+            <div class="field full"><label>Nouveau mot de passe <span style="color:red">*</span></label><input type="password" id="changeNewPassword" required autocomplete="new-password" /></div>
+            <div class="field full"><label>Confirmer le nouveau mot de passe <span style="color:red">*</span></label><input type="password" id="changeNewPasswordConfirm" required autocomplete="new-password" /></div>
+            <div class="field full"><div class="muted" style="font-size:12.5px">Au moins 8 caractères, dont une lettre et un chiffre.</div></div>
+          </div>
+          <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary">Modifier le mot de passe</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="etapeModal">
+    <div class="modal-box">
+      <div class="modal-head"><strong id="etapeModalTitre">Ajouter une étape au logigramme</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
+      <div class="modal-body">
+        <form id="etapeForm">
+          <input type="hidden" id="etapeEditNum" />
+          <div class="form-grid">
+            <div class="field"><label>Numéro d'étape <span style="color:red">*</span></label><input type="number" id="etapeNumero" min="1" required /></div>
+            <div class="field"><label>Acteur responsable</label><input id="etapeActeur" placeholder="Fonction ou entité" /></div>
+            <div class="field full"><label>Activité (Quoi) <span style="color:red">*</span></label><input id="etapeActivite" required /></div>
+            <div class="field full"><label>Comment (modalités d'exécution)</label><textarea id="etapeComment" rows="4"></textarea></div>
+            <div class="field"><label>Entrée</label><input id="etapeEntree" /></div>
+            <div class="field"><label>Sortie</label><input id="etapeSortie" /></div>
+            <div class="field"><label>Point de contrôle</label><input id="etapePointControle" /></div>
+            <div class="field"><label>Document associé</label><input id="etapeDocument" /></div>
+          </div>
+          <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary">Enregistrer</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <div class="modal" id="logigrammeCommentModal">
     <div class="modal-box">
@@ -1453,13 +1506,12 @@
               <textarea id="linkedActionDesc" placeholder="Décrire précisément l'action à mener pour traiter la réclamation" required></textarea>
             </div>
             <div class="field">
-              <label>Responsable</label>
-              <select id="linkedActionResp">
-                <option>Pilote</option>
-                <option>Co-pilotes</option>
-                <option>Personne ressource</option>
-                <option>Acteur concerné</option>
-              </select>
+              <label>Responsable d'exécution</label>
+              <input id="linkedActionResp" placeholder="Nom, fonction ou entité" />
+            </div>
+            <div class="field">
+              <label>Responsable de suivi</label>
+              <select id="linkedActionRespSuivi" data-acteurs-suivi></select>
             </div>
             <div class="field">
               <label>Date d'échéance prévue</label>
@@ -1491,7 +1543,8 @@
             </div>
             <div class="field full"><label>Dénomination de l'activité</label><input id="activiteDenomination" required /></div>
             <div class="field"><label>Date de réalisation prévue</label><input type="date" id="activiteDatePrevue" /></div>
-            <div class="field"><label>Responsable d'exécution</label><input id="activiteResponsable" placeholder="Pilote / Co-pilote / Personne ressource" /></div>
+            <div class="field"><label>Responsable d'exécution</label><input id="activiteResponsable" placeholder="Nom, fonction ou entité — acteur du processus ou non" /></div>
+            <div class="field"><label>Responsable de suivi</label><select id="activiteResponsableSuivi" data-acteurs-suivi></select></div>
             <div class="field"><label>Taux d'avancement (%)</label><input type="number" min="0" max="100" id="activiteTaux" value="0" readonly title="Calculé automatiquement à partir des sous-activités réalisées" /></div>
             <div class="field full" id="activiteSousActivitesBuilder">
               <label>Sous-activités</label>
@@ -1502,6 +1555,8 @@
                 <div class="field" style="flex:1;min-width:120px"><label style="font-size:12px">Priorité</label>
                   <select id="draftSousActivitePriorite"><option>Basse</option><option selected>Moyenne</option><option>Haute</option><option>Critique</option></select>
                 </div>
+                <div class="field" style="flex:1;min-width:150px"><label style="font-size:12px">Resp. exécution</label><input id="draftSousActiviteRespExec" placeholder="Qui exécute" /></div>
+                <div class="field" style="flex:1;min-width:150px"><label style="font-size:12px">Resp. suivi</label><select id="draftSousActiviteRespSuivi" data-acteurs-suivi></select></div>
                 <button type="button" class="btn secondary" id="addDraftSousActiviteBtn" style="height:38px">+ Ajouter</button>
               </div>
             </div>
@@ -1533,6 +1588,8 @@
             <div class="field"><label>Priorité</label>
               <select id="sousActivitePriorite"><option>Basse</option><option selected>Moyenne</option><option>Haute</option><option>Critique</option></select>
             </div>
+            <div class="field"><label>Responsable d'exécution</label><input id="sousActiviteRespExec" placeholder="Nom, fonction ou entité" /></div>
+            <div class="field"><label>Responsable de suivi</label><select id="sousActiviteRespSuivi" data-acteurs-suivi></select></div>
             <div class="field full" style="border-top:1px dashed var(--line);padding-top:12px;margin-top:4px"><strong style="font-size:13px;color:var(--muted)">Exécution (disponible via l'action "Exécuter")</strong></div>
             <div class="field"><label>Statut</label>
               <select id="sousActiviteStatut" disabled><option>Non démarré</option><option>En cours</option><option>Clôturé</option></select>
@@ -1760,7 +1817,58 @@
       return { id_acteur: acteur.id_acteur, name: acteur.nom_prenoms, role: acteur.role, email: acteur.email, userId: user.id };
     }
 
+    // Le lien de réinitialisation reçu par email ouvre l'application avec, dans le fragment
+    // d'URL (#...), soit un jeton de récupération valide, soit une erreur (lien expiré ou
+    // déjà utilisé). Cette analyse doit précéder le routage normal : sans elle, la session
+    // de récupération est prise pour une connexion ordinaire et l'utilisateur atterrit dans
+    // l'application au lieu de l'écran de changement de mot de passe.
+    function analyserFragmentAuth(){
+      const hash = window.location.hash || "";
+      if(!hash || hash.length < 2) return { type:"aucun" };
+      const params = new URLSearchParams(hash.substring(1));
+      if(params.get("error")){
+        return {
+          type: "erreur",
+          code: params.get("error_code") || params.get("error"),
+          description: params.get("error_description") || ""
+        };
+      }
+      if(params.get("type") === "recovery" || (params.get("access_token") && params.get("type") === "recovery")){
+        return { type:"recuperation" };
+      }
+      if(params.get("access_token")) return { type:"session" };
+      return { type:"aucun" };
+    }
+    function nettoyerFragmentUrl(){
+      // Le jeton ne doit pas rester visible ni être conservé dans l'historique
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    function messageErreurLien(code){
+      if(code === "otp_expired" || code === "access_denied"){
+        return "Ce lien de réinitialisation a expiré ou a déjà été utilisé. Les liens sont valables une heure et à usage unique. Demandez-en un nouveau ci-dessous, et cliquez dessus dès sa réception.";
+      }
+      return "Ce lien de réinitialisation n'est plus valide. Demandez-en un nouveau ci-dessous.";
+    }
     async function bootstrapSession(){
+      const frag = analyserFragmentAuth();
+
+      if(frag.type === "erreur"){
+        nettoyerFragmentUrl();
+        showLogin();
+        qs("#signInForm").classList.add("hidden");
+        qs("#signUpForm").classList.add("hidden");
+        qs("#forgotPasswordForm").classList.remove("hidden");
+        loginMessage(messageErreurLien(frag.code), "error");
+        return;
+      }
+
+      if(frag.type === "recuperation"){
+        // La session de récupération est active : on impose l'écran de nouveau mot de passe
+        showResetPasswordScreen();
+        nettoyerFragmentUrl();
+        return;
+      }
+
       const { data: { session } } = await sb.auth.getSession();
       if(!session){ showLogin(); return; }
       const acteur = await resolveActeurForSession();
@@ -1807,17 +1915,57 @@
       qs("#loginScreen").classList.add("hidden");
       qs("#resetPasswordScreen").classList.remove("hidden");
     }
+    // Règle de robustesse commune aux deux écrans (réinitialisation et changement)
+    function validerMotDePasse(p1, p2){
+      if(p1.length < 8) return "Le mot de passe doit contenir au moins 8 caractères.";
+      if(!/[A-Za-z]/.test(p1) || !/[0-9]/.test(p1)) return "Le mot de passe doit contenir au moins une lettre et un chiffre.";
+      if(p1 !== p2) return "Les deux mots de passe ne correspondent pas.";
+      return null;
+    }
     qs("#resetPasswordForm").addEventListener("submit", async (e)=>{
       e.preventDefault();
       const p1 = qs("#newPassword").value;
       const p2 = qs("#newPasswordConfirm").value;
       const msg = h=>{ qs("#resetPasswordMessages").innerHTML = h ? `<div class="login-error">${h}</div>` : ""; };
-      if(p1 !== p2){ msg("Les deux mots de passe ne correspondent pas."); return; }
+      const probleme = validerMotDePasse(p1, p2);
+      if(probleme){ msg(probleme); return; }
       const { error } = await sb.auth.updateUser({ password: p1 });
-      if(error){ msg(error.message); return; }
+      if(error){
+        // Cas typique : la session de récupération a expiré pendant la saisie
+        msg(error.message + " — si le lien a expiré, demandez-en un nouveau depuis l'écran de connexion.");
+        return;
+      }
       toast("Mot de passe mis à jour. Vous pouvez maintenant vous connecter.", "ok");
       qs("#resetPasswordScreen").classList.add("hidden");
+      await sb.auth.signOut();
       showLogin();
+    });
+
+    // ---------- Changement de mot de passe par un membre connecté ----------
+    window.openChangerMotDePasseModal = function(){
+      qs("#changePasswordForm").reset();
+      qs("#changePasswordMessages").innerHTML = "";
+      qs("#changePasswordModal").classList.add("show");
+    };
+    qs("#changePasswordForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const msg = (h,type)=>{ qs("#changePasswordMessages").innerHTML = h ? `<div class="login-${type||'error'}">${h}</div>` : ""; };
+      const actuel = qs("#currentPassword").value;
+      const p1 = qs("#changeNewPassword").value;
+      const p2 = qs("#changeNewPasswordConfirm").value;
+      const probleme = validerMotDePasse(p1, p2);
+      if(probleme){ msg(probleme); return; }
+      if(p1 === actuel){ msg("Le nouveau mot de passe doit être différent de l'actuel."); return; }
+      const { data:{ user } } = await sb.auth.getUser();
+      if(!user || !user.email){ msg("Session expirée : reconnectez-vous."); return; }
+      // Re-authentification : on vérifie l'identité avant d'autoriser le changement
+      const { error: errVerif } = await sb.auth.signInWithPassword({ email: user.email, password: actuel });
+      if(errVerif){ msg("Mot de passe actuel incorrect."); return; }
+      const { error } = await sb.auth.updateUser({ password: p1 });
+      if(error){ msg(error.message); return; }
+      msg("Mot de passe modifié avec succès.", "info");
+      toast("Votre mot de passe a été modifié.", "ok");
+      setTimeout(()=>qs("#changePasswordModal").classList.remove("show"), 1200);
     });
 
     qs("#signInForm").addEventListener("submit", async (e)=>{
@@ -1909,8 +2057,8 @@
         validation:n.validation||"Non", closureDate:n.date_cloture, commentaire:n.commentaire||"", createdAt:n.created_at
       }));
       state.ncActionsLiees = (ncActionsLieesRes.data||[]).map(a=>({
-        id:a.id_action_liee, ncId:a.id_nc, description:a.description, responsible:a.responsable,
-        dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"",
+        id:a.id_action_liee, ncId:a.id_nc, description:a.description, responsible:a.responsable, responsable_execution:a.responsable_execution, responsable_suivi:a.responsable_suivi,
+        dueDate:a.date_echeance, statutExec: statutExecDe(a), treated: statutExecDe(a)==="Clôturé" ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"",
         ordre:a.ordre, created_at:a.created_at
       }));
       state.points = (pointsRes.data||[]).map(p=>({
@@ -1919,8 +2067,8 @@
         validation:p.validation||"Non", commentaire:p.commentaire||""
       }));
       state.auditActionsLiees = (auditActionsLieesRes.data||[]).map(a=>({
-        id:a.id_action_liee, pointId:a.id_point, description:a.description, responsible:a.responsable,
-        dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"",
+        id:a.id_action_liee, pointId:a.id_point, description:a.description, responsible:a.responsable, responsable_execution:a.responsable_execution, responsable_suivi:a.responsable_suivi,
+        dueDate:a.date_echeance, statutExec: statutExecDe(a), treated: statutExecDe(a)==="Clôturé" ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"",
         ordre:a.ordre, created_at:a.created_at
       }));
       state.claims = (claimsRes.data||[]).map(c=>({
@@ -1934,7 +2082,7 @@
       (linkedActionsRes.data||[]).forEach(a=>{
         const key = a.traitement_id;
         if(!linkedByTraitement[key]) linkedByTraitement[key] = [];
-        linkedByTraitement[key].push({ id:a.id_action_liee, description:a.description, responsible:a.responsable, dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"", ordre:a.ordre, created_at:a.created_at, _persisted:true });
+        linkedByTraitement[key].push({ id:a.id_action_liee, description:a.description, responsible:a.responsable, responsable_execution:a.responsable_execution, responsable_suivi:a.responsable_suivi, dueDate:a.date_echeance, statutExec: statutExecDe(a), treated: statutExecDe(a)==="Clôturé" ? "Oui":"Non", proofName:a.fichier_url||"", commentaire:a.commentaire||"", ordre:a.ordre, created_at:a.created_at, _persisted:true });
       });
       state.claimTreatments = (treatmentsRes.data||[]).map(t=>({
         _dbId:t.id, claimId:t.id_reclamation, criticality:t.criticite, status:t.statut, escalation:t.escalade,
@@ -1959,7 +2107,7 @@
       }));
       state.revueActionsLiees = (revueActionsLieesRes.data||[]).map(a=>({
         id:a.id_action_liee, revueId:a.id_revue, pointId:a.id_point, description:a.description,
-        responsible:a.responsable, dueDate:a.date_echeance, treated: a.traite ? "Oui":"Non", commentaire:a.commentaire||"",
+        responsible:a.responsable, responsable_execution:a.responsable_execution, responsable_suivi:a.responsable_suivi, dueDate:a.date_echeance, statutExec: statutExecDe(a), treated: statutExecDe(a)==="Clôturé" ? "Oui":"Non", commentaire:a.commentaire||"",
         ordre:a.ordre, created_at:a.created_at
       }));
       state.bilansAnimation = (bilansRes.data||[]).map(b=>({
@@ -2162,11 +2310,92 @@
       updateReviewPrepScore();
     }
 
+    // ---------- Checklist de préparation de la prochaine revue ----------
+    // L'état n'est plus local au navigateur : il est rattaché à la revue concernée,
+    // enregistré en base, partagé par toute l'équipe et horodaté.
+    // Chaque nouvelle revue repart d'une checklist vierge.
+    const PREP_ITEMS = [
+      { key:"tableau_bord",   label:"Tableau de bord et indicateurs du processus disponibles" },
+      { key:"actions_obj",    label:"Actions face aux objectifs renseignées" },
+      { key:"actions_risques",label:"Actions face aux risques/opportunités renseignées" },
+      { key:"ncs",            label:"Non-conformités et actions correctives mises à jour" },
+      { key:"reclamations",   label:"Réclamations et difficultés consolidées" },
+      { key:"preuves",        label:"Pièces justificatives disponibles et auditables" },
+      { key:"decisions",      label:"Décisions et opportunités d'amélioration formulées" }
+    ];
+    let prepRevueCourante = null;
+    let prepRevueEtat = {};
+    // La revue de référence est la prochaine séance programmée ; à défaut, la dernière connue.
+    function prochaineRevueAPreparer(){
+      const aujourdhui = todayISO();
+      const futures = state.revues
+        .filter(r=>r.datePrevue && r.datePrevue >= aujourdhui && r.statut === "Planifiée")
+        .sort((a,b)=>a.datePrevue.localeCompare(b.datePrevue));
+      if(futures.length) return futures[0];
+      const enRetard = state.revues
+        .filter(r=>r.statut === "Planifiée")
+        .sort((a,b)=>String(b.datePrevue).localeCompare(String(a.datePrevue)));
+      return enRetard[0] || null;
+    }
+    async function chargerPreparationRevue(){
+      const r = prochaineRevueAPreparer();
+      prepRevueCourante = r;
+      prepRevueEtat = {};
+      if(!r){ renderPreparationRevue(); return; }
+      const { data } = await sb.from("revue_preparation").select("*").eq("id_revue", r.id);
+      (data||[]).forEach(x=>{ prepRevueEtat[x.item_key] = x; });
+      renderPreparationRevue();
+    }
+    function renderPreparationRevue(){
+      const cont = qs("#prepRevueChecklist");
+      if(!cont) return;
+      const titre = qs("#prepRevueTitre");
+      const sousTitre = qs("#prepRevueSousTitre");
+      if(!prepRevueCourante){
+        if(titre) titre.textContent = "Préparer la prochaine revue de processus";
+        if(sousTitre) sousTitre.textContent = "Aucune revue programmée : générez le programme annuel depuis le module Revue de processus.";
+        cont.innerHTML = `<div class="list-item"><strong>Aucune revue à préparer</strong><div class="muted">Le programme annuel n'est pas encore généré.</div></div>`;
+        const lab = qs("#reviewPrepScore"); if(lab) lab.textContent = "—";
+        return;
+      }
+      const r = prepRevueCourante;
+      if(titre) titre.textContent = `Préparer la revue du ${fmtDate(r.datePrevue)}`;
+      if(sousTitre) sousTitre.textContent = `${r.id} · ${r.type} · ${r.periodeCouverte||""} — état partagé par toute l'équipe.`;
+      cont.innerHTML = PREP_ITEMS.map(item=>{
+        const etat = prepRevueEtat[item.key];
+        const coche = etat && etat.coche;
+        const info = coche && etat.coche_par
+          ? `<div class="muted" style="font-size:11.5px;margin-left:26px">Coché par ${etat.coche_par}${etat.coche_le ? " le "+new Date(etat.coche_le).toLocaleDateString("fr-FR") : ""}</div>`
+          : "";
+        return `<div class="list-item">
+          <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+            <input type="checkbox" class="review-check" data-prep-key="${item.key}" ${coche?"checked":""} onchange="basculerPreparationRevue('${item.key}', this.checked)" />
+            <span>${item.label}</span>
+          </label>
+          ${info}
+        </div>`;
+      }).join("");
+      updateReviewPrepScore();
+    }
+    window.basculerPreparationRevue = async function(itemKey, coche){
+      if(!prepRevueCourante){ toast("Aucune revue à préparer.", "error"); return; }
+      const ligne = {
+        id_revue: prepRevueCourante.id,
+        item_key: itemKey,
+        coche: !!coche,
+        coche_par: coche && currentUser ? currentUser.name : null,
+        coche_le: coche ? new Date().toISOString() : null
+      };
+      const { error } = await sb.from("revue_preparation").upsert(ligne, { onConflict:"id_revue,item_key" });
+      if(error){ toast("Erreur d'enregistrement : " + error.message, "error"); return; }
+      prepRevueEtat[itemKey] = ligne;
+      renderPreparationRevue();
+    };
     function updateReviewPrepScore(){
       const checks = Array.from(document.querySelectorAll(".review-check"));
-      if(!checks.length) return;
-      const done = checks.filter(c=>c.checked).length;
       const label = qs("#reviewPrepScore");
+      if(!checks.length){ if(label) label.textContent = "—"; return; }
+      const done = checks.filter(c=>c.checked).length;
       if(label) label.textContent = `${done}/${checks.length} préparé`;
     }
 
@@ -2450,7 +2679,7 @@
             <button class="icon-btn" type="button" onclick="openNcModalForEtape(${l.etape})">+ NC</button>
             <button class="icon-btn" type="button" onclick="openClaimModalForEtape(${l.etape})">+ Réclamation</button>
           </td>
-          <td>${peutEditer ? `<button class="btn secondary" type="button" style="padding:6px 12px" onclick="openLogigrammeCommentModal(${l.etape})">Modifier</button>` : ""}</td>
+          <td>${peutEditer ? actionSelectHtml("etape", l.etape) : ""}</td>
         </tr>`;
       }).join("") || `<tr><td colspan="10">Logigramme non renseigné.</td></tr>`;
 
@@ -2458,7 +2687,85 @@
       const etapeOptions = `<option value="">Aucune</option>` + state.logigramme.map(l=>`<option value="${l.etape}">${l.etape}. ${l.activite}</option>`).join("");
       const ncSel = qs("#ncEtapeSelect"); if(ncSel) ncSel.innerHTML = etapeOptions;
       const claimSel = qs("#claimEtapeSelect"); if(claimSel) claimSel.innerHTML = etapeOptions;
+
+      // Filtre des activités rattachées aux étapes
+      const filtreEtapes = qs("#flowchartActivitesFilter");
+      if(filtreEtapes){
+        const courant = filtreEtapes.value;
+        filtreEtapes.innerHTML = `<option value="">Toutes les étapes</option>` +
+          state.logigramme.map(l=>`<option value="${l.etape}">${l.etape}. ${l.activite}</option>`).join("");
+        if(courant) filtreEtapes.value = courant;
+      }
+      renderLogigrammeSchema();
     }
+    // ---------- Étapes du logigramme : création, édition, suppression ----------
+    window.openEtapeModal = function(){
+      if(!currentUser || !["Pilote","Co-pilote"].includes(currentUser.role)){
+        toast("Seuls le Pilote et les Co-pilotes peuvent ajouter une étape.", "error"); return;
+      }
+      qs("#etapeForm").reset();
+      qs("#etapeEditNum").value = "";
+      qs("#etapeModalTitre").textContent = "Ajouter une étape au logigramme";
+      const max = state.logigramme.reduce((m,l)=>Math.max(m, Number(l.etape)||0), 0);
+      qs("#etapeNumero").value = max + 1;
+      qs("#etapeModal").classList.add("show");
+    };
+    window.openEtapeEditModal = function(etape){
+      const l = state.logigramme.find(x=>String(x.etape)===String(etape));
+      if(!l) return;
+      qs("#etapeForm").reset();
+      qs("#etapeEditNum").value = l.etape;
+      qs("#etapeModalTitre").textContent = `Modifier l'étape ${l.etape}`;
+      qs("#etapeNumero").value = l.etape;
+      qs("#etapeActivite").value = l.activite || "";
+      qs("#etapeComment").value = l.comment_execution || "";
+      qs("#etapeActeur").value = l.acteur_responsable || "";
+      qs("#etapeEntree").value = l.entree || "";
+      qs("#etapeSortie").value = l.sortie || "";
+      qs("#etapePointControle").value = l.point_controle || "";
+      qs("#etapeDocument").value = l.document_associe || "";
+      qs("#etapeModal").classList.add("show");
+    };
+    qs("#etapeForm").addEventListener("submit", async e=>{
+      e.preventDefault();
+      const editNum = qs("#etapeEditNum").value;
+      const numero = parseInt(qs("#etapeNumero").value, 10);
+      if(!numero || numero < 1){ toast("Numéro d'étape invalide.", "error"); return; }
+      const doublon = state.logigramme.find(l=>Number(l.etape)===numero && String(l.etape)!==String(editNum));
+      if(doublon){ toast(`L'étape ${numero} existe déjà.`, "error"); return; }
+      const champs = {
+        activite: qs("#etapeActivite").value.trim(),
+        comment_execution: qs("#etapeComment").value.trim() || null,
+        acteur_responsable: qs("#etapeActeur").value.trim() || null,
+        entree: qs("#etapeEntree").value.trim() || null,
+        sortie: qs("#etapeSortie").value.trim() || null,
+        point_controle: qs("#etapePointControle").value.trim() || null,
+        document_associe: qs("#etapeDocument").value.trim() || null
+      };
+      let error;
+      if(editNum){
+        ({ error } = await sb.from("logigramme").update({ ...champs, etape: numero }).eq("etape", parseInt(editNum,10)));
+      } else {
+        ({ error } = await sb.from("logigramme").insert({ etape: numero, ordre: numero, ...champs }));
+      }
+      if(error){ toast("Erreur : " + error.message, "error"); return; }
+      toast(editNum ? `Étape ${numero} mise à jour.` : `Étape ${numero} ajoutée.`, "ok");
+      qs("#etapeModal").classList.remove("show");
+      await fetchAll(); renderAll();
+    });
+    window.supprimerEtape = function(etape){
+      const l = state.logigramme.find(x=>String(x.etape)===String(etape));
+      if(!l) return;
+      const ncsLiees = state.ncs.filter(n=>n.etape===l.etape).length;
+      const recLiees = state.claims.filter(c=>c.etape===l.etape).length;
+      const actLiees = state.activites.filter(a=>a.type_cible==="Logigramme" && Number(a.etape_logigramme)===Number(l.etape)).length;
+      if(ncsLiees || recLiees || actLiees){
+        toast(`Étape ${l.etape} non supprimable : ${ncsLiees} NC, ${recLiees} réclamation(s) et ${actLiees} activité(s) y sont rattachées.`, "error");
+        return;
+      }
+      deleteRow("logigramme","etape",l.etape,`l'étape ${l.etape} « ${l.activite} »`);
+    };
+
     window.openLogigrammeCommentModal = function(etape){
       const l = state.logigramme.find(x=>String(x.etape)===String(etape));
       if(!l) return;
@@ -2497,6 +2804,231 @@
       qs("#claimRegistrationDate").value = todayISO();
       const sel = qs("#claimEtapeSelect"); if(sel) sel.value = String(etape);
     };
+
+    // ---------- Schéma graphique du logigramme ----------
+    // Convention retenue : ovale = début/fin, rectangle = activité,
+    // losange = point de contrôle (décision). Un losange n'est dessiné que
+    // lorsque l'étape porte réellement un point de contrôle renseigné.
+    function decoupeTexte(txt, maxCar){
+      const mots = String(txt||"").split(/\s+/);
+      const lignes = [];
+      let courante = "";
+      mots.forEach(m=>{
+        if((courante + " " + m).trim().length <= maxCar) courante = (courante + " " + m).trim();
+        else { if(courante) lignes.push(courante); courante = m; }
+      });
+      if(courante) lignes.push(courante);
+      return lignes;
+    }
+    function svgEchappe(s){
+      return String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    }
+    function buildLogigrammeSvg(){
+      const etapes = [...state.logigramme].sort((a,b)=>(a.etape||0)-(b.etape||0));
+      if(!etapes.length){
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="80"><text x="20" y="45" font-family="Arial" font-size="14" fill="#667085">Logigramme non renseigné.</text></svg>`;
+      }
+      const LARG = 300, MARGE_X = 200, LARG_TOTALE = 900;
+      const H_ACT = 62, H_LOS = 78, H_OVALE = 46, ESPACE = 34;
+      const cx = LARG_TOTALE / 2;
+      let y = 20;
+      const blocs = [];
+
+      blocs.push({ type:"ovale", y, h:H_OVALE, texte:"DÉBUT — Expression des besoins" });
+      y += H_OVALE + ESPACE;
+
+      etapes.forEach(e=>{
+        blocs.push({ type:"activite", y, h:H_ACT, num:e.etape,
+          texte:e.activite||"", acteur:e.acteur_responsable||"" });
+        y += H_ACT + ESPACE;
+        if(e.point_controle && String(e.point_controle).trim()){
+          blocs.push({ type:"controle", y, h:H_LOS, texte:e.point_controle });
+          y += H_LOS + ESPACE;
+        }
+      });
+
+      blocs.push({ type:"ovale", y, h:H_OVALE, texte:"FIN — Patrimoine géré, tracé et maintenu" });
+      const hauteur = y + H_OVALE + 24;
+
+      let corps = "";
+      // Flèches entre blocs successifs
+      for(let i = 0; i < blocs.length - 1; i++){
+        const de = blocs[i], vers = blocs[i+1];
+        corps += `<line x1="${cx}" y1="${de.y + de.h}" x2="${cx}" y2="${vers.y}" stroke="#0f4c81" stroke-width="2" marker-end="url(#fleche)" />`;
+      }
+      blocs.forEach(b=>{
+        if(b.type === "ovale"){
+          const lignes = decoupeTexte(b.texte, 46);
+          corps += `<rect x="${cx-LARG/2-40}" y="${b.y}" width="${LARG+80}" height="${b.h}" rx="${b.h/2}" ry="${b.h/2}" fill="#0f4c81" stroke="#0f4c81" stroke-width="2" />`;
+          lignes.forEach((l,i)=>{
+            corps += `<text x="${cx}" y="${b.y + b.h/2 + 5 + (i - (lignes.length-1)/2)*14}" text-anchor="middle" font-family="Arial" font-size="12.5" font-weight="bold" fill="#ffffff">${svgEchappe(l)}</text>`;
+          });
+        } else if(b.type === "activite"){
+          const lignes = decoupeTexte(b.texte, 40);
+          corps += `<rect x="${cx-LARG/2}" y="${b.y}" width="${LARG}" height="${b.h}" rx="8" ry="8" fill="#e8f0f8" stroke="#0f4c81" stroke-width="2" />`;
+          corps += `<circle cx="${cx-LARG/2+18}" cy="${b.y+18}" r="13" fill="#0f4c81" />`;
+          corps += `<text x="${cx-LARG/2+18}" y="${b.y+23}" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="#fff">${b.num}</text>`;
+          lignes.slice(0,2).forEach((l,i)=>{
+            corps += `<text x="${cx+14}" y="${b.y + 26 + i*15}" text-anchor="middle" font-family="Arial" font-size="12" fill="#1f2937">${svgEchappe(l)}</text>`;
+          });
+          if(b.acteur){
+            corps += `<text x="${cx+14}" y="${b.y + b.h - 10}" text-anchor="middle" font-family="Arial" font-size="10.5" font-style="italic" fill="#667085">${svgEchappe(decoupeTexte(b.acteur,48)[0])}</text>`;
+          }
+          // Sorties latérales : NC et réclamations rattachées à l'étape
+          const ncs = state.ncs.filter(n=>n.etape===b.num).length;
+          const rec = state.claims.filter(c=>c.etape===b.num).length;
+          if(ncs || rec){
+            corps += `<line x1="${cx+LARG/2}" y1="${b.y+b.h/2}" x2="${cx+LARG/2+46}" y2="${b.y+b.h/2}" stroke="#cf3f3f" stroke-width="1.6" marker-end="url(#flecheRouge)" />`;
+            corps += `<rect x="${cx+LARG/2+50}" y="${b.y+b.h/2-14}" width="130" height="28" rx="6" fill="#fdecec" stroke="#cf3f3f" stroke-width="1.4" />`;
+            corps += `<text x="${cx+LARG/2+115}" y="${b.y+b.h/2+4}" text-anchor="middle" font-family="Arial" font-size="10.5" fill="#cf3f3f">${ncs} NC · ${rec} récl.</text>`;
+          }
+        } else {
+          const lignes = decoupeTexte(b.texte, 26);
+          const dx = 150, dy = b.h/2;
+          corps += `<polygon points="${cx},${b.y} ${cx+dx},${b.y+dy} ${cx},${b.y+b.h} ${cx-dx},${b.y+dy}" fill="#fff6e5" stroke="#cb8800" stroke-width="2" />`;
+          lignes.slice(0,3).forEach((l,i)=>{
+            corps += `<text x="${cx}" y="${b.y + dy + 4 + (i - (Math.min(lignes.length,3)-1)/2)*13}" text-anchor="middle" font-family="Arial" font-size="10.5" fill="#7a5200">${svgEchappe(l)}</text>`;
+          });
+        }
+      });
+
+      const legende = `
+        <g transform="translate(20,${hauteur - 4})">
+          <rect x="0" y="-16" width="18" height="12" rx="6" fill="#0f4c81"/><text x="24" y="-6" font-family="Arial" font-size="10.5" fill="#667085">Début / Fin</text>
+          <rect x="110" y="-16" width="18" height="12" rx="3" fill="#e8f0f8" stroke="#0f4c81"/><text x="134" y="-6" font-family="Arial" font-size="10.5" fill="#667085">Activité</text>
+          <polygon points="228,-16 240,-10 228,-4 216,-10" fill="#fff6e5" stroke="#cb8800"/><text x="246" y="-6" font-family="Arial" font-size="10.5" fill="#667085">Point de contrôle</text>
+        </g>`;
+
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${LARG_TOTALE} ${hauteur + 16}" width="${LARG_TOTALE}" height="${hauteur + 16}" style="max-width:100%;height:auto">
+        <defs>
+          <marker id="fleche" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L0,6.4 L7.5,3.2 z" fill="#0f4c81"/></marker>
+          <marker id="flecheRouge" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L0,6.4 L7.5,3.2 z" fill="#cf3f3f"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#ffffff"/>
+        <text x="${cx}" y="14" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#0f4c81">PS3 — Gérer le patrimoine</text>
+        ${corps}
+        ${legende}
+      </svg>`;
+    }
+    function renderLogigrammeSchema(){
+      const svg = buildLogigrammeSvg();
+      const cible1 = qs("#logigrammeSchema");
+      if(cible1) cible1.innerHTML = svg;
+      const cible2 = qs("#homeLogigrammeSchema");
+      if(cible2) cible2.innerHTML = svg;
+    }
+    window.telechargerSchemaLogigramme = function(format){
+      const svg = buildLogigrammeSvg();
+      if(format === "svg"){
+        simpleDownload(`Logigramme_PS3_${todayISO()}.svg`, svg, "image/svg+xml");
+        toast("Schéma SVG téléchargé.", "ok");
+        return;
+      }
+      // PNG : rendu du SVG dans un canvas puis export
+      const img = new Image();
+      const blob = new Blob([svg], { type:"image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      img.onload = function(){
+        const canvas = document.createElement("canvas");
+        const echelle = 2; // rendu haute définition pour l'impression
+        canvas.width = img.width * echelle;
+        canvas.height = img.height * echelle;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.scale(echelle, echelle);
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(b=>{
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(b);
+          a.download = `Logigramme_PS3_${todayISO()}.png`;
+          a.click();
+          toast("Schéma PNG téléchargé.", "ok");
+        }, "image/png");
+      };
+      img.onerror = function(){
+        URL.revokeObjectURL(url);
+        toast("Conversion PNG impossible : utilisez le format SVG.", "error");
+      };
+      img.src = url;
+    };
+    window.imprimerSchemaLogigramme = function(){
+      const win = window.open("", "_blank");
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Logigramme PS3</title>
+        <style>body{margin:0;padding:16px;font-family:Arial}@media print{@page{size:A4 portrait;margin:10mm}}</style>
+        </head><body>${buildLogigrammeSvg()}</body></html>`);
+      win.document.close();
+      win.print();
+    };
+
+    // ---------- Statut d'exécution des actions liées ----------
+    // Trois états : Non démarré / En cours / Clôturé.
+    // La colonne booléenne historique "traite" reste alimentée pour ne rien casser
+    // dans les calculs de progression existants (traite = statut Clôturé).
+    const STATUTS_EXECUTION = ["Non démarré", "En cours", "Clôturé"];
+    function statutExecDe(row){
+      if(row.statut_execution && STATUTS_EXECUTION.includes(row.statut_execution)) return row.statut_execution;
+      return row.traite ? "Clôturé" : "Non démarré";
+    }
+    function badgeStatutExec(statut){
+      const s = statut || "Non démarré";
+      const cls = s === "Clôturé" ? "ok" : s === "En cours" ? "warn" : "neutral";
+      return `<span class="badge ${cls}">${s}</span>`;
+    }
+    // Sélecteur à 3 états ; onChangeFn reçoit le nouveau statut
+    function selectStatutExecHtml(statutCourant, onChangeExpr){
+      const s = statutCourant || "Non démarré";
+      return `<select class="action-select" style="min-width:130px" onchange="${onChangeExpr}">
+        ${STATUTS_EXECUTION.map(v=>`<option value="${v}" ${v===s?"selected":""}>${v}</option>`).join("")}
+      </select>`;
+    }
+
+    // ---------- Responsables d'exécution et de suivi ----------
+    // Exécution : texte libre (l'exécutant peut être extérieur à l'équipe PS3).
+    // Suivi : nominatif, choisi parmi les membres actifs de l'équipe PS3.
+    function acteursSuiviOptions(valeur){
+      const eligibles = state.acteurs.filter(a=>a.actif!==false);
+      return `<option value="">— Non défini —</option>` + eligibles.map(a=>
+        `<option value="${a.id_acteur}" ${valeur===a.id_acteur?"selected":""}>${a.nom_prenoms} (${a.role})</option>`
+      ).join("");
+    }
+    // Remplit tous les sélecteurs marqués data-acteurs-suivi en préservant la valeur courante
+    function remplirSelecteursSuivi(){
+      qsa("select[data-acteurs-suivi]").forEach(sel=>{
+        const courant = sel.value;
+        sel.innerHTML = acteursSuiviOptions(courant);
+        if(courant) sel.value = courant;
+      });
+    }
+    // Les responsables d'exécution étant en texte libre, la liste du filtre est construite
+    // à partir des valeurs réellement saisies dans les données affichées.
+    function remplirFiltreRespExec(sel, valeurs){
+      if(!sel) return;
+      const courant = sel.value;
+      const uniques = [...new Set((valeurs||[]).filter(v=>v && String(v).trim()))].sort((a,b)=>a.localeCompare(b));
+      sel.innerHTML = `<option value="">Resp. exécution</option>` +
+        uniques.map(v=>`<option value="${v}">${v}</option>`).join("");
+      if(courant && uniques.includes(courant)) sel.value = courant;
+    }
+    function remplirFiltreRespSuivi(sel){
+      if(!sel) return;
+      const courant = sel.value;
+      sel.innerHTML = `<option value="">Resp. suivi</option>` +
+        state.acteurs.filter(a=>a.actif!==false).map(a=>`<option value="${a.id_acteur}">${a.nom_prenoms}</option>`).join("");
+      if(courant) sel.value = courant;
+    }
+    function nomActeur(idActeur){
+      if(!idActeur) return "—";
+      const a = state.acteurs.find(x=>x.id_acteur===idActeur);
+      return a ? a.nom_prenoms : idActeur;
+    }
+    // Libellé compact « exécution / suivi » utilisé dans les listes et tableaux
+    function responsablesLabel(respExec, respSuivi){
+      const e = respExec || "—";
+      const s = respSuivi ? nomActeur(respSuivi) : "—";
+      return `Exéc. : ${e} · Suivi : ${s}`;
+    }
 
     // ---------- Ordre d'exécution (activités, sous-activités, actions) ----------
     // Tri par le champ "ordre" saisi par l'équipe ; les éléments sans ordre passent à la fin,
@@ -2643,6 +3175,14 @@
           <option value="supprimer">Supprimer</option>
         </select>`;
       }
+      if(type==="etape"){
+        return `<select class="action-select" onchange="handleEntityAction(this)" data-entity-type="etape" data-id="${id}">
+          <option value="">Action</option>
+          <option value="planifier">Planifier</option>
+          <option value="executer">Exécuter</option>
+          <option value="supprimer">Supprimer</option>
+        </select>`;
+      }
       if(type==="membre"){
         return `<select class="action-select" onchange="handleEntityAction(this)" data-entity-type="membre" data-id="${id}">
           <option value="">Action</option>
@@ -2704,6 +3244,11 @@
       } else if(type==="revue"){
         if(action==="ouvrir") setRevueTarget(id);
         else if(action==="supprimer") deleteRow("revues","id_revue",id,"cette revue (et ses points/actions liées)");
+      } else if(type==="etape"){
+        // Planifier = définir/compléter l'étape ; Exécuter = documenter ses modalités de mise en œuvre
+        if(action==="planifier") openEtapeEditModal(id);
+        else if(action==="executer") openLogigrammeCommentModal(id);
+        else if(action==="supprimer") supprimerEtape(id);
       } else if(type==="membre"){
         if(action==="modifier") openMembreEditModal(id);
         else if(action==="retirer") retirerMembre(id);
@@ -2846,7 +3391,7 @@
 
     // ---------- Validation d'une activité (Pilote uniquement, une fois Clôturé) ----------
     window.approveActivite = async function(id){
-      if(!currentUser || currentUser.role!=="Pilote"){ toast("Seul le profil Pilote peut valider une activité.", "error"); return; }
+      if(!currentUser || !["Pilote","Co-pilote"].includes(currentUser.role)){ toast("Seuls le Pilote et les Co-pilotes peuvent valider une activité.", "error"); return; }
       const { error } = await sb.from("activites").update({ validation:"Oui" }).eq("id_activite", id);
       if(error){ toast("Erreur : " + error.message, "error"); return; }
       toast("Activité validée.", "ok");
@@ -2862,6 +3407,7 @@
           <div>
             <strong>${s.denomination}</strong> <span class="badge neutral">Non démarré</span> <span class="badge ${priorityClass(s.priorite)}">${s.priorite}</span>
             <div class="muted">Échéance : ${s.date_limite?fmtDate(s.date_limite):"—"}</div>
+            <div class="muted">${responsablesLabel(s.responsable_execution, s.responsable_suivi)}</div>
           </div>
           <button type="button" class="remove-btn" data-remove-draft-sous="${i}">Retirer</button>
         </div>
@@ -2878,11 +3424,15 @@
       currentDraftSousActivites.push({
         denomination,
         date_limite: qs("#draftSousActiviteDateLimite").value || null,
-        priorite: qs("#draftSousActivitePriorite").value || "Moyenne"
+        priorite: qs("#draftSousActivitePriorite").value || "Moyenne",
+        responsable_execution: qs("#draftSousActiviteRespExec").value.trim() || null,
+        responsable_suivi: qs("#draftSousActiviteRespSuivi").value || null
       });
       qs("#draftSousActiviteDenomination").value = "";
       qs("#draftSousActiviteDateLimite").value = "";
       qs("#draftSousActivitePriorite").value = "Moyenne";
+      qs("#draftSousActiviteRespExec").value = "";
+      qs("#draftSousActiviteRespSuivi").value = "";
       renderDraftSousActivites();
     });
 
@@ -2897,6 +3447,8 @@
       populateCibleFilterSelect(qs("#risksActivitesFilter"), state.risquesRef, "id_risque", "description", "Tous les risques");
       renderActivitesFor("Objectif", "#objectivesActivitesList", state.objectifsRef, "id_objectif", "objectif", qs("#objectivesActivitesFilter").value);
       renderActivitesFor("Risque", "#risksActivitesList", state.risquesRef, "id_risque", "description", qs("#risksActivitesFilter").value);
+      const filtreEtape = qs("#flowchartActivitesFilter");
+      renderActivitesFor("Logigramme", "#flowchartActivitesList", state.logigramme, "etape", "activite", filtreEtape ? filtreEtape.value : "");
       renderActivitesConsolidees();
     }
 
@@ -2906,6 +3458,8 @@
       if(!tbody) return;
       const moduleFilter = qs("#activitesFilterModule").value;
       const statutFilter = qs("#activitesFilterStatut").value;
+      const respExecFilter = qs("#activitesFilterRespExec").value;
+      const respSuiviFilter = qs("#activitesFilterRespSuivi").value;
       const q = qs("#activitesFilterSearch").value.toLowerCase().trim();
       // Regroupement par activité (elle-même ordonnée), puis sous-activités dans leur ordre d'exécution
       const rows = [];
@@ -2917,31 +3471,48 @@
       const filtered = rows.filter(({s,act})=>{
         if(moduleFilter && act.type_cible!==moduleFilter) return false;
         if(statutFilter && s.statut!==statutFilter) return false;
+        // Le responsable de la sous-activité prime ; à défaut, celui de l'activité parente
+        const re = s.responsable_execution || act.responsable_execution || act.responsable || "";
+        const rs = s.responsable_suivi || act.responsable_suivi || "";
+        if(respExecFilter && re !== respExecFilter) return false;
+        if(respSuiviFilter && rs !== respSuiviFilter) return false;
         if(q && !(act.denomination.toLowerCase().includes(q) || s.denomination.toLowerCase().includes(q))) return false;
         return true;
       });
+      remplirFiltreRespExec(qs("#activitesFilterRespExec"),
+        rows.map(({s,act})=>s.responsable_execution || act.responsable_execution || act.responsable));
+      remplirFiltreRespSuivi(qs("#activitesFilterRespSuivi"));
       tbody.innerHTML = filtered.length ? filtered.map(({s,act})=>{
         const verrouille = act.validation==="Oui";
         return `
         <tr>
           <td>${s.id_sous_activite}</td>
-          <td>${act.type_cible==="Objectif"?"Objectifs":"Risques"}</td>
+          <td>${act.type_cible==="Objectif"?"Objectifs":act.type_cible==="Risque"?"Risques":"Logigramme"}</td>
           <td>${act.id_activite} — ${act.denomination}</td>
           <td>${s.denomination}</td>
           <td><span class="badge ${priorityClass(s.priorite)}">${s.priorite||"Moyenne"}</span></td>
           <td><span class="badge ${badgeClass(s.statut)}">${s.statut||"Non démarré"}</span></td>
           <td>${fmtDate(s.date_limite)}</td>
           <td>${s.date_realisation?fmtDate(s.date_realisation):"—"}</td>
+          <td>${s.responsable_execution || act.responsable_execution || act.responsable || "—"}</td>
+          <td>${nomActeur(s.responsable_suivi || act.responsable_suivi)}</td>
           <td>${verrouille ? `<span class="muted" title="Activité validée : sous-activité verrouillée">🔒</span>` : actionSelectHtml("sousactivite", s.id_sous_activite)}</td>
         </tr>`;
-      }).join("") : `<tr><td colspan="9">Aucune sous-activité ne correspond aux filtres.</td></tr>`;
+      }).join("") : `<tr><td colspan="11">Aucune sous-activité ne correspond aux filtres.</td></tr>`;
+    }
+    // Identifiant de la cible d'une activité selon son type (Objectif, Risque ou étape du Logigramme)
+    function cibleIdDeActivite(act, typeCible){
+      const t = typeCible || act.type_cible;
+      if(t === "Objectif") return act.id_objectif;
+      if(t === "Risque") return act.id_risque;
+      return act.etape_logigramme;
     }
     function renderActivitesFor(typeCible, containerSel, refList, refIdField, refLabelField, filterCibleId){
       const container = qs(containerSel);
       if(!container) return;
       let activites = state.activites.filter(a=>a.type_cible===typeCible);
       if(filterCibleId){
-        activites = activites.filter(a=>(typeCible==="Objectif" ? a.id_objectif : a.id_risque)===filterCibleId);
+        activites = activites.filter(a=>String(cibleIdDeActivite(a, typeCible))===String(filterCibleId));
       }
       if(!activites.length){
         container.innerHTML = `<div class="list-item"><strong>Aucune activité</strong><div class="muted">${filterCibleId ? "Aucune activité planifiée pour cet élément." : 'Cliquez sur "Ajouter une activité" pour planifier la première.'}</div></div>`;
@@ -2950,8 +3521,8 @@
       activites = trierParOrdre(activites);
       const peutOrdonner = currentUser && ["Pilote","Co-pilote","Ressource"].includes(currentUser.role);
       container.innerHTML = activites.map((act, idxAct)=>{
-        const cibleId = typeCible==="Objectif" ? act.id_objectif : act.id_risque;
-        const ref = refList.find(r=>r[refIdField]===cibleId);
+        const cibleId = cibleIdDeActivite(act, typeCible);
+        const ref = refList.find(r=>String(r[refIdField])===String(cibleId));
         const sousActs = trierParOrdre(state.sousActivites.filter(s=>s.id_activite===act.id_activite));
         const verrouille = act.validation==="Oui";
         const sousHtml = sousActs.length ? sousActs.map((s, idxSous)=>`
@@ -2970,6 +3541,7 @@
               </div>
             </div>
             <div class="muted" style="margin-top:4px">Échéance : ${fmtDate(s.date_limite)} ${s.date_realisation? " · Réalisée le : "+fmtDate(s.date_realisation) : ""} ${s.preuve? " · Preuve : "+s.preuve : ""}</div>
+            <div class="muted">${responsablesLabel(s.responsable_execution, s.responsable_suivi)}</div>
             ${s.commentaires ? `<div class="muted">${s.commentaires}</div>` : ""}
           </div>
         `).join("") : `<div class="muted">Aucune sous-activité.</div>`;
@@ -2977,7 +3549,7 @@
           ? `<span class="badge ok">Validée</span>`
           : act.statut!=="Clôturé"
             ? ""
-            : (currentUser && currentUser.role==="Pilote"
+            : (currentUser && ["Pilote","Co-pilote"].includes(currentUser.role)
                 ? `<button class="btn primary" style="padding:6px 10px" type="button" onclick="approveActivite('${act.id_activite}')">Valider</button>`
                 : `<span class="badge warn">En attente de validation</span>`);
         return `
@@ -2987,7 +3559,7 @@
               <span class="ordre-badge">${idxAct+1}</span>
               <span class="muted" style="font-size:11px">${act.id_activite}</span>
               <strong>${act.denomination}</strong>
-              <div class="muted">Lié à : ${ref ? (ref[refLabelField]) : cibleId}</div>
+              <div class="muted">Lié à : ${ref ? (typeCible==="Logigramme" ? `Étape ${ref[refIdField]} — ${ref[refLabelField]}` : ref[refLabelField]) : (cibleId||"—")}</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span class="badge ${badgeClass(act.statut)}">${act.statut||"Non démarré"}</span>
@@ -2998,8 +3570,9 @@
             </div>
           </div>
           <div class="muted" style="margin-top:6px">
-            Prévue : ${fmtDate(act.date_prevue)} · Réelle : ${act.date_reelle?fmtDate(act.date_reelle):"—"} · Responsable : ${act.responsable||"—"}
+            Prévue : ${fmtDate(act.date_prevue)} · Réelle : ${act.date_reelle?fmtDate(act.date_reelle):"—"}
           </div>
+          <div class="muted">${responsablesLabel(act.responsable_execution || act.responsable, act.responsable_suivi)}</div>
           ${act.ecart_realisation ? `<div class="muted">Écart : ${act.ecart_realisation}</div>` : ""}
           ${act.commentaire_analyse ? `<div class="muted">Analyse : ${act.commentaire_analyse}</div>` : ""}
           <div style="margin-top:10px"><strong style="font-size:13px">Sous-activités</strong> <span class="muted" style="font-size:12px">(dans l'ordre d'exécution)</span></div>
@@ -3017,22 +3590,34 @@
       ["activiteDateReelle","activiteCauses","activiteCommentaire","activitePreuve"].forEach(id=>{ qs("#"+id).disabled = (mode!=="executer"); });
     }
 
+    // Libellés et référentiel de la cible selon le type d'activité
+    const CIBLE_CONFIG = {
+      "Objectif":   { titre:"Nouvelle activité (Objectif)", label:"Objectif concerné" },
+      "Risque":     { titre:"Nouvelle activité (Risque)", label:"Risque / opportunité concerné(e)" },
+      "Logigramme": { titre:"Nouvelle activité (Étape du logigramme)", label:"Étape du logigramme concernée" }
+    };
+    function optionsCible(typeCible){
+      if(typeCible==="Objectif"){
+        return state.objectifsRef.map(x=>`<option value="${x.id_objectif}">${x.id_objectif} — ${x.objectif}</option>`).join("");
+      }
+      if(typeCible==="Risque"){
+        return state.risquesRef.map(x=>`<option value="${x.id_risque}">${x.id_risque} — ${x.description}</option>`).join("");
+      }
+      return state.logigramme.map(x=>`<option value="${x.etape}">Étape ${x.etape} — ${x.activite}</option>`).join("");
+    }
     window.openActiviteModal = function(typeCible){
+      const cfg = CIBLE_CONFIG[typeCible] || CIBLE_CONFIG["Objectif"];
       qs("#activiteTypeCible").value = typeCible;
       qs("#activiteEditId").value = "";
       qs("#activiteMode").value = "create";
-      qs("#activiteModalTitle").textContent = typeCible==="Objectif" ? "Nouvelle activité (Objectif)" : "Nouvelle activité (Risque)";
-      qs("#activiteCibleLabel").textContent = typeCible==="Objectif" ? "Objectif concerné" : "Risque / opportunité concerné(e)";
+      qs("#activiteModalTitle").textContent = cfg.titre;
+      qs("#activiteCibleLabel").textContent = cfg.label;
       const cibleSel = qs("#activiteCibleSelect");
-      const list = typeCible==="Objectif" ? state.objectifsRef : state.risquesRef;
-      cibleSel.innerHTML = list.map(x=>{
-        const id = typeCible==="Objectif" ? x.id_objectif : x.id_risque;
-        const label = typeCible==="Objectif" ? x.objectif : x.description;
-        return `<option value="${id}">${id} — ${label}</option>`;
-      }).join("") || `<option value="">Aucun référentiel disponible</option>`;
+      cibleSel.innerHTML = optionsCible(typeCible) || `<option value="">Aucun référentiel disponible</option>`;
       qs("#activiteForm").reset();
       qs("#activiteTaux").value = 0;
       qs("#activiteEcart").value = "";
+      remplirSelecteursSuivi();
       currentDraftSousActivites = [];
       renderDraftSousActivites();
       applyActiviteMode("create");
@@ -3042,23 +3627,21 @@
     window.openActiviteEditModal = function(id, mode){
       const act = state.activites.find(a=>a.id_activite===id);
       if(!act) return;
+      const cfg = CIBLE_CONFIG[act.type_cible] || CIBLE_CONFIG["Objectif"];
       qs("#activiteTypeCible").value = act.type_cible;
       qs("#activiteEditId").value = id;
       qs("#activiteMode").value = mode;
       qs("#activiteModalTitle").textContent = (mode==="executer" ? "Exécuter l'activité : " : "Planifier l'activité : ") + act.denomination;
-      qs("#activiteCibleLabel").textContent = act.type_cible==="Objectif" ? "Objectif concerné" : "Risque / opportunité concerné(e)";
-      const list = act.type_cible==="Objectif" ? state.objectifsRef : state.risquesRef;
+      qs("#activiteCibleLabel").textContent = cfg.label;
       const cibleSel = qs("#activiteCibleSelect");
-      cibleSel.innerHTML = list.map(x=>{
-        const xid = act.type_cible==="Objectif" ? x.id_objectif : x.id_risque;
-        const label = act.type_cible==="Objectif" ? x.objectif : x.description;
-        return `<option value="${xid}">${xid} — ${label}</option>`;
-      }).join("");
-      cibleSel.value = act.type_cible==="Objectif" ? act.id_objectif : act.id_risque;
+      cibleSel.innerHTML = optionsCible(act.type_cible);
+      cibleSel.value = String(cibleIdDeActivite(act) ?? "");
       qs("#activiteDenomination").value = act.denomination||"";
       qs("#activiteDatePrevue").value = act.date_prevue||"";
       qs("#activiteDateReelle").value = act.date_reelle||"";
-      qs("#activiteResponsable").value = act.responsable||"";
+      qs("#activiteResponsable").value = act.responsable_execution || act.responsable || "";
+      remplirSelecteursSuivi();
+      qs("#activiteResponsableSuivi").value = act.responsable_suivi || "";
       qs("#activiteTaux").value = act.taux_avancement||0;
       qs("#activiteEcart").value = act.ecart_realisation||"";
       qs("#activiteCauses").value = act.causes_ecart||"";
@@ -3077,7 +3660,8 @@
       if(!editId){
         const typeCible = qs("#activiteTypeCible").value;
         const cibleId = qs("#activiteCibleSelect").value;
-        if(!cibleId){ toast("Aucun " + (typeCible==="Objectif"?"objectif":"risque") + " disponible pour cet exercice.", "error"); return; }
+        const libelleCible = typeCible==="Objectif" ? "objectif" : typeCible==="Risque" ? "risque" : "étape de logigramme";
+        if(!cibleId){ toast("Aucune " + libelleCible + " disponible pour cet exercice.", "error"); return; }
         const idActivite = nextActiviteId();
         const payload = {
           id_activite: idActivite,
@@ -3085,9 +3669,12 @@
           type_cible: typeCible,
           id_objectif: typeCible==="Objectif" ? cibleId : null,
           id_risque: typeCible==="Risque" ? cibleId : null,
+          etape_logigramme: typeCible==="Logigramme" ? parseInt(cibleId,10) : null,
           denomination: qs("#activiteDenomination").value,
           date_prevue: qs("#activiteDatePrevue").value || null,
           responsable: qs("#activiteResponsable").value || null,
+          responsable_execution: qs("#activiteResponsable").value || null,
+          responsable_suivi: qs("#activiteResponsableSuivi").value || null,
           statut: "Non démarré",
           taux_avancement: 0
         };
@@ -3099,7 +3686,9 @@
           const sousRows = currentDraftSousActivites.map((s,idx)=>({
             id_sous_activite: "SACT-" + String(baseNum+idx).padStart(3,"0"),
             id_activite: idActivite, denomination: s.denomination, date_limite: s.date_limite,
-            priorite: s.priorite, statut: "Non démarré", realise: false
+            priorite: s.priorite, statut: "Non démarré", realise: false, ordre: idx+1,
+            responsable_execution: s.responsable_execution || null,
+            responsable_suivi: s.responsable_suivi || null
           }));
           const { error: sousErr } = await sb.from("sous_activites").insert(sousRows);
           if(sousErr){ toast("Activité créée, mais erreur sur les sous-activités : " + sousErr.message, "error"); }
@@ -3109,7 +3698,9 @@
         const payload = {
           denomination: qs("#activiteDenomination").value,
           date_prevue: qs("#activiteDatePrevue").value || null,
-          responsable: qs("#activiteResponsable").value || null
+          responsable: qs("#activiteResponsable").value || null,
+          responsable_execution: qs("#activiteResponsable").value || null,
+          responsable_suivi: qs("#activiteResponsableSuivi").value || null
         };
         const { error } = await sb.from("activites").update(payload).eq("id_activite", editId);
         if(error){ toast("Erreur : " + error.message, "error"); return; }
@@ -3146,6 +3737,7 @@
       qs("#sousActiviteForm").reset();
       qs("#sousActivitePriorite").value = "Moyenne";
       qs("#sousActiviteStatut").value = "Non démarré";
+      remplirSelecteursSuivi();
       applySousActiviteMode("create");
       qs("#sousActiviteModal").classList.add("show");
     };
@@ -3164,6 +3756,9 @@
       qs("#sousActiviteDateRealisation").value = s.date_realisation||"";
       qs("#sousActivitePreuve").value = s.preuve||"";
       qs("#sousActiviteCommentaires").value = s.commentaires||"";
+      qs("#sousActiviteRespExec").value = s.responsable_execution||"";
+      remplirSelecteursSuivi();
+      qs("#sousActiviteRespSuivi").value = s.responsable_suivi||"";
       applySousActiviteMode(mode);
       qs("#sousActiviteModal").classList.add("show");
     };
@@ -3181,6 +3776,8 @@
           denomination: qs("#sousActiviteDenomination").value,
           date_limite: qs("#sousActiviteDateLimite").value || null,
           priorite: qs("#sousActivitePriorite").value || "Moyenne",
+          responsable_execution: qs("#sousActiviteRespExec").value.trim() || null,
+          responsable_suivi: qs("#sousActiviteRespSuivi").value || null,
           statut: "Non démarré",
           realise: false
         };
@@ -3191,7 +3788,9 @@
         const payload = {
           denomination: qs("#sousActiviteDenomination").value,
           date_limite: qs("#sousActiviteDateLimite").value || null,
-          priorite: qs("#sousActivitePriorite").value || "Moyenne"
+          priorite: qs("#sousActivitePriorite").value || "Moyenne",
+          responsable_execution: qs("#sousActiviteRespExec").value.trim() || null,
+          responsable_suivi: qs("#sousActiviteRespSuivi").value || null
         };
         const { error } = await sb.from("sous_activites").update(payload).eq("id_sous_activite", editId);
         if(error){ toast("Erreur : " + error.message, "error"); return; }
@@ -3258,6 +3857,8 @@
       if(!tbody) return;
       const moduleFilter = qs("#actionsFilterModule").value;
       const statutFilter = qs("#actionsFilterStatut").value;
+      const respExecFilter = qs("#actionsFilterRespExec").value;
+      const respSuiviFilter = qs("#actionsFilterRespSuivi").value;
       const q = qs("#actionsFilterSearch").value.toLowerCase().trim();
 
       // Chaque famille d'actions est triée selon l'ordre d'exécution défini par l'équipe
@@ -3265,30 +3866,35 @@
         const claim = state.claims.find(c=>c.id===a.claimId);
         return { module:"reclamation", moduleLabel:"Réclamations", ordreType:"reclamaction", id:a.id, parentId:a.claimId,
           parentLabel: claim ? (claim.object || claim.description || claim.id) : a.claimId,
-          description:a.description, responsible:a.responsible, dueDate:a.dueDate, treated:a.treated };
+          description:a.description, responsible:a.responsible, respExec:a.responsable_execution||a.responsible, respSuivi:a.responsable_suivi, dueDate:a.dueDate, treated:a.treated, statutExec:a.statutExec };
       });
       const ncRows = trierParOrdre(state.ncActionsLiees).map(a=>{
         const nc = state.ncs.find(n=>n.id===a.ncId);
         return { module:"nonconformite", moduleLabel:"Non-conformités", ordreType:"ncaction", id:a.id, parentId:a.ncId,
           parentLabel: nc ? (nc.description || nc.id) : a.ncId,
-          description:a.description, responsible:a.responsible, dueDate:a.dueDate, treated:a.treated };
+          description:a.description, responsible:a.responsible, respExec:a.responsable_execution||a.responsible, respSuivi:a.responsable_suivi, dueDate:a.dueDate, treated:a.treated, statutExec:a.statutExec };
       });
       const auditRows = trierParOrdre(state.auditActionsLiees).map(a=>{
         const point = state.points.find(p=>p.id===a.pointId);
         return { module:"audit", moduleLabel:"Audits", ordreType:"auditaction", id:a.id, parentId:a.pointId,
           parentLabel: point ? (point.intitule || point.id) : a.pointId,
-          description:a.description, responsible:a.responsible, dueDate:a.dueDate, treated:a.treated };
+          description:a.description, responsible:a.responsible, respExec:a.responsable_execution||a.responsible, respSuivi:a.responsable_suivi, dueDate:a.dueDate, treated:a.treated, statutExec:a.statutExec };
       });
       const revueRows = trierParOrdre(state.revueActionsLiees).map(a=>{
         const revue = state.revues.find(r=>r.id===a.revueId);
         return { module:"revue", moduleLabel:"Revues", ordreType:"revueaction", id:a.id, parentId:a.revueId,
           parentLabel: revue ? (revue.periodeCouverte || revue.id) : a.revueId,
-          description:a.description, responsible:a.responsible, dueDate:a.dueDate, treated:a.treated };
+          description:a.description, responsible:a.responsible, respExec:a.responsable_execution||a.responsible, respSuivi:a.responsable_suivi, dueDate:a.dueDate, treated:a.treated, statutExec:a.statutExec };
       });
       let rows = [...reclamationRows, ...ncRows, ...auditRows, ...revueRows];
       if(moduleFilter) rows = rows.filter(r=>r.module===moduleFilter);
-      if(statutFilter) rows = rows.filter(r=>r.treated===statutFilter);
-      if(q) rows = rows.filter(r=>[r.id,r.parentLabel,r.description,r.responsible].join(" ").toLowerCase().includes(q));
+      if(statutFilter) rows = rows.filter(r=>(r.statutExec||"Non démarré")===statutFilter);
+      if(respExecFilter) rows = rows.filter(r=>(r.respExec||"")===respExecFilter);
+      if(respSuiviFilter) rows = rows.filter(r=>(r.respSuivi||"")===respSuiviFilter);
+      if(q) rows = rows.filter(r=>[r.id,r.parentLabel,r.description,r.respExec].join(" ").toLowerCase().includes(q));
+      // Les listes de responsables sont construites à partir des données réellement présentes
+      remplirFiltreRespExec(qs("#actionsFilterRespExec"), [...reclamationRows,...ncRows,...auditRows,...revueRows].map(r=>r.respExec));
+      remplirFiltreRespSuivi(qs("#actionsFilterRespSuivi"));
 
       const peutOrdonner = currentUser && ["Pilote","Co-pilote","Ressource"].includes(currentUser.role);
       // Position de chaque action au sein de sa propre fratrie (même parent) pour activer/désactiver les flèches
@@ -3305,12 +3911,13 @@
           <td>${r.moduleLabel}</td>
           <td>${r.parentId} — ${r.parentLabel}</td>
           <td>${r.description}</td>
-          <td>${r.responsible||"—"}</td>
+          <td>${r.respExec||"—"}</td>
+          <td>${r.respSuivi?nomActeur(r.respSuivi):"—"}</td>
           <td>${r.dueDate?fmtDate(r.dueDate):"—"}</td>
-          <td><span class="badge ${r.treated==='Oui'?'ok':'warn'}">${r.treated==='Oui'?'Traitée':'Non traitée'}</span></td>
+          <td>${badgeStatutExec(r.statutExec)}</td>
           <td><div style="display:flex;gap:6px;align-items:center">${ordreHtml}${actionLieeSelectHtml(r.module, r.id)}</div></td>
         </tr>`;
-      }).join("") : `<tr><td colspan="8">Aucune action liée ne correspond aux filtres.</td></tr>`;
+      }).join("") : `<tr><td colspan="9">Aucune action liée ne correspond aux filtres.</td></tr>`;
     }
 
     function allLinkedActionsForNc(ncId){
@@ -3345,6 +3952,7 @@
     async function updateNcLinkedAction(ncId, actionId, changes){
       const payload = {};
       if(changes.treated !== undefined) payload.traite = changes.treated === "Oui";
+      if(changes.statutExec !== undefined){ payload.statut_execution = changes.statutExec; payload.traite = changes.statutExec === "Clôturé"; }
       if(changes.proofName !== undefined) payload.fichier_url = changes.proofName;
       if(changes.commentaire !== undefined) payload.commentaire = changes.commentaire;
       await sb.from("nc_actions_liees").update(payload).eq("id_action_liee", actionId);
@@ -3353,6 +3961,7 @@
       renderAll();
     }
     window.setNcActionTreated = function(ncId, actionId, value){ updateNcLinkedAction(ncId, actionId, {treated:value}); };
+    window.setNcActionStatut = function(ncId, actionId, statut){ updateNcLinkedAction(ncId, actionId, {statutExec:statut}); };
     window.attachNcProof = function(ncId, actionId, input){
       const file = input.files && input.files[0] ? input.files[0].name : "";
       if(file) updateNcLinkedAction(ncId, actionId, {proofName:file});
@@ -3379,6 +3988,9 @@
         id_action_liee: nextNcActionId(), id_nc: ncId,
         description: qs("#linkedNcActionDesc").value,
         responsable: qs("#linkedNcActionResp").value || null,
+        responsable_execution: qs("#linkedNcActionResp").value || null,
+        responsable_suivi: qs("#linkedNcActionRespSuivi").value || null,
+        statut_execution: "Non démarré",
         date_echeance: qs("#linkedNcActionDue").value || null,
         traite:false
       };
@@ -3404,7 +4016,7 @@
             <div>
               <span class="muted" style="font-size:11px">${a.id}</span>
               <strong>${a.description}</strong>
-              <span class="badge ${a.treated==='Oui'?'ok':'warn'}">${a.treated==='Oui'?'Traitée':'Non traitée'}</span>
+              ${badgeStatutExec(a.statutExec)}
             </div>
             ${verrouille ? `<span class="muted" title="Non-conformité validée : action verrouillée">🔒 Verrouillé</span>` : `<button class="btn secondary" type="button" onclick="removeNcLinkedAction('${a.id}')" style="padding:6px 10px">Supprimer</button>`}
           </div>
@@ -3415,8 +4027,7 @@
           <div style="margin-top:8px;background:#f8fafc;border:1px dashed var(--line);border-radius:12px;padding:10px">
             <strong style="font-size:12px;color:var(--muted)">Exécution</strong>
             <div class="toggle-group" style="margin-top:6px">
-              <button class="${a.treated==='Oui'?'active-yes':''}" type="button" onclick="setNcActionTreated('${ncId}','${a.id}','Oui')">Traitée</button>
-              <button class="${a.treated!=='Oui'?'active-no':''}" type="button" onclick="setNcActionTreated('${ncId}','${a.id}','Non')">Non traitée</button>
+              ${selectStatutExecHtml(a.statutExec, `setNcActionStatut('${ncId}','${a.id}',this.value)`)}
             </div>
             <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <label class="icon-btn" for="file-nc-${a.id}">📎 Joindre une preuve</label>
@@ -3570,6 +4181,7 @@
     async function updatePointLinkedAction(pointId, actionId, changes){
       const payload = {};
       if(changes.treated !== undefined) payload.traite = changes.treated === "Oui";
+      if(changes.statutExec !== undefined){ payload.statut_execution = changes.statutExec; payload.traite = changes.statutExec === "Clôturé"; }
       if(changes.proofName !== undefined) payload.fichier_url = changes.proofName;
       if(changes.commentaire !== undefined) payload.commentaire = changes.commentaire;
       await sb.from("audit_actions_liees").update(payload).eq("id_action_liee", actionId);
@@ -3578,6 +4190,7 @@
       renderAll();
     }
     window.setPointActionTreated = function(pointId, actionId, value){ updatePointLinkedAction(pointId, actionId, {treated:value}); };
+    window.setPointActionStatut = function(pointId, actionId, statut){ updatePointLinkedAction(pointId, actionId, {statutExec:statut}); };
     window.attachPointProof = function(pointId, actionId, input){
       const file = input.files && input.files[0] ? input.files[0].name : "";
       if(file) updatePointLinkedAction(pointId, actionId, {proofName:file});
@@ -3604,6 +4217,9 @@
         id_action_liee: nextPointActionId(), id_point: pointId,
         description: qs("#linkedAuditActionDesc").value,
         responsable: qs("#linkedAuditActionResp").value || null,
+        responsable_execution: qs("#linkedAuditActionResp").value || null,
+        responsable_suivi: qs("#linkedAuditActionRespSuivi").value || null,
+        statut_execution: "Non démarré",
         date_echeance: qs("#linkedAuditActionDue").value || null,
         traite:false
       };
@@ -3629,7 +4245,7 @@
             <div>
               <span class="muted" style="font-size:11px">${a.id}</span>
               <strong>${a.description}</strong>
-              <span class="badge ${a.treated==='Oui'?'ok':'warn'}">${a.treated==='Oui'?'Traitée':'Non traitée'}</span>
+              ${badgeStatutExec(a.statutExec)}
             </div>
             ${verrouille ? `<span class="muted" title="Point d'amélioration validé : action verrouillée">🔒 Verrouillé</span>` : `<button class="btn secondary" type="button" onclick="removePointLinkedAction('${a.id}')" style="padding:6px 10px">Supprimer</button>`}
           </div>
@@ -3640,8 +4256,7 @@
           <div style="margin-top:8px;background:#f8fafc;border:1px dashed var(--line);border-radius:12px;padding:10px">
             <strong style="font-size:12px;color:var(--muted)">Exécution</strong>
             <div class="toggle-group" style="margin-top:6px">
-              <button class="${a.treated==='Oui'?'active-yes':''}" type="button" onclick="setPointActionTreated('${pointId}','${a.id}','Oui')">Traitée</button>
-              <button class="${a.treated!=='Oui'?'active-no':''}" type="button" onclick="setPointActionTreated('${pointId}','${a.id}','Non')">Non traitée</button>
+              ${selectStatutExecHtml(a.statutExec, `setPointActionStatut('${pointId}','${a.id}',this.value)`)}
             </div>
             <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <label class="icon-btn" for="file-audit-${a.id}">📎 Joindre une preuve</label>
@@ -3853,10 +4468,9 @@
     function revueActionItemHtml(a){
       return `<div style="border-top:1px dashed var(--line);padding-top:8px;margin-top:8px">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <div><span class="muted" style="font-size:11px">${a.id}</span> ${a.description} <span class="badge ${a.treated==='Oui'?'ok':'warn'}">${a.treated==='Oui'?'Traitée':'Non traitée'}</span></div>
+          <div><span class="muted" style="font-size:11px">${a.id}</span> ${a.description} ${badgeStatutExec(a.statutExec)}</div>
           <div class="toggle-group">
-            <button class="${a.treated==='Oui'?'active-yes':''}" type="button" onclick="setRevueActionTreated('${a.id}','Oui')">Traitée</button>
-            <button class="${a.treated!=='Oui'?'active-no':''}" type="button" onclick="setRevueActionTreated('${a.id}','Non')">Non traitée</button>
+            ${selectStatutExecHtml(a.statutExec, `setRevueActionStatut('${a.id}',this.value)`)}
           </div>
         </div>
         <div class="muted" style="margin-top:4px">Responsable : ${a.responsible||'—'} · Échéance : ${a.dueDate?fmtDate(a.dueDate):'—'}</div>
@@ -3980,6 +4594,9 @@
         id_action_liee: nextRevueActionId(), id_revue: currentRevueId, id_point: pointId,
         description: qs("#linkedRevueActionDesc").value,
         responsable: qs("#linkedRevueActionResp").value || null,
+        responsable_execution: qs("#linkedRevueActionResp").value || null,
+        responsable_suivi: qs("#linkedRevueActionRespSuivi").value || null,
+        statut_execution: "Non démarré",
         date_echeance: qs("#linkedRevueActionDue").value || null,
         traite: false
       };
@@ -3992,7 +4609,12 @@
       renderActions();
     });
     window.setRevueActionTreated = async function(actionId, value){
-      await sb.from("revue_actions_liees").update({ traite: value==="Oui" }).eq("id_action_liee", actionId);
+      await setRevueActionStatut(actionId, value==="Oui" ? "Clôturé" : "Non démarré");
+    };
+    window.setRevueActionStatut = async function(actionId, statut){
+      await sb.from("revue_actions_liees")
+        .update({ statut_execution: statut, traite: statut === "Clôturé" })
+        .eq("id_action_liee", actionId);
       await recalcRevueFromLinkedActions(currentRevueId);
       await fetchAll();
       loadRevueSeance();
@@ -5022,7 +5644,7 @@
               <div>
                 <span class="muted" style="font-size:11px">${a.id}</span>
                 <strong>${a.description}</strong>
-                <span class="badge ${a.treated==='Oui'?'ok':'warn'}">${a.treated==='Oui'?'Traitée':'Non traitée'}</span>
+                ${badgeStatutExec(a.statutExec)}
               </div>
               ${verrouille ? `<span class="muted" title="Réclamation validée : action verrouillée">🔒 Verrouillé</span>` : `<button class="btn secondary" type="button" onclick="removeLinkedAction(${index})" style="padding:6px 10px">Retirer</button>`}
             </div>
@@ -5033,8 +5655,7 @@
             <div style="margin-top:8px;background:#f8fafc;border:1px dashed var(--line);border-radius:12px;padding:10px">
               <strong style="font-size:12px;color:var(--muted)">Exécution</strong>
               <div class="toggle-group" style="margin-top:6px">
-                <button class="${a.treated==='Oui'?'active-yes':''}" type="button" onclick="setLinkedActionTreated('${claimId}','${a.id}','Oui')">Traitée</button>
-                <button class="${a.treated!=='Oui'?'active-no':''}" type="button" onclick="setLinkedActionTreated('${claimId}','${a.id}','Non')">Non traitée</button>
+                ${selectStatutExecHtml(a.statutExec, `setLinkedActionStatut('${claimId}','${a.id}',this.value)`)}
               </div>
               <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
                 <label class="icon-btn" for="file-plan-${a.id}">📎 Joindre une preuve</label>
@@ -5108,6 +5729,7 @@
     async function updateLinkedAction(claimId, actionId, changes){
       const payload = {};
       if(changes.treated !== undefined) payload.traite = changes.treated === "Oui";
+      if(changes.statutExec !== undefined){ payload.statut_execution = changes.statutExec; payload.traite = changes.statutExec === "Clôturé"; }
       if(changes.proofName !== undefined) payload.fichier_url = changes.proofName;
       if(changes.commentaire !== undefined) payload.commentaire = changes.commentaire;
       await sb.from("reclamation_actions_liees").update(payload).eq("id_action_liee", actionId);
@@ -5118,6 +5740,9 @@
 
     window.setLinkedActionTreated = function(claimId, actionId, value){
       updateLinkedAction(claimId, actionId, {treated:value});
+    };
+    window.setLinkedActionStatut = function(claimId, actionId, statut){
+      updateLinkedAction(claimId, actionId, {statutExec:statut});
     };
     window.attachClaimProof = function(claimId, actionId, input){
       const file = input.files && input.files[0] ? input.files[0].name : "";
@@ -5142,8 +5767,7 @@
           <td>${a.description}</td>
           <td>
             <div class="toggle-group">
-              <button class="${a.treated==="Oui"?"active-yes":""}" type="button" onclick="setLinkedActionTreated('${claimId}','${a.id}','Oui')">Oui</button>
-              <button class="${a.treated!=="Oui"?"active-no":""}" type="button" onclick="setLinkedActionTreated('${claimId}','${a.id}','Non')">Non</button>
+              ${selectStatutExecHtml(a.statutExec, `setLinkedActionStatut('${claimId}','${a.id}',this.value)`)}
             </div>
           </td>
           <td>
@@ -5445,6 +6069,9 @@
       renderLinkedActions();
       renderRolePermissions();
       applyRolePermissions();
+      remplirSelecteursSuivi();
+      renderLogigrammeSchema();
+      chargerPreparationRevue();
     }
 
     window.approveAction = async function(id){
@@ -5525,7 +6152,14 @@
     qs("#actionsFilterSearch").addEventListener("input", renderActions);
     qs("#activitesFilterModule").addEventListener("change", renderActivitesConsolidees);
     qs("#activitesFilterStatut").addEventListener("change", renderActivitesConsolidees);
+    qs("#activitesFilterRespExec").addEventListener("change", renderActivitesConsolidees);
+    qs("#activitesFilterRespSuivi").addEventListener("change", renderActivitesConsolidees);
     qs("#activitesFilterSearch").addEventListener("input", renderActivitesConsolidees);
+    qs("#actionsFilterRespExec").addEventListener("change", renderActions);
+    qs("#actionsFilterRespSuivi").addEventListener("change", renderActions);
+    qs("#flowchartActivitesFilter").addEventListener("change", ()=>{
+      renderActivitesFor("Logigramme", "#flowchartActivitesList", state.logigramme, "etape", "activite", qs("#flowchartActivitesFilter").value);
+    });
     qs("#objectivesActivitesFilter").addEventListener("change", ()=>{
       renderActivitesFor("Objectif", "#objectivesActivitesList", state.objectifsRef, "id_objectif", "objectif", qs("#objectivesActivitesFilter").value);
     });
@@ -5942,7 +6576,10 @@
           id: nextLinkedActionId(),
           description,
           responsible: qs("#linkedActionResp").value,
+          responsable_execution: qs("#linkedActionResp").value || null,
+          responsable_suivi: qs("#linkedActionRespSuivi").value || null,
           dueDate: qs("#linkedActionDue").value || "",
+          statutExec: "Non démarré",
           treated: "Non",
           proofName: ""
         });
@@ -5987,10 +6624,14 @@
         }
         // Synchroniser les actions liées : upsert de chaque action de la liste courante
         for(const a of currentLinkedActions){
+          const statutA = a.statutExec || (a.treated==="Oui" ? "Clôturé" : "Non démarré");
           await sb.from("reclamation_actions_liees").upsert({
             id_action_liee:a.id, id_reclamation:claimId, traitement_id:treatmentId,
-            description:a.description, responsable:a.responsible||null, date_echeance:a.dueDate||null,
-            traite: a.treated==="Oui", fichier_url:a.proofName||null, commentaire:a.commentaire||null
+            description:a.description, responsable:a.responsible||null,
+            responsable_execution:a.responsable_execution||a.responsible||null,
+            responsable_suivi:a.responsable_suivi||null,
+            date_echeance:a.dueDate||null, statut_execution:statutA,
+            traite: statutA==="Clôturé", fichier_url:a.proofName||null, commentaire:a.commentaire||null
           }, { onConflict:"id_action_liee" });
         }
         await sb.from("reclamations").update({ statut:f.get("status") }).eq("id_reclamation", claimId);
@@ -6003,7 +6644,6 @@
       });
     }
 
-    qsa(".review-check").forEach(chk=>chk.addEventListener("change", updateReviewPrepScore));
 
     // ---------- Démarrage + rafraîchissement temps réel ----------
     sb.auth.onAuthStateChange((event)=>{
