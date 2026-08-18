@@ -966,7 +966,7 @@ function construireRapport(st) {
     <div class="enteteInst">
       <strong>RÉPUBLIQUE DE CÔTE D'IVOIRE</strong><br><span class="gris">Union — Discipline — Travail</span><br>
       <strong>AGENCE NATIONALE D'APPUI AU DÉVELOPPEMENT RURAL (ANADER)</strong><br>
-      Direction de la Gestion du Matériel et du Génie (D2MG)<br>
+      Direction marchés et moyens généraux (D2MG)<br>
       <span class="gris">Processus support PS3 — Gérer le patrimoine</span>
       <div class="t">RAPPORT PÉRIODIQUE DE GESTION DES COURRIERS</div>
       <div style="font-size:11.5px">${ech(libPer)}${st.service ? ' · ' + ech(nomService(st.service)) : ''}${st.source ? ' · ' + ech(SOURCES[st.source].libelle) : ''}
