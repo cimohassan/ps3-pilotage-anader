@@ -170,23 +170,7 @@
       .nav-overlay.show{display:block;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:45}
     }
 
-    /* --- Module Projets --- */
-    .pj-kanban-board{grid-template-columns:repeat(3,1fr)}
-    @media (max-width:1100px){.pj-kanban-board{grid-template-columns:1fr}}
-    .pj-kanban-col .list{min-height:60px}
-    .pj-projet-card{display:flex;flex-direction:column}
-    .pj-subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-    .pj-subtabs button{border:1px solid var(--line);background:#fff;color:var(--primary);padding:9px 14px;border-radius:999px;font-weight:700;cursor:pointer}
-    .pj-subtabs button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
-    .pj-subview{display:none}
-    .pj-subview.active{display:block}
-    .pj-bloc5{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px;background:#fff}
-    .pj-bloc5 h3{margin:0 0 8px;color:var(--primary)}
-    #pjPrintArea{display:none}
-    body.pj-printing > *:not(#pjPrintArea){visibility:hidden}
-    body.pj-printing #pjPrintArea{display:block;visibility:visible;position:absolute;top:0;left:0;width:100%;padding:24px}
-    body.pj-printing #pjPrintArea *{visibility:visible}
-  </style>
+    </style>
 </head>
 <body>
   <section id="loadingScreen" class="login-screen">
@@ -284,6 +268,8 @@
       </div>
 
       <div class="nav">
+        <div class="nav-title">Portail</div>
+        <button type="button" onclick="window.location.href='portail.html'">🏠 Accueil D2MG</button>
         <div class="nav-title">Modules</div>
         <button class="active" data-view="home">Accueil</button>
         <button data-view="flowchart">Logigramme</button>
@@ -301,8 +287,6 @@
         <button data-view="notifications">Alertes</button>
         <button data-view="auditLog" id="auditLogNavBtn">Journal d'audit</button>
         <button data-view="settings">Aide & paramètres</button>
-        <div class="nav-title">Projets D2MG</div>
-        <button data-view="projets">Projets</button>
       </div>
     </aside>
 
@@ -1031,12 +1015,11 @@
           </div>
           <div class="card">
             <div class="section-title">
-              <div><h3>Équipe PS3</h3><p>Référentiel des acteurs (feuille 1.1 du cadre de travail).</p></div>
-              <button class="btn primary" id="addMembreBtn" type="button" style="display:none" onclick="openMembreModal()">Ajouter un membre</button>
+              <div><h3>Équipe PS3</h3><p>Référentiel des acteurs (feuille 1.1 du cadre de travail). L'ajout, la modification et le retrait d'un membre se font désormais depuis le Portail (Accueil D2MG → Paramètres → Gestion des utilisateurs).</p></div>
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Nom</th><th>Fonction</th><th>Entité</th><th>Rôle</th><th>Compte</th><th></th></tr></thead>
+                <thead><tr><th>Nom</th><th>Fonction</th><th>Entité</th><th>Rôle</th><th>Compte</th></tr></thead>
                 <tbody id="acteursTable"></tbody>
               </table>
             </div>
@@ -1068,46 +1051,6 @@
         </div>
       </section>
 
-      <section id="projets" class="view">
-        <div id="pjVueListe">
-          <div class="topbar">
-            <div class="title">
-              <h1>Projets</h1>
-              <p>Suivi des projets D2MG : fiche projet, activités, rapports d'avancement et tableau de bord.</p>
-            </div>
-            <div class="toolbar">
-              <button class="btn primary" type="button" id="pjBtnNouveauProjet">+ Nouveau projet</button>
-            </div>
-          </div>
-          <div class="grid" id="pjListeGrid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))"></div>
-        </div>
-
-        <div id="pjVueFiche" class="hidden">
-          <div class="topbar">
-            <div class="title" id="pjFicheTitre"></div>
-            <div class="toolbar">
-              <button class="btn secondary" type="button" id="pjBtnRetourListe">← Retour aux projets</button>
-              <button class="btn ghost" type="button" id="pjBtnEditerProjet">Modifier la fiche</button>
-            </div>
-          </div>
-
-          <div class="pj-subtabs">
-            <button type="button" data-pjtab="presentation" class="active">Présentation</button>
-            <button type="button" data-pjtab="kanban">Activités (kanban)</button>
-            <button type="button" data-pjtab="rapports">Rapports d'avancement</button>
-            <button type="button" data-pjtab="dashboard">Tableau de bord</button>
-            <button type="button" data-pjtab="fiche5">Fiche 5 blocs</button>
-          </div>
-
-          <div class="pj-subview active" id="pjTabPresentation"></div>
-          <div class="pj-subview" id="pjTabKanban"></div>
-          <div class="pj-subview" id="pjTabRapports"></div>
-          <div class="pj-subview" id="pjTabDashboard"></div>
-          <div class="pj-subview" id="pjTabFiche5"></div>
-        </div>
-      </section>
-
-      <div id="pjPrintArea"></div>
     </main>
   </div>
 
@@ -1528,32 +1471,6 @@
     </div>
   </div>
 
-  <div class="modal" id="membreModal">
-    <div class="modal-box">
-      <div class="modal-head"><strong id="membreModalTitle">Ajouter un membre de l'équipe PS3</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
-      <div class="modal-body">
-        <form id="membreForm">
-          <input type="hidden" id="membreEditId" />
-          <div class="form-grid">
-            <div class="field full"><label>Nom et prénoms <span style="color:red">*</span></label><input type="text" id="membreNom" required /></div>
-            <div class="field"><label>Fonction</label><input type="text" id="membreFonction" /></div>
-            <div class="field"><label>Entité</label><input type="text" id="membreEntite" /></div>
-            <div class="field"><label>Email</label><input type="email" id="membreEmail" placeholder="Utilisé pour la connexion et les convocations" /></div>
-            <div class="field"><label>Type de membre <span style="color:red">*</span></label>
-              <select id="membreRole" required>
-                <option value="Pilote">1. Pilote</option>
-                <option value="Co-pilote">1. Co-pilote</option>
-                <option value="Ressource" selected>2. Personne ressource</option>
-                <option value="Acteur du processus">3. Acteur du processus</option>
-              </select>
-            </div>
-          </div>
-          <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary" id="membreSubmitBtn">Ajouter</button></div>
-        </form>
-      </div>
-    </div>
-  </div>
-
   <!-- Modal ajout action liée à une réclamation -->
   <div class="modal" id="linkedActionModal">
     <div class="modal-box">
@@ -1739,99 +1656,6 @@
     </div>
   </div>
 
-  <!-- Module Projets : modales -->
-  <div class="modal" id="pjModalProjet">
-    <div class="modal-box">
-      <div class="modal-head"><strong id="pjModalProjetTitre">Nouveau projet</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
-      <div class="modal-body">
-        <form id="pjFormProjet">
-          <div class="form-grid">
-            <div class="field full"><label>Dénomination du projet <span style="color:red">*</span></label><input type="text" id="pjProjetDenomination" required /></div>
-            <div class="field full"><label>Contexte</label><textarea id="pjProjetContexte"></textarea></div>
-            <div class="field full"><label>Objectif du projet</label><textarea id="pjProjetObjectif"></textarea></div>
-            <div class="field"><label>Responsable <span style="color:red">*</span></label><select id="pjProjetResponsable" required></select></div>
-            <div class="field"><label>Statut</label>
-              <select id="pjProjetStatut">
-                <option>Non démarré</option><option>En cours</option><option>Suspendu</option><option>Clôturé</option>
-              </select>
-            </div>
-            <div class="field"><label>Date de début</label><input type="date" id="pjProjetDateDebut" /></div>
-            <div class="field"><label>Date de fin prévue</label><input type="date" id="pjProjetDateFinPrevue" /></div>
-            <div class="field"><label>Météo / appréciation générale</label>
-              <select id="pjProjetMeteo"><option>Vert</option><option>Orange</option><option>Rouge</option></select>
-            </div>
-            <div class="field"><label>Budget prévu</label><input type="number" step="0.01" id="pjProjetBudget" /></div>
-            <div class="field full"><label>Points d'attention</label><textarea id="pjProjetPointsAttention"></textarea></div>
-          </div>
-          <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary">Enregistrer</button></div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal" id="pjModalEquipeMembre">
-    <div class="modal-box">
-      <div class="modal-head"><strong>Ajouter un membre à l'équipe</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
-      <div class="modal-body">
-        <form id="pjFormEquipeMembre">
-          <div class="form-grid">
-            <div class="field full"><label>Acteur</label><select id="pjMembreActeur"></select></div>
-            <div class="field full"><label>Rôle dans l'équipe</label>
-              <select id="pjMembreRole"><option value="Membre">Membre</option><option value="Responsable">Responsable</option></select>
-            </div>
-          </div>
-          <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary">Ajouter</button></div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal" id="pjModalActivite">
-    <div class="modal-box">
-      <div class="modal-head"><strong id="pjModalActiviteTitre">Nouvelle activité</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
-      <div class="modal-body">
-        <form id="pjFormActivite">
-          <div class="form-grid">
-            <div class="field full"><label>Dénomination <span style="color:red">*</span></label><input type="text" id="pjActiviteDenomination" required /></div>
-            <div class="field full"><label>Description</label><textarea id="pjActiviteDescription"></textarea></div>
-            <div class="field"><label>Responsable</label><select id="pjActiviteResponsable"></select></div>
-            <div class="field"><label>Priorité</label>
-              <select id="pjActivitePriorite"><option>Basse</option><option>Moyenne</option><option>Haute</option><option>Critique</option></select>
-            </div>
-            <div class="field"><label>Statut</label>
-              <select id="pjActiviteStatut"><option>À faire</option><option>En cours</option><option>Réalisé</option></select>
-            </div>
-            <div class="field"><label>Échéance prévue</label><input type="date" id="pjActiviteDatePrevue" /></div>
-            <div class="field full"><label>Commentaire</label><textarea id="pjActiviteCommentaire"></textarea></div>
-            <div class="field full"><label>Référence de preuve (document, lien réseau...)</label><input type="text" id="pjActivitePreuve" /></div>
-          </div>
-          <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary">Enregistrer</button></div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal" id="pjModalRapport">
-    <div class="modal-box">
-      <div class="modal-head"><strong>Nouveau rapport d'avancement</strong><button class="btn ghost" data-close-modal type="button">Fermer</button></div>
-      <div class="modal-body">
-        <form id="pjFormRapport">
-          <div class="form-grid">
-            <div class="field"><label>Date du rapport</label><input type="date" id="pjRapportDate" /></div>
-            <div class="field"><label>Période (libellé libre)</label><input type="text" id="pjRapportPeriode" placeholder="ex : Semaine 34 - Août 2026" /></div>
-            <div class="field"><label>Météo / appréciation</label>
-              <select id="pjRapportMeteo"><option>Vert</option><option>Orange</option><option>Rouge</option></select>
-            </div>
-            <div class="field"><label>Taux d'avancement estimé (%)</label><input type="number" min="0" max="100" id="pjRapportTaux" /></div>
-            <div class="field full"><label>Synthèse</label><textarea id="pjRapportSynthese"></textarea></div>
-            <div class="field full"><label>Points d'attention</label><textarea id="pjRapportPointsAttention"></textarea></div>
-          </div>
-          <div class="modal-actions"><button type="button" class="btn secondary" data-close-modal>Annuler</button><button type="submit" class="btn primary">Enregistrer</button></div>
-        </form>
-      </div>
-    </div>
-  </div>
-
   <script>
     // =========================================================
     // PS3 Pilotage — ANADER — Backend Supabase
@@ -1949,9 +1773,12 @@
       qs("#currentUserRole").textContent = currentUser.role;
       qs("#manageExercicesBtn").style.display = (currentUser.role === "Pilote") ? "block" : "none";
       const isPiloteOuCopilote = currentUser.role === "Pilote" || currentUser.role === "Co-pilote";
-      qs("#addMembreBtn").style.display = isPiloteOuCopilote ? "inline-flex" : "none";
       qs("#permissionsCard").style.display = isPiloteOuCopilote ? "block" : "none";
-      fetchAll().then(renderAll);
+      fetchAll().then(renderAll).then(()=>{
+        // Navigation directe depuis le portail D2MG (ex : index.html?view=projets)
+        const v = new URLSearchParams(location.search).get("view");
+        if(v){ const b = qs(`.nav button[data-view="${v}"]`); if(b) b.click(); }
+      });
     }
     function loginMessage(html, type){
       qs("#loginMessages").innerHTML = html ? `<div class="login-${type||'error'}">${html}</div>` : "";
@@ -2599,69 +2426,10 @@
       renderActivites();
 
       const acteursTbl = qs("#acteursTable");
-      const canManageMembres = currentUser && (currentUser.role==="Pilote"||currentUser.role==="Co-pilote");
       if(acteursTbl) acteursTbl.innerHTML = state.acteurs.filter(a=>a.actif!==false).map(a=>`
-        <tr><td>${a.nom_prenoms}</td><td>${a.fonction||"—"}</td><td>${a.entite||"—"}</td><td>${a.role}</td><td>${a.user_id ? '<span class="badge ok">Connecté</span>' : '<span class="badge neutral">En attente</span>'}</td>
-        <td>${canManageMembres ? actionSelectHtml("membre", a.id_acteur) : ""}</td></tr>
-      `).join("") || `<tr><td colspan="6">Aucun acteur référencé.</td></tr>`;
+        <tr><td>${a.nom_prenoms}</td><td>${a.fonction||"—"}</td><td>${a.entite||"—"}</td><td>${a.role}</td><td>${a.user_id ? '<span class="badge ok">Connecté</span>' : '<span class="badge neutral">En attente</span>'}</td></tr>
+      `).join("") || `<tr><td colspan="5">Aucun acteur référencé.</td></tr>`;
     }
-    window.retirerMembre = function(idActeur){
-      const a = state.acteurs.find(x=>x.id_acteur===idActeur);
-      if(!a) return;
-      confirmAction(`Retirer ${a.nom_prenoms} de l'équipe PS3 ?`, async ()=>{
-        const { error } = await sb.from("acteurs").update({ actif:false }).eq("id_acteur", idActeur);
-        if(error){ toast("Erreur : " + error.message, "error"); return; }
-        toast("Membre retiré de l'équipe.", "ok");
-        await fetchAll();
-        renderAll();
-      });
-    };
-
-    // ---------- Équipe PS3 : ajout / modification de membre ----------
-    window.openMembreModal = function(){
-      qs("#membreForm").reset();
-      qs("#membreEditId").value = "";
-      qs("#membreModalTitle").textContent = "Ajouter un membre de l'équipe PS3";
-      qs("#membreSubmitBtn").textContent = "Ajouter";
-      qs("#membreModal").classList.add("show");
-    };
-    window.openMembreEditModal = function(idActeur){
-      const a = state.acteurs.find(x=>x.id_acteur===idActeur);
-      if(!a) return;
-      qs("#membreForm").reset();
-      qs("#membreEditId").value = idActeur;
-      qs("#membreModalTitle").textContent = "Modifier le membre " + a.nom_prenoms;
-      qs("#membreSubmitBtn").textContent = "Enregistrer";
-      qs("#membreNom").value = a.nom_prenoms || "";
-      qs("#membreFonction").value = a.fonction || "";
-      qs("#membreEntite").value = a.entite || "";
-      qs("#membreEmail").value = a.email || "";
-      qs("#membreRole").value = a.role || "Ressource";
-      qs("#membreModal").classList.add("show");
-    };
-    qs("#membreForm").addEventListener("submit", async e=>{
-      e.preventDefault();
-      const editId = qs("#membreEditId").value;
-      const fields = {
-        nom_prenoms: qs("#membreNom").value.trim(),
-        fonction: qs("#membreFonction").value.trim() || null,
-        entite: qs("#membreEntite").value.trim() || null,
-        email: qs("#membreEmail").value.trim() || null,
-        role: qs("#membreRole").value
-      };
-      if(!fields.nom_prenoms){ toast("Le nom du membre est obligatoire.", "error"); return; }
-      let error;
-      if(editId){
-        ({ error } = await sb.from("acteurs").update(fields).eq("id_acteur", editId));
-      } else {
-        ({ error } = await sb.from("acteurs").insert({ id_acteur: nextActeurId(), actif:true, ...fields }));
-      }
-      if(error){ toast("Erreur : " + error.message, "error"); return; }
-      toast(editId ? `${fields.nom_prenoms} a été mis(e) à jour.` : `${fields.nom_prenoms} a été ajouté(e) à l'équipe PS3.`, "ok");
-      qs("#membreModal").classList.remove("show");
-      await fetchAll();
-      renderAll();
-    });
 
     // ---------- Permissions par type de membre ----------
     const CONFIGURABLE_ROLES = ["Ressource", "Acteur du processus"];
@@ -2677,8 +2445,7 @@
       { key:"activitesConsolidees", label:"Activités consolidées" },
       { key:"proofs", label:"Pièces justificatives" },
       { key:"revues", label:"Revue de processus" },
-      { key:"notifications", label:"Alertes" },
-      { key:"projets", label:"Projets" }
+      { key:"notifications", label:"Alertes" }
     ];
     function renderRolePermissions(){
       const container = qs("#rolePermissionsContainer");
@@ -3337,13 +3104,6 @@
           <option value="supprimer">Supprimer</option>
         </select>`;
       }
-      if(type==="membre"){
-        return `<select class="action-select" onchange="handleEntityAction(this)" data-entity-type="membre" data-id="${id}">
-          <option value="">Action</option>
-          <option value="modifier">Modifier</option>
-          <option value="retirer">Retirer</option>
-        </select>`;
-      }
       if(type==="proof"){
         return `<select class="action-select" onchange="handleEntityAction(this)" data-entity-type="proof" data-id="${id}">
           <option value="">Action</option>
@@ -3403,9 +3163,6 @@
         if(action==="planifier") openEtapeEditModal(id);
         else if(action==="executer") openLogigrammeCommentModal(id);
         else if(action==="supprimer") supprimerEtape(id);
-      } else if(type==="membre"){
-        if(action==="modifier") openMembreEditModal(id);
-        else if(action==="retirer") retirerMembre(id);
       } else if(type==="proof"){
         if(action==="modifier") openProofEditModal(id);
         else if(action==="retirer") deleteRow("registre_preuves","id_preuve",id,"cette pièce justificative");
@@ -6822,6 +6579,6 @@
 
     bootstrapSession().then(()=>{ if(currentUser) subscribeRealtime(); });
   </script>
-  <script src="projets.js"></script>
+  <!-- Le module Gestion de projet est désormais une chambre autonome : projets.html -->
 </body>
 </html>

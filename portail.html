@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>D2MG Pilotage — ANADER</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --line:#d9e2ee; --text:#1f2937; --muted:#667085;
+    --primary:#0f4c81; --primary2:#1b6db0; --ok:#19945d; --warn:#cb8800; --bad:#cf3f3f;
+    --radius:16px; --shadow:0 8px 24px rgba(15,76,129,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+  .hidden{display:none !important}
+  h1,h2,h3,h4{margin:0}
+  .screen{min-height:100vh;display:grid;place-items:center;padding:24px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .login-box{width:min(460px,100%);padding:32px}
+  .login-box h1{margin:0 0 6px;color:var(--primary);font-size:22px}
+  .login-box p.sub{color:var(--muted);margin:0 0 20px;font-size:14px}
+  label{display:block;font-size:13px;font-weight:700;color:var(--primary);margin:12px 0 6px}
+  input,select{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:14px;background:#fff;font-family:inherit}
+  .btn{border:1px solid var(--line);background:#fff;color:var(--primary);border-radius:12px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:13.5px;font-family:inherit}
+  .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .btn.ghost{background:#eef4fb;border-color:#eef4fb}
+  .btn.danger{background:#fdecec;color:var(--bad);border-color:#f3c6c6}
+  .btn.sm{padding:6px 11px;font-size:12px;border-radius:9px}
+  .btn.block{width:100%;margin-top:18px}
+  .msg-error{background:#fdecec;color:var(--bad);border:1px solid #f3c6c6;border-radius:10px;padding:10px 12px;margin-top:14px;font-size:13px}
+
+  /* ---------- coquille applicative (sidebar + contenu) ---------- */
+  .app-shell{min-height:100vh;display:flex;align-items:stretch}
+  .sidebar{width:232px;flex-shrink:0;background:var(--primary);color:#fff;display:flex;flex-direction:column;padding:26px 18px;position:sticky;top:0;height:100vh}
+  .sidebar .brand{font-size:16.5px;font-weight:800;line-height:1.25}
+  .sidebar .brand small{display:block;font-weight:400;font-size:11.5px;opacity:.75;margin-top:3px}
+  .sidebar .qui{margin-top:20px;padding:12px;background:rgba(255,255,255,.08);border-radius:12px;font-size:12.5px;line-height:1.5}
+  .sidebar .qui strong{display:block;font-size:13.5px}
+  .sidebar nav{margin-top:22px;display:flex;flex-direction:column;gap:4px;flex:1}
+  .sidebar nav button{display:flex;align-items:center;gap:10px;background:transparent;border:none;color:#e3ecf7;text-align:left;padding:11px 12px;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;width:100%}
+  .sidebar nav button:hover{background:rgba(255,255,255,.1)}
+  .sidebar nav button.active{background:#fff;color:var(--primary)}
+  .sidebar nav button .ic{font-size:15px}
+  .sidebar .pied{border-top:1px solid rgba(255,255,255,.2);padding-top:14px;margin-top:14px}
+  .sidebar .pied .btn{width:100%;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.12);color:#fff}
+
+  .main-content{flex:1;min-width:0;overflow-y:auto;height:100vh}
+  .page{width:min(1180px,100%);padding:32px;margin:0 auto}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+  .head h1{color:var(--primary);font-size:22px}
+  .head p{margin:6px 0 0;color:var(--muted);font-size:14px}
+  .salon-sub{color:var(--muted);font-size:14px;margin:18px 0 22px}
+  .chambres{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+  .chambre{border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:26px 22px;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;text-align:left;background:#fff;font-family:inherit;color:inherit;border-top:5px solid var(--primary)}
+  .chambre:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(15,76,129,.16)}
+  .chambre .ic{font-size:32px;margin-bottom:10px}
+  .chambre h3{margin:0 0 6px;font-size:17px}
+  .chambre p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+  .chambre .tag{display:inline-block;margin-top:12px;border-radius:999px;padding:4px 10px;font-size:11.5px;font-weight:700}
+  .chambre.ps3{border-top-color:#0f4c81} .chambre.ps3 h3{color:#0f4c81} .chambre.ps3 .tag{background:#eef4fb;color:#0f4c81}
+  .chambre.projets{border-top-color:#E2725B} .chambre.projets h3{color:#9C3D2A} .chambre.projets .tag{background:#FCEDE9;color:#9C3D2A}
+  .chambre.courriers{border-top-color:#0B6E4F} .chambre.courriers h3{color:#075039} .chambre.courriers .tag{background:#E8F3EF;color:#075039}
+  .no-access{background:#f8fafc;border:1px dashed var(--line);border-radius:18px;padding:26px 22px;color:var(--muted);font-size:13px;text-align:center}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:20px}
+  .card h2{color:var(--primary);font-size:17px;margin:0 0 4px}
+  .card p.sub{color:var(--muted);font-size:13px;margin:0 0 16px;max-width:820px;line-height:1.55}
+
+  .onglets-param{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px;border-bottom:1px solid var(--line);padding-bottom:12px}
+  .onglets-param button{border:1px solid var(--line);background:#fff;color:var(--primary);padding:9px 15px;border-radius:999px;font-weight:700;cursor:pointer;font-size:12.5px;font-family:inherit}
+  .onglets-param button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #eef2f7;white-space:nowrap}
+  th{color:var(--primary);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+  .badge{display:inline-block;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700}
+  .badge.ok{background:#e7f6ee;color:var(--ok)} .badge.neutral{background:#f1f5f9;color:var(--muted)}
+
+  .profils{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid var(--line);padding-bottom:12px}
+  .profils button{border:1px solid var(--line);background:#fff;color:var(--primary);padding:8px 13px;border-radius:999px;font-weight:700;cursor:pointer;font-size:12.5px;font-family:inherit}
+  .profils button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .profils button .r{opacity:.7;font-weight:400;margin-left:5px}
+
+  .fiche-profil{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px}
+  .bandeau{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .bandeau h3{color:var(--primary);font-size:17px}
+  .bandeau .meta{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .modules-onglets{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px}
+  .modules-onglets button{border:1px solid var(--line);background:#fff;padding:7px 13px;border-radius:10px;font-weight:700;cursor:pointer;font-size:12.5px;font-family:inherit;display:flex;align-items:center;gap:7px}
+  .modules-onglets button.active{color:#fff}
+  .modules-onglets button.ps3.active{background:#0f4c81;border-color:#0f4c81}
+  .modules-onglets button.projets.active{background:#E2725B;border-color:#E2725B}
+  .modules-onglets button.courriers.active{background:#0B6E4F;border-color:#0B6E4F}
+  .modules-onglets .cpt{font-size:11px;opacity:.8;font-weight:400}
+
+  .acces-ligne{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:16px;font-size:13px}
+  .groupe-droits{margin-bottom:18px}
+  .groupe-droits h4{color:var(--primary);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+  .droit{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9}
+  .droit .lib{font-size:13px;font-weight:700}
+  .droit .desc{font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:2px}
+  .bascule{display:flex;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex-shrink:0}
+  .bascule button{border:none;background:#fff;padding:6px 12px;font-size:11.5px;font-weight:700;cursor:pointer;color:var(--muted);font-family:inherit;white-space:nowrap}
+  .bascule button.on-oui{background:var(--ok);color:#fff}
+  .bascule button.on-non{background:var(--bad);color:#fff}
+  .actions-bas{display:flex;gap:9px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+
+  .profil-fiche{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:820px){ .profil-fiche{grid-template-columns:1fr} .app-shell{flex-direction:column} .sidebar{width:100%;height:auto;position:relative} .main-content{height:auto} }
+  .info-ligne{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
+  .info-ligne span{color:var(--muted)}
+  .aide-bloc{margin-bottom:18px}
+  .aide-bloc h3{color:var(--primary);font-size:14.5px;margin:0 0 6px}
+  .aide-bloc p, .aide-bloc li{color:var(--text);font-size:13.5px;line-height:1.6}
+  .aide-bloc ul{margin:6px 0;padding-left:20px}
+
+  /* ---------- modale ---------- */
+  .modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:60;align-items:center;justify-content:center;padding:20px}
+  .modal.show{display:flex}
+  .modal-box{background:#fff;border-radius:16px;max-width:540px;width:100%;padding:22px 24px;max-height:88vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .modal-head strong{color:var(--primary);font-size:16px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .field.full{grid-column:1/-1}
+  .modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
+
+  .toasts{position:fixed;top:16px;right:16px;display:flex;flex-direction:column;gap:8px;z-index:999}
+  .toast{background:#1f2937;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;box-shadow:0 6px 16px rgba(0,0,0,.2)}
+  .toast.ok{background:var(--ok)} .toast.error{background:var(--bad)}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div id="toasts" class="toasts"></div>
+
+<!-- ====================== PORTE D'ENTRÉE ====================== -->
+<section id="loginScreen" class="screen">
+  <div class="box login-box">
+    <h1>D2MG Pilotage</h1>
+    <p class="sub">ANADER — Direction de la Gestion du Matériel et du Génie<br>Connectez-vous pour accéder à vos espaces de travail.</p>
+    <form id="loginForm">
+      <label>Adresse email</label>
+      <input type="email" id="loginEmail" required autocomplete="username" />
+      <label>Mot de passe</label>
+      <input type="password" id="loginPassword" required autocomplete="current-password" />
+      <button type="submit" class="btn primary block">Se connecter</button>
+    </form>
+    <div id="loginMsg"></div>
+  </div>
+</section>
+
+<!-- ====================== ACCUEIL (SALON) ====================== -->
+<section id="salon" class="app-shell hidden">
+
+  <aside class="sidebar">
+    <div class="brand">D2MG Pilotage<small>ANADER — DGMG</small></div>
+    <div class="qui">
+      <strong id="whoName">—</strong>
+      <span id="whoRole">—</span>
+    </div>
+    <nav>
+      <button type="button" class="active" data-vue="accueil"><span class="ic">🏠</span> Accueil</button>
+      <button type="button" data-vue="profil"><span class="ic">👤</span> Profil</button>
+      <button type="button" data-vue="parametres" id="navParametres" class="hidden"><span class="ic">⚙️</span> Paramètres</button>
+      <button type="button" data-vue="aide"><span class="ic">❓</span> Aide</button>
+    </nav>
+    <div class="pied">
+      <button type="button" class="btn" id="logoutBtn">Se déconnecter</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+
+    <!-- ---------- Accueil : chambres ---------- -->
+    <div class="page" id="vueAccueil">
+      <div class="head">
+        <div>
+          <h1>Accueil</h1>
+          <p>ANADER — Bienvenue. Choisissez l'espace dans lequel vous souhaitez travailler.</p>
+        </div>
+      </div>
+      <p class="salon-sub">Vous entrez dans un espace avec les droits d'usage qui vous ont été attribués : certaines actions peuvent y être visibles sans vous être ouvertes.</p>
+      <div class="chambres" id="chambres"></div>
+    </div>
+
+    <!-- ---------- Profil ---------- -->
+    <div class="page hidden" id="vueProfil">
+      <div class="head"><div><h1>Mon profil</h1><p>Vos informations et vos droits d'usage dans chaque espace.</p></div></div>
+      <div class="profil-fiche">
+        <div class="card" style="margin-bottom:0">
+          <h2>Identité</h2>
+          <p class="sub">Ces informations sont gérées par le Pilote ou un Co-pilote depuis Paramètres → Gestion des utilisateurs.</p>
+          <div id="profilInfos"></div>
+        </div>
+        <div class="card" style="margin-bottom:0">
+          <h2>Mes droits par espace</h2>
+          <p class="sub">Nombre d'actions autorisées sur le total du catalogue de chaque module.</p>
+          <div id="profilDroits"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <h2>Changer mon mot de passe</h2>
+        <p class="sub">Le nouveau mot de passe s'applique immédiatement à votre prochaine connexion.</p>
+        <form id="pwdForm" class="form-grid">
+          <div class="field"><label>Nouveau mot de passe</label><input type="password" id="pwdNew" minlength="6" required /></div>
+          <div class="field"><label>Confirmer le mot de passe</label><input type="password" id="pwdConfirm" minlength="6" required /></div>
+          <div class="field full"><button type="submit" class="btn primary">Mettre à jour le mot de passe</button></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ---------- Paramètres ---------- -->
+    <div class="page hidden" id="vueParametres">
+      <div class="head"><div><h1>Paramètres</h1><p>Gestion des utilisateurs et des droits d'usage de la plateforme D2MG Pilotage.</p></div></div>
+
+      <div class="onglets-param" id="ongletsParam">
+        <button type="button" class="active" data-pt="utilisateurs">Gestion des utilisateurs</button>
+        <button type="button" data-pt="acces">Gestion des accès et droits d'usage</button>
+      </div>
+
+      <div id="paramUtilisateurs">
+        <div class="card">
+          <div class="head" style="margin-bottom:0">
+            <div><h2>Équipe D2MG</h2><p class="sub" style="margin-bottom:0">Référentiel unique des acteurs, partagé par les trois espaces (PS3, Gestion de projet, Gestion des courriers). Tout nouvel utilisateur reçoit automatiquement un accès de base aux trois espaces.</p></div>
+            <button type="button" class="btn primary" id="btnAjouterUtilisateur">Ajouter un utilisateur</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nom</th><th>Fonction</th><th>Entité</th><th>Rôle</th><th>Email</th><th>Compte</th><th></th></tr></thead>
+              <tbody id="utilisateursTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="paramAcces" class="hidden">
+        <div class="card">
+          <h2>Gestion des accès et des droits d'usage</h2>
+          <p class="sub">Tous les agents de la D2MG accèdent aux trois espaces. Ce qui les distingue, ce sont les droits d'usage : sélectionnez un agent, puis un espace, et autorisez ou refusez chaque action. Les modifications s'appliquent immédiatement à la prochaine ouverture de l'espace concerné.</p>
+          <div class="profils" id="profils"></div>
+          <div id="ficheProfil"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- Aide ---------- -->
+    <div class="page hidden" id="vueAide">
+      <div class="head"><div><h1>Aide</h1><p>Mode d'emploi du portail D2MG Pilotage.</p></div></div>
+      <div class="card">
+        <div class="aide-bloc">
+          <h3>Naviguer entre les espaces</h3>
+          <p>Depuis l'Accueil, cliquez sur la carte d'un espace (PS3, Gestion de projet, Gestion des courriers) pour y entrer. Chaque espace est une application autonome, avec son propre thème de couleur. Utilisez le bouton « 🏠 Accueil D2MG » à l'intérieur de chaque espace pour revenir au portail.</p>
+        </div>
+        <div class="aide-bloc">
+          <h3>La bande latérale</h3>
+          <ul>
+            <li><strong>Accueil</strong> — les espaces qui vous sont ouverts.</li>
+            <li><strong>Profil</strong> — vos informations et vos droits d'usage, et le changement de mot de passe.</li>
+            <li><strong>Paramètres</strong> — visible uniquement pour le Pilote et les Co-pilotes : gestion des utilisateurs et des droits d'usage.</li>
+            <li><strong>Aide</strong> — cette page.</li>
+          </ul>
+        </div>
+        <div class="aide-bloc">
+          <h3>Comment fonctionnent les droits d'usage</h3>
+          <p>Un accès « ouvert » à un espace rend la carte visible sur l'Accueil ; un droit d'usage « autorisé » donne accès à une action précise à l'intérieur de cet espace (créer, modifier, valider, exporter...). Un agent peut donc voir un espace sans pouvoir y modifier certaines données.</p>
+        </div>
+        <div class="aide-bloc">
+          <h3>Ajouter un nouvel utilisateur</h3>
+          <p>Dans Paramètres → Gestion des utilisateurs, cliquez sur « Ajouter un utilisateur » et renseignez son nom, sa fonction, son entité, son email et son rôle. Un accès de base aux trois espaces lui est attribué automatiquement. La personne doit ensuite disposer d'un compte de connexion créé avec le même email pour que son profil soit reconnu.</p>
+        </div>
+        <div class="aide-bloc">
+          <h3>Besoin d'aide</h3>
+          <p>Contactez le Pilote du processus PS3 (CISSE MOUSTAPHA HASSAN) pour toute question de rattachement de compte ou d'ajustement des droits.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</section>
+
+<!-- ====================== MODALE : utilisateur ====================== -->
+<div class="modal" id="utilisateurModal">
+  <div class="modal-box">
+    <div class="modal-head"><strong id="utilisateurModalTitle">Ajouter un utilisateur</strong><button class="btn ghost sm" type="button" id="utilisateurModalClose">Fermer</button></div>
+    <form id="utilisateurForm">
+      <input type="hidden" id="utilisateurEditId" />
+      <div class="form-grid">
+        <div class="field full"><label>Nom et prénoms *</label><input type="text" id="utilisateurNom" required /></div>
+        <div class="field"><label>Fonction</label><input type="text" id="utilisateurFonction" /></div>
+        <div class="field"><label>Entité</label><input type="text" id="utilisateurEntite" /></div>
+        <div class="field full"><label>Email</label><input type="email" id="utilisateurEmail" placeholder="Utilisé pour la connexion et pour lier le compte" /></div>
+        <div class="field full"><label>Rôle *</label>
+          <select id="utilisateurRole" required>
+            <option value="Pilote">1. Pilote</option>
+            <option value="Co-pilote">1. Co-pilote</option>
+            <option value="Ressource" selected>2. Personne ressource</option>
+            <option value="Acteur du processus">3. Acteur du processus</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn ghost" id="utilisateurCancel">Annuler</button><button type="submit" class="btn primary" id="utilisateurSubmitBtn">Ajouter</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const SUPABASE_URL = "https://tcirboephslicjmhokbh.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjaXJib2VwaHNsaWNqbWhva2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNjYxNjUsImV4cCI6MjEwMDg0MjE2NX0.e3f1B__NmDVL5G1Cze1p115ya2Rs-ErzzTUr25UCKEg";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const ech = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m,t){ const e=document.createElement('div'); e.className='toast '+(t||''); e.textContent=m;
+  $('#toasts').appendChild(e); setTimeout(()=>e.remove(),4200); }
+
+const CHAMBRES = [
+  { module:'ps3', cl:'ps3', ic:'🧭', titre:'PS3 — Pilotage du processus',
+    desc:"Logigramme, objectifs et indicateurs, risques, réclamations, non-conformités, audits, revues de processus et tableau de bord qualité.",
+    href:'index.html' },
+  { module:'projets', cl:'projets', ic:'📐', titre:'Gestion de projet',
+    desc:"Charte de projet, parties prenantes et RACI, phases et jalons, activités (WBS/kanban), livrables, budget, risques, indicateurs et fiche d'état d'avancement.",
+    href:'projets.html' },
+  { module:'courriers', cl:'courriers', ic:'✉️', titre:'Gestion des courriers',
+    desc:"Enregistrement au bureau d'ordre, qualification, imputation, suivi kanban, registre général, alertes et relances, rapports périodiques.",
+    href:'courriers.html' }
+];
+const LIB_MODULE = { ps3:'PS3', projets:'Gestion de projet', courriers:'Gestion des courriers' };
+
+let moi=null, mesAcces=[], acteurs=[], tousAcces=[], catalogue=[], tousDroits=[];
+let profilActif=null, moduleActif='ps3', vueActive='accueil', paramTabActif='utilisateurs';
+let estAdmin=false;
+
+/* ------------------------------------------------------------ connexion */
+function loginMsg(h){ $('#loginMsg').innerHTML = h ? `<div class="msg-error">${h}</div>` : ''; }
+
+$('#loginForm').addEventListener('submit', async e=>{
+  e.preventDefault(); loginMsg('');
+  const { error } = await sb.auth.signInWithPassword({
+    email: $('#loginEmail').value.trim(), password: $('#loginPassword').value });
+  if(error){ loginMsg('Connexion impossible : '+ech(error.message)); return; }
+  await apresConnexion();
+});
+$('#logoutBtn').addEventListener('click', async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+async function resoudreActeur(){
+  const { data:{ user } } = await sb.auth.getUser();
+  if(!user) return null;
+  let { data: a } = await sb.from('acteurs').select('*').eq('user_id', user.id).eq('actif', true).maybeSingle();
+  if(!a && user.email){
+    await sb.from('acteurs').update({ user_id:user.id }).ilike('email', user.email).is('user_id', null);
+    const r = await sb.from('acteurs').select('*').eq('user_id', user.id).eq('actif', true).maybeSingle();
+    a = r.data;
+  }
+  return a || null;
+}
+
+async function apresConnexion(){
+  moi = await resoudreActeur();
+  if(!moi){
+    loginMsg("Votre compte n'est associé à aucun acteur actif de la D2MG. Contactez le Pilote du processus PS3.");
+    await sb.auth.signOut(); return;
+  }
+  const { data: acc } = await sb.from('module_acces').select('*').eq('id_acteur', moi.id_acteur).eq('actif', true);
+  mesAcces = acc || [];
+
+  $('#loginScreen').classList.add('hidden');
+  $('#salon').classList.remove('hidden');
+  $('#whoName').textContent = moi.nom_prenoms;
+  $('#whoRole').textContent = moi.role + (moi.fonction ? ' — ' + moi.fonction : '');
+  afficherChambres();
+
+  estAdmin = (moi.role==='Pilote' || moi.role==='Co-pilote');
+  if(estAdmin){
+    $('#navParametres').classList.remove('hidden');
+    await chargerAdmin();
+  }
+  dessinerProfilPerso();
+
+  const v = new URLSearchParams(location.search).get('vue');
+  if(v) allerVue(v);
+}
+
+function afficherChambres(){
+  const h = CHAMBRES.map(c=>{
+    const a = mesAcces.find(x=>x.module===c.module);
+    if(!a) return '';
+    return `<button type="button" class="chambre ${c.cl}" data-href="${c.href}">
+      <div class="ic">${c.ic}</div><h3>${ech(c.titre)}</h3><p>${ech(c.desc)}</p>
+      <span class="tag">Entrer dans l'espace</span></button>`;
+  }).join('');
+  $('#chambres').innerHTML = h || `<div class="no-access">Aucun espace ne vous est encore ouvert. Contactez le Pilote du processus PS3.</div>`;
+  $$('#chambres [data-href]').forEach(b=>b.addEventListener('click',()=>{ window.location.href = b.dataset.href; }));
+}
+
+/* -------------------------------------------------------- navigation sidebar */
+function allerVue(v){
+  if(v==='parametres' && !estAdmin) v='accueil';
+  vueActive = v;
+  $$('.sidebar nav [data-vue]').forEach(b=>b.classList.toggle('active', b.dataset.vue===v));
+  ['accueil','profil','parametres','aide'].forEach(id=> $('#vue'+id.charAt(0).toUpperCase()+id.slice(1)).classList.toggle('hidden', id!==v));
+}
+$$('.sidebar nav [data-vue]').forEach(b=>b.addEventListener('click',()=>allerVue(b.dataset.vue)));
+
+$$('#ongletsParam [data-pt]').forEach(b=>b.addEventListener('click',()=>{
+  paramTabActif = b.dataset.pt;
+  $$('#ongletsParam [data-pt]').forEach(x=>x.classList.toggle('active', x.dataset.pt===paramTabActif));
+  $('#paramUtilisateurs').classList.toggle('hidden', paramTabActif!=='utilisateurs');
+  $('#paramAcces').classList.toggle('hidden', paramTabActif!=='acces');
+}));
+
+/* -------------------------------------------------------- profil personnel */
+function dessinerProfilPerso(){
+  if(!moi) return;
+  $('#profilInfos').innerHTML = `
+    <div class="info-ligne"><span>Nom et prénoms</span><strong>${ech(moi.nom_prenoms)}</strong></div>
+    <div class="info-ligne"><span>Fonction</span><strong>${ech(moi.fonction||'—')}</strong></div>
+    <div class="info-ligne"><span>Entité</span><strong>${ech(moi.entite||'—')}</strong></div>
+    <div class="info-ligne"><span>Rôle</span><strong>${ech(moi.role)}</strong></div>
+    <div class="info-ligne"><span>Email</span><strong>${ech(moi.email||'—')}</strong></div>`;
+  // droits : chargés seulement si admin (chargerAdmin) ; sinon on interroge juste les siens
+  if(estAdmin){
+    dessinerProfilDroits();
+  } else {
+    sb.from('acteur_droits').select('*').eq('id_acteur', moi.id_acteur).then(({data})=>{
+      sb.from('ref_droits').select('*').order('ordre').then(({data:cat})=>{
+        catalogue = cat||[]; tousDroits = data||[];
+        dessinerProfilDroits();
+      });
+    });
+  }
+}
+function dessinerProfilDroits(){
+  $('#profilDroits').innerHTML = CHAMBRES.map(c=>{
+    const total = catalogue.filter(d=>d.module===c.module).length;
+    const ok = tousDroits.filter(d=>d.id_acteur===moi.id_acteur && d.autorise && catalogue.some(x=>x.code===d.droit_code && x.module===c.module)).length;
+    return `<div class="info-ligne"><span>${ech(LIB_MODULE[c.module])}</span><strong>${ok}/${total}</strong></div>`;
+  }).join('');
+}
+
+$('#pwdForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const p1 = $('#pwdNew').value, p2 = $('#pwdConfirm').value;
+  if(p1 !== p2){ toast('Les deux mots de passe ne correspondent pas.','error'); return; }
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if(error){ toast('Erreur : '+error.message,'error'); return; }
+  toast('Mot de passe mis à jour.','ok');
+  $('#pwdForm').reset();
+});
+
+/* -------------------------------------------- gestion des accès et droits */
+async function chargerAdmin(){
+  const [ac, ma, rd, ad] = await Promise.all([
+    sb.from('acteurs').select('id_acteur,nom_prenoms,role,fonction,entite,email,user_id').eq('actif',true).order('nom_prenoms'),
+    sb.from('module_acces').select('*'),
+    sb.from('ref_droits').select('*').order('ordre'),
+    sb.from('acteur_droits').select('*')
+  ]);
+  acteurs = ac.data||[]; tousAcces = ma.data||[]; catalogue = rd.data||[]; tousDroits = ad.data||[];
+  if(!profilActif && acteurs.length) profilActif = acteurs[0].id_acteur;
+  dessinerProfils(); dessinerFiche();
+  dessinerUtilisateurs();
+}
+
+function nbAutorises(idActeur, module){
+  const codes = catalogue.filter(d=>d.module===module).map(d=>d.code);
+  return tousDroits.filter(d=>d.id_acteur===idActeur && codes.includes(d.droit_code) && d.autorise).length;
+}
+function estAutorise(idActeur, code){
+  const d = tousDroits.find(x=>x.id_acteur===idActeur && x.droit_code===code);
+  return d ? d.autorise : false;
+}
+
+function dessinerProfils(){
+  $('#profils').innerHTML = acteurs.map(a=>
+    `<button type="button" data-p="${ech(a.id_acteur)}" class="${profilActif===a.id_acteur?'active':''}">
+      ${ech(a.nom_prenoms)}<span class="r">${ech(a.role)}</span></button>`).join('');
+  $$('#profils [data-p]').forEach(b=>b.addEventListener('click',()=>{ profilActif=b.dataset.p; dessinerProfils(); dessinerFiche(); }));
+}
+
+function dessinerFiche(){
+  const a = acteurs.find(x=>x.id_acteur===profilActif);
+  if(!a){ $('#ficheProfil').innerHTML=''; return; }
+  const acc = tousAcces.find(x=>x.id_acteur===a.id_acteur && x.module===moduleActif);
+  const ouvert = acc ? acc.actif : false;
+  const droits = catalogue.filter(d=>d.module===moduleActif);
+  const groupes = {};
+  droits.forEach(d=> (groupes[d.groupe]=groupes[d.groupe]||[]).push(d));
+
+  $('#ficheProfil').innerHTML = `<div class="fiche-profil">
+    <div class="bandeau">
+      <div><h3>${ech(a.nom_prenoms)}</h3>
+        <div class="meta">${ech(a.role)}${a.fonction?' — '+ech(a.fonction):''}${a.email?' · '+ech(a.email):''}</div></div>
+      <div class="muted" style="font-size:12.5px;text-align:right">
+        ${CHAMBRES.map(c=>`${ech(LIB_MODULE[c.module])} : <strong>${nbAutorises(a.id_acteur,c.module)}/${catalogue.filter(d=>d.module===c.module).length}</strong>`).join('<br>')}
+      </div>
+    </div>
+
+    <div class="modules-onglets">
+      ${CHAMBRES.map(c=>`<button type="button" class="${c.cl} ${moduleActif===c.module?'active':''}" data-m="${c.module}">
+        ${c.ic} ${ech(LIB_MODULE[c.module])}
+        <span class="cpt">${nbAutorises(a.id_acteur,c.module)}/${catalogue.filter(d=>d.module===c.module).length}</span></button>`).join('')}
+    </div>
+
+    <div class="acces-ligne">
+      <div><strong>Accès à l'espace ${ech(LIB_MODULE[moduleActif])}</strong>
+        <div class="muted" style="font-size:12px">Si l'accès est fermé, l'espace n'apparaît pas sur l'écran d'accueil de l'agent.</div></div>
+      <div class="bascule">
+        <button type="button" class="${ouvert?'on-oui':''}" data-acces="1">Ouvert</button>
+        <button type="button" class="${!ouvert?'on-non':''}" data-acces="0">Fermé</button>
+      </div>
+    </div>
+
+    ${Object.keys(groupes).map(g=>`<div class="groupe-droits"><h4>${ech(g)}</h4>
+      ${groupes[g].map(d=>{
+        const ok = estAutorise(a.id_acteur, d.code);
+        return `<div class="droit">
+          <div><div class="lib">${ech(d.libelle)}</div><div class="desc">${ech(d.description||'')}</div></div>
+          <div class="bascule">
+            <button type="button" class="${ok?'on-oui':''}" data-d="${ech(d.code)}" data-v="1">Autorisé</button>
+            <button type="button" class="${!ok?'on-non':''}" data-d="${ech(d.code)}" data-v="0">Non autorisé</button>
+          </div></div>`;
+      }).join('')}</div>`).join('')}
+
+    <div class="actions-bas">
+      <span class="muted" style="font-size:12px">Chaque modification est enregistrée immédiatement et tracée dans le journal d'audit.</span>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="btn sm" id="btnTout">Tout autoriser sur cet espace</button>
+        <button type="button" class="btn sm" id="btnRien">Tout retirer sur cet espace</button>
+      </div>
+    </div>
+  </div>`;
+
+  $$('#ficheProfil [data-m]').forEach(b=>b.addEventListener('click',()=>{ moduleActif=b.dataset.m; dessinerFiche(); }));
+  $$('#ficheProfil [data-acces]').forEach(b=>b.addEventListener('click',()=>majAcces(a, b.dataset.acces==='1')));
+  $$('#ficheProfil [data-d]').forEach(b=>b.addEventListener('click',()=>majDroit(a, b.dataset.d, b.dataset.v==='1')));
+  $('#btnTout').addEventListener('click',()=>majEnMasse(a, true));
+  $('#btnRien').addEventListener('click',()=>majEnMasse(a, false));
+}
+
+async function majAcces(a, ouvert){
+  const acteurRole = a.role;
+  const { error } = await sb.from('module_acces').upsert(
+    { id_acteur:a.id_acteur, module:moduleActif, role_module:acteurRole, actif:ouvert },
+    { onConflict:'id_acteur,module' });
+  if(error){ toast('Erreur : '+error.message,'error'); return; }
+  const ex = tousAcces.find(x=>x.id_acteur===a.id_acteur && x.module===moduleActif);
+  if(ex) ex.actif = ouvert; else tousAcces.push({ id_acteur:a.id_acteur, module:moduleActif, role_module:acteurRole, actif:ouvert });
+  if(a.id_acteur===moi.id_acteur){
+    const m = mesAcces.findIndex(x=>x.module===moduleActif);
+    if(ouvert && m<0) mesAcces.push({ module:moduleActif, role_module:acteurRole, actif:true });
+    if(!ouvert && m>=0) mesAcces.splice(m,1);
+    afficherChambres();
+  }
+  toast(`Espace ${LIB_MODULE[moduleActif]} ${ouvert?'ouvert':'fermé'} pour ${a.nom_prenoms}.`,'ok');
+  dessinerFiche();
+}
+
+async function majDroit(a, code, valeur){
+  const { error } = await sb.from('acteur_droits').upsert(
+    { id_acteur:a.id_acteur, droit_code:code, autorise:valeur, updated_at:new Date().toISOString() },
+    { onConflict:'id_acteur,droit_code' });
+  if(error){ toast('Erreur : '+error.message,'error'); return; }
+  const ex = tousDroits.find(x=>x.id_acteur===a.id_acteur && x.droit_code===code);
+  if(ex) ex.autorise = valeur; else tousDroits.push({ id_acteur:a.id_acteur, droit_code:code, autorise:valeur });
+  dessinerFiche();
+}
+
+async function majEnMasse(a, valeur){
+  const codes = catalogue.filter(d=>d.module===moduleActif).map(d=>d.code);
+  const rows = codes.map(c=>({ id_acteur:a.id_acteur, droit_code:c, autorise:valeur, updated_at:new Date().toISOString() }));
+  const { error } = await sb.from('acteur_droits').upsert(rows, { onConflict:'id_acteur,droit_code' });
+  if(error){ toast('Erreur : '+error.message,'error'); return; }
+  codes.forEach(c=>{
+    const ex = tousDroits.find(x=>x.id_acteur===a.id_acteur && x.droit_code===c);
+    if(ex) ex.autorise = valeur; else tousDroits.push({ id_acteur:a.id_acteur, droit_code:c, autorise:valeur });
+  });
+  toast(`${codes.length} droit(s) ${valeur?'autorisés':'retirés'} pour ${a.nom_prenoms}.`,'ok');
+  dessinerFiche();
+}
+
+/* -------------------------------------------------- gestion des utilisateurs */
+function nextActeurId(){
+  const nums = acteurs.map(a=>parseInt(String(a.id_acteur||'').replace(/\D/g,''),10)).filter(n=>!isNaN(n));
+  const next = nums.length ? Math.max(...nums)+1 : 1;
+  return 'ACT-'+String(next).padStart(3,'0');
+}
+
+function dessinerUtilisateurs(){
+  $('#utilisateursTable').innerHTML = acteurs.map(a=>`
+    <tr>
+      <td>${ech(a.nom_prenoms)}</td><td>${ech(a.fonction||'—')}</td><td>${ech(a.entite||'—')}</td><td>${ech(a.role)}</td>
+      <td>${ech(a.email||'—')}</td>
+      <td>${a.user_id ? '<span class="badge ok">Connecté</span>' : '<span class="badge neutral">En attente</span>'}</td>
+      <td style="display:flex;gap:6px">
+        <button type="button" class="btn sm" data-edit-u="${ech(a.id_acteur)}">Modifier</button>
+        <button type="button" class="btn sm danger" data-retirer-u="${ech(a.id_acteur)}">Retirer</button>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="7">Aucun utilisateur référencé.</td></tr>`;
+  $$('#utilisateursTable [data-edit-u]').forEach(b=>b.addEventListener('click',()=>ouvrirModaleUtilisateur(b.dataset.editU)));
+  $$('#utilisateursTable [data-retirer-u]').forEach(b=>b.addEventListener('click',()=>retirerUtilisateur(b.dataset.retirerU)));
+}
+
+function fermerModaleUtilisateur(){ $('#utilisateurModal').classList.remove('show'); }
+$('#utilisateurModalClose').addEventListener('click', fermerModaleUtilisateur);
+$('#utilisateurCancel').addEventListener('click', fermerModaleUtilisateur);
+$('#btnAjouterUtilisateur').addEventListener('click', ()=>ouvrirModaleUtilisateur(null));
+
+function ouvrirModaleUtilisateur(idActeur){
+  $('#utilisateurForm').reset();
+  $('#utilisateurEditId').value = idActeur || '';
+  if(idActeur){
+    const a = acteurs.find(x=>x.id_acteur===idActeur);
+    if(!a) return;
+    $('#utilisateurModalTitle').textContent = 'Modifier ' + a.nom_prenoms;
+    $('#utilisateurSubmitBtn').textContent = 'Enregistrer';
+    $('#utilisateurNom').value = a.nom_prenoms || '';
+    $('#utilisateurFonction').value = a.fonction || '';
+    $('#utilisateurEntite').value = a.entite || '';
+    $('#utilisateurEmail').value = a.email || '';
+    $('#utilisateurRole').value = a.role || 'Ressource';
+  } else {
+    $('#utilisateurModalTitle').textContent = 'Ajouter un utilisateur';
+    $('#utilisateurSubmitBtn').textContent = 'Ajouter';
+  }
+  $('#utilisateurModal').classList.add('show');
+}
+
+$('#utilisateurForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const editId = $('#utilisateurEditId').value;
+  const fields = {
+    nom_prenoms: $('#utilisateurNom').value.trim(),
+    fonction: $('#utilisateurFonction').value.trim() || null,
+    entite: $('#utilisateurEntite').value.trim() || null,
+    email: $('#utilisateurEmail').value.trim() || null,
+    role: $('#utilisateurRole').value
+  };
+  if(!fields.nom_prenoms){ toast('Le nom est obligatoire.','error'); return; }
+  let error;
+  if(editId){
+    ({ error } = await sb.from('acteurs').update(fields).eq('id_acteur', editId));
+  } else {
+    ({ error } = await sb.from('acteurs').insert({ id_acteur: nextActeurId(), actif:true, ...fields }));
+  }
+  if(error){ toast('Erreur : '+error.message,'error'); return; }
+  toast(editId ? `${fields.nom_prenoms} a été mis(e) à jour.` : `${fields.nom_prenoms} a été ajouté(e) — accès de base aux trois espaces créé automatiquement.`, 'ok');
+  fermerModaleUtilisateur();
+  await chargerAdmin();
+});
+
+function retirerUtilisateur(idActeur){
+  const a = acteurs.find(x=>x.id_acteur===idActeur);
+  if(!a) return;
+  if(!confirm(`Retirer ${a.nom_prenoms} de l'équipe D2MG ? Cette personne perdra l'accès aux trois espaces.`)) return;
+  sb.from('acteurs').update({ actif:false }).eq('id_acteur', idActeur).then(({error})=>{
+    if(error){ toast('Erreur : '+error.message,'error'); return; }
+    toast('Utilisateur retiré.','ok');
+    chargerAdmin();
+  });
+}
+
+(async function boot(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session) await apresConnexion();
+})();
+})();
+</script>
+</body>
+</html>
