@@ -391,11 +391,11 @@ function ageObstacle(r) {
  * ========================================================================= */
 async function demarrer() {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { window.location.href = 'portail.html'; return; }
+  if (!session) { window.location.href = 'index.html'; return; }
 
   const { data: { user } } = await sb.auth.getUser();
   const { data: acteur } = await sb.from('acteurs').select('*').eq('user_id', user.id).eq('actif', true).maybeSingle();
-  if (!acteur) { window.location.href = 'portail.html'; return; }
+  if (!acteur) { window.location.href = 'index.html'; return; }
   S.acteur = acteur;
 
   const { data: acc } = await sb.from('module_acces').select('role_module')
@@ -417,7 +417,7 @@ async function demarrer() {
 
   $('#app').classList.remove('hidden');
   $('#who').innerHTML = `<strong style="color:#fff">${ech(acteur.nom_prenoms)}</strong><br>${ech(acteur.role)}`;
-  $('#btnDeco').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'portail.html'; });
+  $('#btnDeco').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
   $('#modFermer').addEventListener('click', fermerModale);
 
   await chargerPortefeuille();

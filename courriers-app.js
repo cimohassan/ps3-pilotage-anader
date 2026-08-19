@@ -128,10 +128,10 @@ const Stats = {
 /* ======================================================== démarrage / menu */
 async function demarrer() {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { window.location.href = 'portail.html'; return; }
+  if (!session) { window.location.href = 'index.html'; return; }
   const { data: { user } } = await sb.auth.getUser();
   const { data: moi } = await sb.from('acteurs').select('*').eq('user_id', user.id).eq('actif', true).maybeSingle();
-  if (!moi) { window.location.href = 'portail.html'; return; }
+  if (!moi) { window.location.href = 'index.html'; return; }
   D.moi = moi;
 
   const { data: acc } = await sb.from('module_acces').select('role_module')
@@ -151,7 +151,7 @@ async function demarrer() {
   $('#app').classList.remove('hidden');
   $('#qui').innerHTML = `<strong style="color:#fff">${ech(moi.nom_prenoms)}</strong><br>${ech(moi.fonction || moi.role)}`
     + (monService() ? `<br><span style="opacity:.8">${ech(nomService(monService()))}</span>` : '');
-  $('#btnDeco').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'portail.html'; });
+  $('#btnDeco').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
   $('#modFermer').addEventListener('click', fermerModale);
   aller('tableau');
 }
