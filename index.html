@@ -29,6 +29,10 @@
   .btn.sm{padding:6px 11px;font-size:12px;border-radius:9px}
   .btn.block{width:100%;margin-top:18px}
   .msg-error{background:#fdecec;color:var(--bad);border:1px solid #f3c6c6;border-radius:10px;padding:10px 12px;margin-top:14px;font-size:13px}
+  .msg-ok{background:#e7f6ee;color:var(--ok);border:1px solid #bfe8d3;border-radius:10px;padding:10px 12px;margin-top:14px;font-size:13px}
+  .login-liens{display:flex;flex-direction:column;gap:7px;margin-top:16px;align-items:center}
+  .lien-texte{background:none;border:none;color:var(--primary2);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:underline;padding:2px}
+  .login-box form.hidden{display:none}
 
   /* ---------- coquille applicative (sidebar + contenu) ---------- */
   .app-shell{min-height:100vh;display:flex;align-items:stretch}
@@ -141,6 +145,7 @@
   <div class="box login-box">
     <h1>D2MG Pilotage</h1>
     <p class="sub">ANADER — Direction marchés et moyens généraux (D2MG)<br>Connectez-vous pour accéder à vos espaces de travail.</p>
+
     <form id="loginForm">
       <label>Adresse email</label>
       <input type="email" id="loginEmail" required autocomplete="username" />
@@ -149,6 +154,42 @@
       <button type="submit" class="btn primary block">Se connecter</button>
     </form>
     <div id="loginMsg"></div>
+    <div class="login-liens" id="loginLiens">
+      <button type="button" class="lien-texte" id="lienPremiereConnexion">Première connexion ? Créer mon mot de passe</button>
+      <button type="button" class="lien-texte" id="lienMdpOublie">Mot de passe oublié ?</button>
+    </div>
+
+    <form id="signupForm" class="hidden">
+      <p class="sub">Votre compte doit déjà avoir été créé par le Pilote ou un Co-pilote, avec votre adresse email. Choisissez ici votre mot de passe pour activer votre accès.</p>
+      <label>Adresse email</label>
+      <input type="email" id="signupEmail" required autocomplete="username" />
+      <label>Choisir un mot de passe</label>
+      <input type="password" id="signupPassword" minlength="6" required autocomplete="new-password" />
+      <label>Confirmer le mot de passe</label>
+      <input type="password" id="signupPasswordConfirm" minlength="6" required autocomplete="new-password" />
+      <button type="submit" class="btn primary block">Créer mon mot de passe</button>
+      <button type="button" class="btn ghost block" id="signupRetour" style="margin-top:8px">← Retour à la connexion</button>
+      <div id="signupMsg"></div>
+    </form>
+
+    <form id="forgotForm" class="hidden">
+      <p class="sub">Indiquez votre adresse email : un lien de réinitialisation vous sera envoyé si un compte lui est associé.</p>
+      <label>Adresse email</label>
+      <input type="email" id="forgotEmail" required autocomplete="username" />
+      <button type="submit" class="btn primary block">Envoyer le lien de réinitialisation</button>
+      <button type="button" class="btn ghost block" id="forgotRetour" style="margin-top:8px">← Retour à la connexion</button>
+      <div id="forgotMsg"></div>
+    </form>
+
+    <form id="recoveryForm" class="hidden">
+      <p class="sub">Définissez votre nouveau mot de passe.</p>
+      <label>Nouveau mot de passe</label>
+      <input type="password" id="recoveryPassword" minlength="6" required autocomplete="new-password" />
+      <label>Confirmer le mot de passe</label>
+      <input type="password" id="recoveryPasswordConfirm" minlength="6" required autocomplete="new-password" />
+      <button type="submit" class="btn primary block">Enregistrer le nouveau mot de passe</button>
+      <div id="recoveryMsg"></div>
+    </form>
   </div>
 </section>
 
@@ -341,7 +382,20 @@ let profilActif=null, moduleActif='ps3', vueActive='accueil', paramTabActif='uti
 let estAdmin=false;
 
 /* ------------------------------------------------------------ connexion */
+const recoveryEnCours = /type=recovery/.test(window.location.hash);
+
 function loginMsg(h){ $('#loginMsg').innerHTML = h ? `<div class="msg-error">${h}</div>` : ''; }
+function signupMsg(h, ok){ $('#signupMsg').innerHTML = h ? `<div class="${ok?'msg-ok':'msg-error'}">${h}</div>` : ''; }
+function forgotMsg(h, ok){ $('#forgotMsg').innerHTML = h ? `<div class="${ok?'msg-ok':'msg-error'}">${h}</div>` : ''; }
+function recoveryMsg(h, ok){ $('#recoveryMsg').innerHTML = h ? `<div class="${ok?'msg-ok':'msg-error'}">${h}</div>` : ''; }
+
+function afficherPanneau(id){
+  ['loginForm','signupForm','forgotForm','recoveryForm'].forEach(f=>{
+    $('#'+f).classList.toggle('hidden', f!==id);
+  });
+  $('#loginLiens').classList.toggle('hidden', id!=='loginForm');
+  loginMsg(''); signupMsg(''); forgotMsg('');
+}
 
 $('#loginForm').addEventListener('submit', async e=>{
   e.preventDefault(); loginMsg('');
@@ -351,6 +405,56 @@ $('#loginForm').addEventListener('submit', async e=>{
   await apresConnexion();
 });
 $('#logoutBtn').addEventListener('click', async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+$('#lienPremiereConnexion').addEventListener('click', ()=>afficherPanneau('signupForm'));
+$('#lienMdpOublie').addEventListener('click', ()=>afficherPanneau('forgotForm'));
+$('#signupRetour').addEventListener('click', ()=>afficherPanneau('loginForm'));
+$('#forgotRetour').addEventListener('click', ()=>afficherPanneau('loginForm'));
+
+$('#signupForm').addEventListener('submit', async e=>{
+  e.preventDefault(); signupMsg('');
+  const email = $('#signupEmail').value.trim();
+  const p1 = $('#signupPassword').value, p2 = $('#signupPasswordConfirm').value;
+  if(p1 !== p2){ signupMsg('Les deux mots de passe ne correspondent pas.'); return; }
+  if(p1.length < 6){ signupMsg('Le mot de passe doit contenir au moins 6 caractères.'); return; }
+  const { data, error } = await sb.auth.signUp({
+    email, password: p1,
+    options: { emailRedirectTo: window.location.origin + window.location.pathname }
+  });
+  if(error){ signupMsg("Impossible de créer le mot de passe : " + ech(error.message)); return; }
+  if(data.session){
+    await apresConnexion();
+  } else {
+    signupMsg(`Un email de confirmation a été envoyé à ${ech(email)}. Cliquez sur le lien qu'il contient pour activer votre compte, puis revenez vous connecter ici.`, true);
+    $('#signupForm').reset();
+  }
+});
+
+$('#forgotForm').addEventListener('submit', async e=>{
+  e.preventDefault(); forgotMsg('');
+  const email = $('#forgotEmail').value.trim();
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+  if(error){ forgotMsg("Erreur : " + ech(error.message)); return; }
+  forgotMsg(`Si un compte existe avec l'adresse ${ech(email)}, un email de réinitialisation vient de lui être envoyé.`, true);
+  $('#forgotForm').reset();
+});
+
+$('#recoveryForm').addEventListener('submit', async e=>{
+  e.preventDefault(); recoveryMsg('');
+  const p1 = $('#recoveryPassword').value, p2 = $('#recoveryPasswordConfirm').value;
+  if(p1 !== p2){ recoveryMsg('Les deux mots de passe ne correspondent pas.'); return; }
+  if(p1.length < 6){ recoveryMsg('Le mot de passe doit contenir au moins 6 caractères.'); return; }
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if(error){ recoveryMsg("Erreur : " + ech(error.message)); return; }
+  toast('Mot de passe mis à jour.', 'ok');
+  await apresConnexion();
+});
+
+sb.auth.onAuthStateChange((event)=>{
+  if(event === 'PASSWORD_RECOVERY') afficherPanneau('recoveryForm');
+});
 
 async function resoudreActeur(){
   const { data:{ user } } = await sb.auth.getUser();
@@ -671,7 +775,7 @@ function retirerUtilisateur(idActeur){
 
 (async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
-  if(session) await apresConnexion();
+  if(session && !recoveryEnCours) await apresConnexion();
 })();
 })();
 </script>
