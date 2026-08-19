@@ -450,7 +450,9 @@ const MENU = [
   { id: 'rapports', lib: 'Rapports d\'avancement', ic: '✎', projet: 1 },
   { id: 'fiche5', lib: 'Fiche 5 blocs', ic: '▣', projet: 1 },
   { grp: 'Clôture', projet: 1 },
-  { id: 'lecons', lib: 'RETEX', ic: '♺', projet: 1 }
+  { id: 'lecons', lib: 'RETEX', ic: '♺', projet: 1 },
+  { grp: 'Aide' },
+  { id: 'aide', lib: "Mode d'emploi", ic: '?' }
 ];
 
 function construireMenu() {
@@ -478,7 +480,8 @@ const VUES = {
   livrables: () => vueRegistre('livrables'), budget: vueBudget, risques: vueRisques,
   decisions: () => vueRegistre('decisions'), reserves: () => vueRegistre('reserves'),
   obstacles: () => vueRegistre('obstacles'), tdb: vueTdb, indicateurs: () => vueRegistre('indicateurs'),
-  alertes: vueAlertes, rapports: vueRapports, fiche5: vueFiche5, lecons: () => vueRegistre('lecons')
+  alertes: vueAlertes, rapports: vueRapports, fiche5: vueFiche5, lecons: () => vueRegistre('lecons'),
+  aide: vueAide
 };
 
 function aller(v) {
@@ -1578,6 +1581,46 @@ function imprimer(html) {
   window.print();
 }
 window.addEventListener('afterprint', () => document.body.classList.remove('impression'));
+
+/* ------------------------------------------------------------- Mode d'emploi */
+function vueAide() {
+  $('#zone').innerHTML = `
+    <div class="topbar"><div><h1>Mode d'emploi</h1>
+      <p>La chambre Gestion de projet de D2MG Pilotage, un module autonome de pilotage de projet inspiré des standards PMP, indépendant du processus PS3.</p></div></div>
+
+    <div class="carte">
+      <h3>Manuel d'utilisation</h3>
+      <p class="muted" style="margin:0 0 12px">La description ci-dessous couvre l'essentiel. Pour le détail complet, écran par écran, consultez ou téléchargez le manuel d'utilisation du module.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="Manuel_Utilisation_Gestion_de_Projet_D2MG.pdf" target="_blank" rel="noopener" class="btn primaire" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px">📖 Consulter le manuel (PDF)</a>
+        <a href="Manuel_Utilisation_Gestion_de_Projet_D2MG.pdf" download class="btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px">⬇ Télécharger le manuel (PDF)</a>
+        <a href="Manuel_Utilisation_Gestion_de_Projet_D2MG.docx" download class="btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px">⬇ Télécharger le manuel (Word)</a>
+      </div>
+    </div>
+
+    <div class="carte">
+      <h3>Comment est organisée la chambre</h3>
+      <p style="font-size:12.5px;margin:0 0 10px">Chaque projet suit le même cycle, du cadrage à la clôture. Le menu latéral se structure en six groupes, dans l'ordre où on les utilise :</p>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)"><strong style="min-width:120px">Portefeuille</strong><span style="font-size:12.5px">La liste de tous les projets visibles ; c'est le point d'entrée pour ouvrir ou créer un projet.</span></div>
+        <div style="display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)"><strong style="min-width:120px">Cadrage</strong><span style="font-size:12.5px">Charte de projet, parties prenantes et matrice RACI — ce qu'on fait, pourquoi, avec qui, et qui décide quoi.</span></div>
+        <div style="display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)"><strong style="min-width:120px">Planification</strong><span style="font-size:12.5px">Phases & jalons, activités en kanban, planning visuel et livrables.</span></div>
+        <div style="display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)"><strong style="min-width:120px">Maîtrise</strong><span style="font-size:12.5px">Budget & variations, risques, décisions, réserves et obstacles — le suivi des écarts en cours de route.</span></div>
+        <div style="display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)"><strong style="min-width:120px">Pilotage</strong><span style="font-size:12.5px">Tableau de bord, indicateurs, alertes & relances, rapports d'avancement et fiche 5 blocs pour la Direction.</span></div>
+        <div style="display:flex;gap:11px;padding:9px 0"><strong style="min-width:120px">Clôture</strong><span style="font-size:12.5px">RETEX — les leçons apprises, à capitaliser pour les projets suivants.</span></div>
+      </div>
+    </div>
+
+    <div class="carte"><h3>Bonnes pratiques</h3>
+      <ul style="font-size:12.5px;line-height:1.7;margin:0;padding-left:19px">
+        <li><strong>Commencer par la charte.</strong> Un projet sans charte de projet validée manque de cadre pour arbitrer les décisions qui suivront.</li>
+        <li><strong>Décomposer en activités suivables.</strong> Le taux d'avancement d'une phase se déduit de ses activités : le tenir à jour, c'est garder un tableau de bord fiable.</li>
+        <li><strong>Tracer les décisions et les écarts.</strong> Un dépassement de budget ou un risque avéré doit être documenté au moment où il survient, pas reconstitué a posteriori.</li>
+        <li><strong>Mettre à jour les indicateurs avant chaque comité.</strong> Le tableau de bord et la fiche 5 blocs sont faits pour être présentés tels quels.</li>
+        <li><strong>Renseigner le RETEX à la clôture.</strong> Les leçons apprises n'ont de valeur que si elles sont écrites pendant que le projet est encore frais en mémoire.</li>
+      </ul>
+    </div>`;
+}
 
 /* --------------------------------------------------------------- lancement */
 demarrer();

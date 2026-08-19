@@ -1228,6 +1228,15 @@ function vueAide() {
     <div class="tete"><div><h1>Mode d'emploi</h1>
       <p>Le circuit du courrier à la D2MG, de l'arrivée au classement, et ce que chaque écran permet de faire.</p></div></div>
 
+    <div class="carte">
+      <h3>Manuel d'utilisation</h3>
+      <p class="aide" style="margin:0 0 12px">La description ci-dessous couvre l'essentiel. Pour le détail complet, écran par écran, consultez ou téléchargez le manuel d'utilisation du module.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="Manuel_Utilisation_Gestion_des_Courriers_D2MG.pdf" target="_blank" rel="noopener" class="btn primaire" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px">📖 Consulter le manuel (PDF)</a>
+        <a href="Manuel_Utilisation_Gestion_des_Courriers_D2MG.pdf" download class="btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px">⬇ Télécharger le manuel (PDF)</a>
+      </div>
+    </div>
+
     <div class="carte"><h3>Le circuit en six étapes</h3>
       ${STATUTS.map((s, i) => `<div style="display:flex;gap:11px;padding:9px 0;border-bottom:${i < STATUTS.length - 1 ? '1px solid var(--line)' : 'none'}">
         <span class="et ${s.couleur}" style="height:fit-content;min-width:88px;text-align:center">${ech(s.libelle)}</span>
@@ -1259,7 +1268,7 @@ function vueAide() {
       <ul style="font-size:12.5px;line-height:1.7;margin:0;padding-left:19px">
         <li><strong>Tout courrier passe par le bureau d'ordre.</strong> Un courrier non enregistré est un courrier invisible : il fausse tous les indicateurs et n'est opposable à personne.</li>
         <li><strong>Imputer dans les 24 heures.</strong> Le temps passé en file d'attente d'imputation est du délai consommé pour rien.</li>
-        <li><strong>Tracer chaque mouvement.</strong> L'historique du courrier constitue la preuve du traitement pour l'audit du processus PS3.</li>
+        <li><strong>Tracer chaque mouvement.</strong> L'historique du courrier constitue la preuve du traitement en cas de contrôle ou d'audit interne.</li>
         <li><strong>Clôturer explicitement.</strong> Un courrier traité mais non clôturé continue de compter comme en retard.</li>
         <li><strong>Classer sans suite avec un motif.</strong> C'est une décision de gestion, elle doit être justifiée et traçable.</li>
         <li><strong>Surveiller la charge par agent.</strong> Au-delà de la limite d'en-cours, le délai se dégrade sans gain de production.</li>
