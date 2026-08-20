@@ -55,17 +55,30 @@
   .head h1{color:var(--primary);font-size:22px}
   .head p{margin:6px 0 0;color:var(--muted);font-size:14px}
   .salon-sub{color:var(--muted);font-size:14px;margin:18px 0 22px}
-  .chambres{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
-  .chambre{border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:26px 22px;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;text-align:left;background:#fff;font-family:inherit;color:inherit;border-top:5px solid var(--primary)}
-  .chambre:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(15,76,129,.16)}
-  .chambre .ic{font-size:32px;margin-bottom:10px}
-  .chambre h3{margin:0 0 6px;font-size:17px}
-  .chambre p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
-  .chambre .tag{display:inline-block;margin-top:12px;border-radius:999px;padding:4px 10px;font-size:11.5px;font-weight:700}
-  .chambre.ps3{border-top-color:#0f4c81} .chambre.ps3 h3{color:#0f4c81} .chambre.ps3 .tag{background:#eef4fb;color:#0f4c81}
-  .chambre.projets{border-top-color:#E2725B} .chambre.projets h3{color:#9C3D2A} .chambre.projets .tag{background:#FCEDE9;color:#9C3D2A}
-  .chambre.courriers{border-top-color:#0B6E4F} .chambre.courriers h3{color:#075039} .chambre.courriers .tag{background:#E8F3EF;color:#075039}
-  .no-access{background:#f8fafc;border:1px dashed var(--line);border-radius:18px;padding:26px 22px;color:var(--muted);font-size:13px;text-align:center}
+
+  .apercu-entete{margin:30px 0 14px}
+  .apercu-entete h2{color:var(--primary);font-size:16.5px}
+  .apercu-entete p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+  .apercu-grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+  .apercu-bloc{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px 17px;border-top:4px solid var(--primary)}
+  .apercu-bloc.ps3{border-top-color:#7A5E28} .apercu-bloc.ps3 h4{color:#7A5E28}
+  .apercu-bloc.projets{border-top-color:#E2725B} .apercu-bloc.projets h4{color:#9C3D2A}
+  .apercu-bloc.courriers{border-top-color:#0B6E4F} .apercu-bloc.courriers h4{color:#075039}
+  .apercu-bloc.operations{border-top-color:#A85736} .apercu-bloc.operations h4{color:#7A3D22}
+  .apercu-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
+  .apercu-tete h4{font-size:13.5px}
+  .apercu-pastille{display:inline-block;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap}
+  .apercu-pastille.vert{background:#e7f6ee;color:var(--ok)}
+  .apercu-pastille.orange{background:#fdf2e0;color:var(--warn)}
+  .apercu-pastille.rouge{background:#fdecec;color:var(--bad)}
+  .apercu-pastille.neutre{background:#f1f5f9;color:var(--muted)}
+  .apercu-kpis{display:flex;justify-content:space-between;gap:6px;text-align:center}
+  .apercu-kpis div{flex:1}
+  .apercu-kpis .v{font-size:19px;font-weight:800;color:var(--text)}
+  .apercu-kpis .l{font-size:9.5px;color:var(--muted);line-height:1.3;margin-top:2px}
+  .apercu-lien{display:block;text-align:center;margin-top:12px;font-size:11.5px;font-weight:700;color:var(--primary2);background:none;border:none;cursor:pointer;font-family:inherit;padding:4px;width:100%}
+  .apercu-note{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;text-align:center}
+  .apercu-bloc.verrouille{color:var(--muted);text-align:center;padding-top:24px;padding-bottom:24px}
 
   .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:20px}
   .card h2{color:var(--primary);font-size:17px;margin:0 0 4px}
@@ -97,6 +110,7 @@
   .modules-onglets button.ps3.active{background:#0f4c81;border-color:#0f4c81}
   .modules-onglets button.projets.active{background:#E2725B;border-color:#E2725B}
   .modules-onglets button.courriers.active{background:#0B6E4F;border-color:#0B6E4F}
+  .modules-onglets button.operations.active{background:#A85736;border-color:#A85736}
   .modules-onglets .cpt{font-size:11px;opacity:.8;font-weight:400}
 
   .acces-ligne{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:16px;font-size:13px}
@@ -215,16 +229,16 @@
 
   <main class="main-content">
 
-    <!-- ---------- Accueil : chambres ---------- -->
+    <!-- ---------- Accueil : espaces ---------- -->
     <div class="page" id="vueAccueil">
       <div class="head">
         <div>
           <h1>Accueil</h1>
-          <p>ANADER — Bienvenue. Choisissez l'espace dans lequel vous souhaitez travailler.</p>
+          <p>ANADER — Bienvenue. Cliquez sur un espace pour y entrer ; chaque bloc résume sa situation avant d'y accéder.</p>
         </div>
       </div>
       <p class="salon-sub">Vous entrez dans un espace avec les droits d'usage qui vous ont été attribués : certaines actions peuvent y être visibles sans vous être ouvertes.</p>
-      <div class="chambres" id="chambres"></div>
+      <div class="apercu-grille" id="apercuModules"></div>
     </div>
 
     <!-- ---------- Profil ---------- -->
@@ -373,9 +387,12 @@ const CHAMBRES = [
     href:'projets.html' },
   { module:'courriers', cl:'courriers', ic:'✉️', titre:'Gestion des courriers',
     desc:"Enregistrement au bureau d'ordre, qualification, imputation, suivi kanban, registre général, alertes et relances, rapports périodiques.",
-    href:'courriers.html' }
+    href:'courriers.html' },
+  { module:'operations', cl:'operations', ic:'🗂️', titre:'Gestion des opérations (D2MG)',
+    desc:"Catalogue d'activités, planification, animation quotidienne et revues hebdo/mensuelles, points d'attention, registre général, rapports périodiques.",
+    href:'operations.html' }
 ];
-const LIB_MODULE = { ps3:'PS3', projets:'Gestion de projet', courriers:'Gestion des courriers' };
+const LIB_MODULE = { ps3:'PS3', projets:'Gestion de projet', courriers:'Gestion des courriers', operations:'Gestion des opérations (D2MG)' };
 
 let moi=null, mesAcces=[], acteurs=[], tousAcces=[], catalogue=[], tousDroits=[];
 let profilActif=null, moduleActif='ps3', vueActive='accueil', paramTabActif='utilisateurs';
@@ -481,7 +498,7 @@ async function apresConnexion(){
   $('#salon').classList.remove('hidden');
   $('#whoName').textContent = moi.nom_prenoms;
   $('#whoRole').textContent = moi.role + (moi.fonction ? ' — ' + moi.fonction : '');
-  afficherChambres();
+  chargerApercuModules();
 
   estAdmin = (moi.role==='Pilote' || moi.role==='Co-pilote');
   if(estAdmin){
@@ -494,16 +511,105 @@ async function apresConnexion(){
   if(v) allerVue(v);
 }
 
-function afficherChambres(){
-  const h = CHAMBRES.map(c=>{
-    const a = mesAcces.find(x=>x.module===c.module);
-    if(!a) return '';
-    return `<button type="button" class="chambre ${c.cl}" data-href="${c.href}">
-      <div class="ic">${c.ic}</div><h3>${ech(c.titre)}</h3><p>${ech(c.desc)}</p>
-      <span class="tag">Entrer dans l'espace</span></button>`;
-  }).join('');
-  $('#chambres').innerHTML = h || `<div class="no-access">Aucun espace ne vous est encore ouvert. Contactez le Pilote du processus PS3.</div>`;
-  $$('#chambres [data-href]').forEach(b=>b.addEventListener('click',()=>{ window.location.href = b.dataset.href; }));
+/* ---------------------------------------------- aperçu succinct des modules */
+const todayISO = () => new Date().toISOString().slice(0,10);
+function pastilleEtat(nRetard, nAlerte){
+  if(nRetard>0) return { cl:'rouge', lib:'Attention requise' };
+  if(nAlerte>0) return { cl:'orange', lib:'À surveiller' };
+  return { cl:'vert', lib:'À jour' };
+}
+function rendreBlocModule(cl, ic, titre, stats, href){
+  const etat = pastilleEtat(stats.retard, stats.alerte);
+  return `<div class="apercu-bloc ${cl}">
+    <div class="apercu-tete"><h4>${ic} ${ech(titre)}</h4><span class="apercu-pastille ${etat.cl}">${etat.lib}</span></div>
+    <div class="apercu-kpis">
+      ${stats.kpis.map(k=>`<div><div class="v">${k[1]}</div><div class="l">${ech(k[0])}</div></div>`).join('')}
+    </div>
+    ${stats.note ? `<div class="apercu-note">${ech(stats.note)}</div>` : ''}
+    ${href ? `<button type="button" class="apercu-lien" data-href="${href}">Entrer dans l'espace →</button>` : ''}
+  </div>`;
+}
+function rendreBlocVerrouille(cl, ic, titre){
+  return `<div class="apercu-bloc ${cl} verrouille"><div>${ic}</div>
+    <div style="font-size:12.5px;margin-top:6px">${ech(titre)}</div>
+    <div style="font-size:11px;margin-top:4px">Espace non ouvert pour votre compte.</div></div>`;
+}
+async function statsPS3(){
+  const t = todayISO();
+  const [ac, nc, rc] = await Promise.all([
+    sb.from('actions_centralisees').select('statut,date_echeance'),
+    sb.from('non_conformites').select('statut'),
+    sb.from('reclamations').select('statut')
+  ]);
+  const actions = ac.data||[], ncs = nc.data||[], recs = rc.data||[];
+  const ouvertes = actions.filter(a=>a.statut!=='Clôturé');
+  const retard = ouvertes.filter(a=>a.date_echeance && a.date_echeance<t).length;
+  const ncOuvertes = ncs.filter(n=>n.statut!=='Clôturé').length;
+  const recOuvertes = recs.filter(r=>r.statut!=='Clôturée' && r.statut!=='Clôturé').length;
+  return { kpis:[['Actions ouvertes',ouvertes.length],['En retard',retard],['NC ouvertes',ncOuvertes]], retard, alerte: recOuvertes };
+}
+async function statsProjets(){
+  const t = todayISO();
+  const [pj, ac, ob] = await Promise.all([
+    sb.from('projets').select('statut'),
+    sb.from('projet_activites').select('statut,date_prevue'),
+    sb.from('projet_obstacles').select('statut')
+  ]);
+  const projets = pj.data||[], activites = ac.data||[], obstacles = ob.data||[];
+  const projetsActifs = projets.filter(p=>p.statut!=='Clôturé' && p.statut!=='Abandonné').length;
+  const actOuvertes = activites.filter(a=>a.statut!=='Réalisé');
+  const retard = actOuvertes.filter(a=>a.date_prevue && a.date_prevue<t).length;
+  const obsOuverts = obstacles.filter(o=>o.statut==='Ouvert' || o.statut==='En cours').length;
+  return { kpis:[['Projets actifs',projetsActifs],['Activités en retard',retard],['Obstacles ouverts',obsOuverts]], retard, alerte: obsOuverts };
+}
+async function statsCourriers(){
+  const t = todayISO();
+  const { data } = await sb.from('courriers').select('statut,echeance');
+  const courriers = data||[];
+  const estClos = c => c.statut==='CLOTURE' || c.statut==='SANS_SUITE';
+  const enCours = courriers.filter(c=>!estClos(c));
+  const retard = enCours.filter(c=>c.echeance && c.echeance<t).length;
+  const aQualifier = courriers.filter(c=>c.statut==='ENREGISTRE').length;
+  return { kpis:[['Courriers en cours',enCours.length],['En retard',retard],['À qualifier',aQualifier]], retard, alerte: aQualifier };
+}
+async function statsOperations(){
+  const t = todayISO();
+  const [ac, at] = await Promise.all([
+    sb.from('operations_activites').select('statut,date_echeance'),
+    sb.from('operations_attentions').select('statut')
+  ]);
+  const activites = ac.data||[], attentions = at.data||[];
+  const ouvertes = activites.filter(a=>a.statut==='A_FAIRE' || a.statut==='EN_COURS' || a.statut==='BLOQUE');
+  const retard = ouvertes.filter(a=>a.date_echeance && a.date_echeance<t).length;
+  const attOuvertes = attentions.filter(a=>a.statut!=='RESOLU').length;
+  return { kpis:[['Activités en cours',ouvertes.length],['En retard',retard],['Points d\'attention',attOuvertes]], retard, alerte: attOuvertes };
+}
+async function chargerApercuModules(){
+  const aAcces = m => mesAcces.some(a=>a.module===m);
+  const blocs = [];
+
+  if(aAcces('ps3')){
+    try{ blocs.push(rendreBlocModule('ps3','🧭','PS3', await statsPS3(), 'ps3.html')); }
+    catch(e){ blocs.push(rendreBlocModule('ps3','🧭','PS3', { kpis:[['—','']], retard:0, alerte:0, note:'Données indisponibles pour le moment.' }, 'ps3.html')); }
+  } else blocs.push(rendreBlocVerrouille('ps3','🧭','PS3'));
+
+  if(aAcces('projets')){
+    try{ blocs.push(rendreBlocModule('projets','📐','Gestion de projet', await statsProjets(), 'projets.html')); }
+    catch(e){ blocs.push(rendreBlocModule('projets','📐','Gestion de projet', { kpis:[['—','']], retard:0, alerte:0, note:'Données indisponibles pour le moment.' }, 'projets.html')); }
+  } else blocs.push(rendreBlocVerrouille('projets','📐','Gestion de projet'));
+
+  if(aAcces('courriers')){
+    try{ blocs.push(rendreBlocModule('courriers','✉️','Gestion des courriers', await statsCourriers(), 'courriers.html')); }
+    catch(e){ blocs.push(rendreBlocModule('courriers','✉️','Gestion des courriers', { kpis:[['—','']], retard:0, alerte:0, note:'Données indisponibles pour le moment.' }, 'courriers.html')); }
+  } else blocs.push(rendreBlocVerrouille('courriers','✉️','Gestion des courriers'));
+
+  if(aAcces('operations')){
+    try{ blocs.push(rendreBlocModule('operations','🗂️','Gestion des opérations (D2MG)', await statsOperations(), 'operations.html')); }
+    catch(e){ blocs.push(rendreBlocModule('operations','🗂️','Gestion des opérations (D2MG)', { kpis:[['—','']], retard:0, alerte:0, note:'Données indisponibles pour le moment.' }, 'operations.html')); }
+  } else blocs.push(rendreBlocVerrouille('operations','🗂️','Gestion des opérations (D2MG)'));
+
+  $('#apercuModules').innerHTML = blocs.join('');
+  $$('#apercuModules [data-href]').forEach(b=>b.addEventListener('click',()=>{ window.location.href = b.dataset.href; }));
 }
 
 /* -------------------------------------------------------- navigation sidebar */
@@ -663,7 +769,7 @@ async function majAcces(a, ouvert){
     const m = mesAcces.findIndex(x=>x.module===moduleActif);
     if(ouvert && m<0) mesAcces.push({ module:moduleActif, role_module:acteurRole, actif:true });
     if(!ouvert && m>=0) mesAcces.splice(m,1);
-    afficherChambres();
+    chargerApercuModules();
   }
   toast(`Espace ${LIB_MODULE[moduleActif]} ${ouvert?'ouvert':'fermé'} pour ${a.nom_prenoms}.`,'ok');
   dessinerFiche();

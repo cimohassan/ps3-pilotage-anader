@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PS3 Pilotage – ANADER</title>
+  <title>Processus PS3 — D2MG Pilotage</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root{
-      --bg:#f4f7fb; --panel:#ffffff; --line:#d9e2ee; --text:#1f2937; --muted:#667085;
-      --primary:#0f4c81; --primary2:#1b6db0; --ok:#19945d; --warn:#cb8800; --bad:#cf3f3f;
-      --radius:16px; --shadow:0 10px 28px rgba(15,76,129,.08);
+      --bg:#FAF6EC; --panel:#ffffff; --line:#E9DFC4; --text:#1f2937; --muted:#667085;
+      --primary:#7A5E28; --primary2:#B8923E; --ok:#19945d; --warn:#cb8800; --bad:#cf3f3f;
+      --radius:16px; --shadow:0 10px 28px rgba(122,94,40,.10);
     }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -24,9 +24,9 @@
     .login-tabs button{flex:1;border:1px solid var(--line);background:#fff;color:var(--primary);padding:10px;border-radius:12px;font-weight:700;cursor:pointer}
     .login-tabs button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
     .login-error{background:#fdecec;border:1px solid #f3b8b8;color:var(--bad);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13px}
-    .login-info{background:#eef4fb;border:1px solid var(--line);color:var(--primary);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13px}
+    .login-info{background:#F5EFDD;border:1px solid var(--line);color:var(--primary);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13px}
     .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-    .sidebar{background:linear-gradient(180deg,#0f4c81,#13395f);color:#fff;padding:20px 16px}
+    .sidebar{background:linear-gradient(180deg,#7A5E28,#4A3A1A);color:#fff;padding:20px 16px}
     .brand{padding:8px 10px 14px;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:14px}
     .brand h2{margin:0 0 6px;font-size:20px}
     .brand p{margin:0;font-size:13px;line-height:1.4;color:rgba(255,255,255,.8)}
@@ -55,9 +55,9 @@
     .btn{border:none;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer}
     .btn.primary{background:var(--primary);color:#fff}
     .btn.secondary{background:#fff;color:var(--primary);border:1px solid var(--line)}
-    .btn.ghost{background:#eef4fb;color:var(--primary)}
+    .btn.ghost{background:#F5EFDD;color:var(--primary)}
     .btn:disabled{opacity:.6;cursor:not-allowed}
-    input,select,textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:14px;background:#fff} input[readonly]{background:#eef4fb;color:var(--muted);font-weight:700}
+    input,select,textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:14px;background:#fff} input[readonly]{background:#F5EFDD;color:var(--muted);font-weight:700}
     textarea{min-height:90px;resize:vertical}
     .section-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:12px}
     .section-title h3{margin:0}
@@ -68,7 +68,7 @@
     .ok{background:rgba(25,148,93,.12);color:var(--ok)}
     .warn{background:rgba(203,136,0,.14);color:var(--warn)}
     .bad{background:rgba(207,63,63,.12);color:var(--bad)}
-    .neutral{background:#eef4fb;color:var(--primary)}
+    .neutral{background:#F5EFDD;color:var(--primary)}
     .list{display:grid;gap:10px}
     .list-item{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
     /* Hiérarchie visuelle activité (niveau 1) / sous-activité (niveau 2) */
@@ -85,7 +85,7 @@
     .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;max-height:520px}
     table{width:100%;border-collapse:collapse;font-size:14px}
     th,td{padding:12px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
-    th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:#eef4fb;position:sticky;top:0}
+    th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:#F5EFDD;position:sticky;top:0}
     tr:last-child td{border-bottom:none}
     .view{display:none}
     .view.active{display:block}
@@ -94,8 +94,8 @@
     .flow-steps{display:grid;gap:12px}
     .flow-step{display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:start;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}
     .step-num{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700}
-    .module-intro{background:#eef4fb;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:18px}
-    .icon-btn{border:none;border-radius:10px;padding:7px 9px;cursor:pointer;background:#eef4fb;color:var(--primary);font-weight:700;margin:2px}.file-input-hidden{display:none}.toggle-group{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}.toggle-group button{border:none;padding:7px 12px;cursor:pointer;background:#fff;color:var(--primary);font-weight:700}.toggle-group button.active-yes{background:rgba(25,148,93,.12);color:var(--ok)}.toggle-group button.active-no{background:rgba(207,63,63,.12);color:var(--bad)}.delete-file{background:rgba(207,63,63,.12)!important;color:var(--bad)!important}
+    .module-intro{background:#F5EFDD;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:18px}
+    .icon-btn{border:none;border-radius:10px;padding:7px 9px;cursor:pointer;background:#F5EFDD;color:var(--primary);font-weight:700;margin:2px}.file-input-hidden{display:none}.toggle-group{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}.toggle-group button{border:none;padding:7px 12px;cursor:pointer;background:#fff;color:var(--primary);font-weight:700}.toggle-group button.active-yes{background:rgba(25,148,93,.12);color:var(--ok)}.toggle-group button.active-no{background:rgba(207,63,63,.12);color:var(--bad)}.delete-file{background:rgba(207,63,63,.12)!important;color:var(--bad)!important}
     .claim-dashboard{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:18px}
     .mini-kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
     .mini-kpi .label{font-size:12px;color:var(--muted);margin-bottom:8px}
@@ -106,7 +106,7 @@
     .modal{position:fixed;inset:0;display:none;place-items:center;background:rgba(15,23,42,.45);padding:16px;z-index:20}
     .modal.show{display:grid}
     .modal-box{width:min(760px,100%);max-height:min(88vh,900px);background:#fff;border-radius:20px;border:1px solid var(--line);overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.18);display:flex;flex-direction:column}
-    .modal-head{flex-shrink:0;padding:16px 18px;background:#eef4fb;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .modal-head{flex-shrink:0;padding:16px 18px;background:#F5EFDD;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
     .modal-body{padding:18px;overflow-y:auto;flex:1 1 auto}
     .modal-actions{position:sticky;bottom:-18px;margin:14px -18px -18px;padding:14px 18px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px}
     .sous-activite-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
@@ -131,7 +131,7 @@
     @media (max-width:640px){.stat-grid{grid-template-columns:1fr}}
     .stat-card{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}
     .stat-card .stat-title{font-size:11px;font-weight:700;line-height:1.3;display:flex;justify-content:space-between;gap:6px;align-items:flex-start}
-    .info-btn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#eef4fb;color:var(--primary);font-size:10px;font-weight:700;cursor:help;flex-shrink:0}
+    .info-btn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#F5EFDD;color:var(--primary);font-size:10px;font-weight:700;cursor:help;flex-shrink:0}
     .stat-blocks{display:flex;gap:6px;margin-top:8px}
     .stat-block{flex:1;min-width:0;text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px 4px;background:#f8fafc}
     .stat-block .stat-block-label{font-size:10px;color:var(--muted)}
@@ -152,7 +152,7 @@
     .toast{background:#1f2937;color:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 12px 30px rgba(0,0,0,.25);font-size:13px;line-height:1.4;animation:toast-in .25s ease}
     .toast.ok{background:#14532d}
     .toast.error{background:#7f1d1d}
-    .toast.info{background:#0f4c81}
+    .toast.info{background:#7A5E28}
     @keyframes toast-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 
     /* Menu mobile */
@@ -243,13 +243,14 @@
   <div id="appRoot" class="app hidden">
     <div class="mobile-topbar">
       <button id="menuToggleBtn" class="menu-toggle" type="button">☰ Menu</button>
-      <strong>PS3 Pilotage</strong>
+      <strong>Processus PS3</strong>
       <span style="width:70px"></span>
     </div>
     <div id="navOverlay" class="nav-overlay"></div>
     <aside class="sidebar" id="sidebarNav">
       <div class="brand">
-        <h2>PS3 Pilotage</h2>
+        <h2>Processus PS3</h2>
+        <p style="margin:0 0 4px;font-weight:600;color:rgba(255,255,255,.65)">D2MG Pilotage — ANADER</p>
         <p>Piloter, animer, préparer les revues et suivre les preuves du processus PS3, en équipe et en temps réel.</p>
       </div>
       <div class="profile">
@@ -286,7 +287,7 @@
         <button data-view="proofs">Pièces justificatives</button>
         <button data-view="notifications">Alertes</button>
         <button data-view="auditLog" id="auditLogNavBtn">Journal d'audit</button>
-        <button data-view="settings">Aide & paramètres</button>
+        <button data-view="settings">Paramétrage</button>
         <div class="nav-title">Aide</div>
         <button data-view="modeEmploi">Mode d'emploi</button>
       </div>
@@ -990,7 +991,7 @@
       </section>
 
       <section id="settings" class="view">
-        <div class="topbar"><div class="title"><h2>Aide et paramètres</h2><p>Repères simples pour utiliser l'outil.</p></div></div>
+        <div class="topbar"><div class="title"><h2>Paramétrage</h2><p>Réglages de la plateforme : équipe, permissions, état de la base, sauvegarde et restauration des données. Pour le mode d'emploi, voir le menu Aide.</p></div></div>
         <div class="grid">
           <div class="card">
             <div class="section-title"><div><h3>Ce que la plateforme permet</h3><p>Utilisation partagée en ligne, en équipe.</p></div></div>
@@ -1031,6 +1032,19 @@
             <div id="rolePermissionsContainer" class="grid" style="grid-template-columns:1fr 1fr;gap:16px"></div>
           </div>
           <div class="card">
+            <div class="section-title"><div><h3>État de la base</h3><p>Volume actuellement chargé, table par table (données déjà en mémoire, sans nouvelle extraction).</p></div></div>
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px" id="etatBaseGrille">
+              <div class="mini-kpi"><div class="label">Équipe PS3</div><div class="value" id="etatBaseActeurs">0</div></div>
+              <div class="mini-kpi"><div class="label">Activités</div><div class="value" id="etatBaseActivites">0</div></div>
+              <div class="mini-kpi"><div class="label">Actions consolidées</div><div class="value" id="etatBaseActions">0</div></div>
+              <div class="mini-kpi"><div class="label">Non-conformités</div><div class="value" id="etatBaseNcs">0</div></div>
+              <div class="mini-kpi"><div class="label">Réclamations</div><div class="value" id="etatBaseClaims">0</div></div>
+              <div class="mini-kpi"><div class="label">Revues de processus</div><div class="value" id="etatBaseRevues">0</div></div>
+              <div class="mini-kpi"><div class="label">Indicateurs suivis</div><div class="value" id="etatBaseIndicateurs">0</div></div>
+              <div class="mini-kpi"><div class="label">Pièces justificatives</div><div class="value" id="etatBaseProofs">0</div></div>
+            </div>
+          </div>
+          <div class="card">
             <div class="section-title"><div><h3>Sauvegarde des données</h3><p>Extraction brute et complète de toutes les données de la plateforme, tous exercices confondus.</p></div></div>
             <div class="list">
               <div class="list-item">
@@ -1047,6 +1061,17 @@
                 <strong>Conseil</strong>
                 <div class="muted">Vos données sont enregistrées en continu dans la base en ligne : ces sauvegardes sont un filet de sécurité supplémentaire. Un téléchargement mensuel, archivé hors de la plateforme, est une bonne pratique.</div>
                 <div class="muted" id="sauvegardeStatut" style="margin-top:6px"></div>
+              </div>
+            </div>
+          </div>
+          <div class="card" id="restaurationCard" style="display:none">
+            <div class="section-title"><div><h3>Restauration des données</h3><p>Réservé au Pilote et aux Co-pilotes. Recharge le contenu d'un fichier de sauvegarde brute (JSON) téléchargé depuis cette page.</p></div></div>
+            <div class="list">
+              <div class="list-item">
+                <div class="muted" style="margin-bottom:8px">Les enregistrements du fichier remplacent, table par table, ceux qui portent le même identifiant ; les autres données existantes ne sont pas touchées. Cette action est irréversible : à réserver à une reprise après incident ou à une remise en état d'une base neuve.</div>
+                <input type="file" id="restaurationFichier" accept="application/json" />
+                <div style="margin-top:8px"><button class="btn danger" type="button" onclick="restaurerSauvegardePs3()">Restaurer depuis ce fichier</button></div>
+                <div class="muted" id="restaurationStatut" style="margin-top:6px"></div>
               </div>
             </div>
           </div>
@@ -1242,7 +1267,7 @@
             <label id="prevuRealiseValeurLabel">Valeur par période</label>
             <div id="prevuRealisePeriodsList" style="display:grid;gap:8px;margin-top:6px"></div>
           </div>
-          <div class="field full" style="margin-top:10px;background:#eef4fb;border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center">
+          <div class="field full" style="margin-top:10px;background:#F5EFDD;border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center">
             <strong>Total</strong><strong id="prevuRealiseTotal" style="font-size:22px;color:var(--primary)">0</strong>
           </div>
           <div class="field full" style="margin-top:10px"><label>Commentaire (facultatif)</label><textarea id="prevuRealiseCommentaire"></textarea></div>
@@ -1697,7 +1722,7 @@
 
   <script>
     // =========================================================
-    // PS3 Pilotage — ANADER — Backend Supabase
+    // D2MG Pilotage — ANADER — Backend Supabase (chambre Processus PS3)
     // =========================================================
     const SUPABASE_URL = "https://tcirboephslicjmhokbh.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjaXJib2VwaHNsaWNqbWhva2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNjYxNjUsImV4cCI6MjEwMDg0MjE2NX0.e3f1B__NmDVL5G1Cze1p115ya2Rs-ErzzTUr25UCKEg";
@@ -1813,6 +1838,7 @@
       qs("#manageExercicesBtn").style.display = (currentUser.role === "Pilote") ? "block" : "none";
       const isPiloteOuCopilote = currentUser.role === "Pilote" || currentUser.role === "Co-pilote";
       qs("#permissionsCard").style.display = isPiloteOuCopilote ? "block" : "none";
+      qs("#restaurationCard").style.display = isPiloteOuCopilote ? "block" : "none";
       fetchAll().then(renderAll).then(()=>{
         // Navigation directe depuis le portail D2MG (ex : ps3.html?view=projets)
         const v = new URLSearchParams(location.search).get("view");
@@ -2820,19 +2846,19 @@
       // Flèches entre blocs successifs
       for(let i = 0; i < blocs.length - 1; i++){
         const de = blocs[i], vers = blocs[i+1];
-        corps += `<line x1="${cx}" y1="${de.y + de.h}" x2="${cx}" y2="${vers.y}" stroke="#0f4c81" stroke-width="2" marker-end="url(#fleche)" />`;
+        corps += `<line x1="${cx}" y1="${de.y + de.h}" x2="${cx}" y2="${vers.y}" stroke="#7A5E28" stroke-width="2" marker-end="url(#fleche)" />`;
       }
       blocs.forEach(b=>{
         if(b.type === "ovale"){
           const lignes = decoupeTexte(b.texte, 46);
-          corps += `<rect x="${cx-LARG/2-40}" y="${b.y}" width="${LARG+80}" height="${b.h}" rx="${b.h/2}" ry="${b.h/2}" fill="#0f4c81" stroke="#0f4c81" stroke-width="2" />`;
+          corps += `<rect x="${cx-LARG/2-40}" y="${b.y}" width="${LARG+80}" height="${b.h}" rx="${b.h/2}" ry="${b.h/2}" fill="#7A5E28" stroke="#7A5E28" stroke-width="2" />`;
           lignes.forEach((l,i)=>{
             corps += `<text x="${cx}" y="${b.y + b.h/2 + 5 + (i - (lignes.length-1)/2)*14}" text-anchor="middle" font-family="Arial" font-size="12.5" font-weight="bold" fill="#ffffff">${svgEchappe(l)}</text>`;
           });
         } else if(b.type === "activite"){
           const lignes = decoupeTexte(b.texte, 40);
-          corps += `<rect x="${cx-LARG/2}" y="${b.y}" width="${LARG}" height="${b.h}" rx="8" ry="8" fill="#e8f0f8" stroke="#0f4c81" stroke-width="2" />`;
-          corps += `<circle cx="${cx-LARG/2+18}" cy="${b.y+18}" r="13" fill="#0f4c81" />`;
+          corps += `<rect x="${cx-LARG/2}" y="${b.y}" width="${LARG}" height="${b.h}" rx="8" ry="8" fill="#F2E9D2" stroke="#7A5E28" stroke-width="2" />`;
+          corps += `<circle cx="${cx-LARG/2+18}" cy="${b.y+18}" r="13" fill="#7A5E28" />`;
           corps += `<text x="${cx-LARG/2+18}" y="${b.y+23}" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="#fff">${b.num}</text>`;
           lignes.slice(0,2).forEach((l,i)=>{
             corps += `<text x="${cx+14}" y="${b.y + 26 + i*15}" text-anchor="middle" font-family="Arial" font-size="12" fill="#1f2937">${svgEchappe(l)}</text>`;
@@ -2860,18 +2886,18 @@
 
       const legende = `
         <g transform="translate(20,${hauteur - 4})">
-          <rect x="0" y="-16" width="18" height="12" rx="6" fill="#0f4c81"/><text x="24" y="-6" font-family="Arial" font-size="10.5" fill="#667085">Début / Fin</text>
-          <rect x="110" y="-16" width="18" height="12" rx="3" fill="#e8f0f8" stroke="#0f4c81"/><text x="134" y="-6" font-family="Arial" font-size="10.5" fill="#667085">Activité</text>
+          <rect x="0" y="-16" width="18" height="12" rx="6" fill="#7A5E28"/><text x="24" y="-6" font-family="Arial" font-size="10.5" fill="#667085">Début / Fin</text>
+          <rect x="110" y="-16" width="18" height="12" rx="3" fill="#F2E9D2" stroke="#7A5E28"/><text x="134" y="-6" font-family="Arial" font-size="10.5" fill="#667085">Activité</text>
           <polygon points="228,-16 240,-10 228,-4 216,-10" fill="#fff6e5" stroke="#cb8800"/><text x="246" y="-6" font-family="Arial" font-size="10.5" fill="#667085">Point de contrôle</text>
         </g>`;
 
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${LARG_TOTALE} ${hauteur + 16}" width="${LARG_TOTALE}" height="${hauteur + 16}" style="max-width:100%;height:auto">
         <defs>
-          <marker id="fleche" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L0,6.4 L7.5,3.2 z" fill="#0f4c81"/></marker>
+          <marker id="fleche" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L0,6.4 L7.5,3.2 z" fill="#7A5E28"/></marker>
           <marker id="flecheRouge" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L0,6.4 L7.5,3.2 z" fill="#cf3f3f"/></marker>
         </defs>
         <rect width="100%" height="100%" fill="#ffffff"/>
-        <text x="${cx}" y="14" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#0f4c81">PS3 — Gérer le patrimoine</text>
+        <text x="${cx}" y="14" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#7A5E28">PS3 — Gérer le patrimoine</text>
         ${corps}
         ${legende}
       </svg>`;
@@ -5850,7 +5876,7 @@
     }
     function claimsHtmlDocument(title, rowsHtml){
       return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
-      <style>body{font-family:Arial;padding:24px;color:#1f2937}h1{color:#0f4c81}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d9e2ee;padding:8px;text-align:left}th{background:#eef4fb}</style>
+      <style>body{font-family:Arial;padding:24px;color:#1f2937}h1{color:#7A5E28}table{width:100%;border-collapse:collapse}th,td{border:1px solid #E9DFC4;padding:8px;text-align:left}th{background:#F5EFDD}</style>
       </head><body><h1>${title}</h1>${rowsHtml}</body></html>`;
     }
     window.exportClaimsList = function(format){
@@ -6055,6 +6081,7 @@
         if(target==="claimProcessing") loadClaimTreatmentForm();
         if(target==="claimFollowUp") renderClaimFollowUp();
         if(target==="auditLog") loadAuditLog();
+        if(target==="settings") rafraichirEtatBase();
         closeMobileNav();
       });
     });
@@ -6267,7 +6294,7 @@
       const { resultat, erreurs } = await collecterSauvegarde();
       const totalLignes = Object.values(resultat).reduce((s,arr)=>s+arr.length, 0);
       const paquet = {
-        plateforme: "PS3 Pilotage – ANADER",
+        plateforme: "D2MG Pilotage — ANADER",
         date_sauvegarde: new Date().toISOString(),
         realisee_par: currentUser ? `${currentUser.name} (${currentUser.role})` : "—",
         nombre_tables: SAUVEGARDE_TABLES.length,
@@ -6279,6 +6306,91 @@
       if(erreurs.length) toast(`Sauvegarde générée avec ${erreurs.length} table(s) inaccessible(s).`, "error");
       else toast(`Sauvegarde brute générée : ${totalLignes} enregistrements.`, "ok");
     };
+
+    // ---------- Restauration depuis une sauvegarde brute (JSON) ----------
+    // Ordre pensé pour respecter les dépendances (clés étrangères) entre tables.
+    const RESTAURATION_TABLES = [
+      { table:"exercices", pk:"id_exercice" },
+      { table:"acteurs", pk:"id_acteur" },
+      { table:"logigramme", pk:"etape" },
+      { table:"objectifs_indicateurs", pk:"id_objectif" },
+      { table:"risques_opportunites", pk:"id_risque" },
+      { table:"activites", pk:"id_activite" },
+      { table:"sous_activites", pk:"id_sous_activite" },
+      { table:"actions_centralisees", pk:"id_action" },
+      { table:"non_conformites", pk:"id_nc" },
+      { table:"nc_actions_liees", pk:"id_action_liee" },
+      { table:"reclamations", pk:"id_reclamation" },
+      { table:"reclamation_traitements", pk:"id" },
+      { table:"reclamation_actions_liees", pk:"id_action_liee" },
+      { table:"points_amelioration", pk:"id_point" },
+      { table:"audit_actions_liees", pk:"id_action_liee" },
+      { table:"indicateurs_performance", pk:"id_indicateur" },
+      { table:"indicateurs_mesures", pk:"id_mesure" },
+      { table:"revues", pk:"id_revue" },
+      { table:"revue_points", pk:"id_point" },
+      { table:"revue_actions_liees", pk:"id_action_liee" },
+      { table:"bilans_animation", pk:"id_bilan" },
+      { table:"bilan_narratifs", pk:"id_bilan,section" },
+      { table:"registre_preuves", pk:"id_preuve" },
+      { table:"role_permissions", pk:"role" }
+    ];
+    async function restaurerLotDeTables(paquet, tables, setStatut){
+      if(!paquet || typeof paquet !== "object" || !paquet.donnees || typeof paquet.donnees !== "object"){
+        throw new Error("Fichier de sauvegarde invalide : structure inattendue (attendu : un export JSON généré depuis cette page).");
+      }
+      const rapport = [];
+      for(const def of tables){
+        const rows = paquet.donnees[def.table];
+        if(!rows || !rows.length){ rapport.push({ table:def.table, n:0, erreur:null }); continue; }
+        setStatut(`Restauration en cours : ${def.table} (${rows.length} enregistrement(s))...`);
+        let total = 0, erreur = null;
+        for(let i=0;i<rows.length;i+=500){
+          const lot = rows.slice(i,i+500);
+          const { error } = await sb.from(def.table).upsert(lot, { onConflict: def.pk });
+          if(error){ erreur = error.message; break; }
+          total += lot.length;
+        }
+        rapport.push({ table:def.table, n:total, erreur });
+      }
+      setStatut("");
+      return rapport;
+    }
+    window.restaurerSauvegardePs3 = async function(){
+      if(!currentUser || !["Pilote","Co-pilote"].includes(currentUser.role)){ toast("Réservé au Pilote et aux Co-pilotes.", "error"); return; }
+      const input = qs("#restaurationFichier");
+      if(!input.files || !input.files[0]){ toast("Choisissez d'abord un fichier de sauvegarde JSON.", "error"); return; }
+      if(!confirm(`Restaurer « ${input.files[0].name} » ? Les enregistrements du fichier remplaceront ceux qui portent le même identifiant dans la base actuelle. Cette action est irréversible.`)) return;
+      const setStatut = m => { const el = qs("#restaurationStatut"); if(el) el.textContent = m || ""; };
+      try{
+        const texte = await input.files[0].text();
+        const paquet = JSON.parse(texte);
+        toast("Restauration en cours...", "ok");
+        const rapport = await restaurerLotDeTables(paquet, RESTAURATION_TABLES, setStatut);
+        const erreurs = rapport.filter(r=>r.erreur);
+        const total = rapport.reduce((s,r)=>s+r.n, 0);
+        if(erreurs.length) toast(`Restauration terminée avec ${erreurs.length} table(s) en erreur (voir la console). Total restauré : ${total}.`, "error");
+        else toast(`Restauration terminée : ${total} enregistrement(s) restauré(s).`, "ok");
+        if(erreurs.length) console.error("Erreurs de restauration :", erreurs);
+        await fetchAll(); renderAll(); rafraichirEtatBase();
+      } catch(e){
+        setStatut("");
+        toast("Erreur de restauration : " + e.message, "error");
+      }
+    };
+
+    // ---------- Etat de la base (volumes deja charges en memoire) ----------
+    function rafraichirEtatBase(){
+      const maj = (id, val) => { const el = qs("#"+id); if(el) el.textContent = val; };
+      maj("etatBaseActeurs", (state.acteurs||[]).length);
+      maj("etatBaseActivites", (state.activites||[]).length);
+      maj("etatBaseActions", (state.actions||[]).length);
+      maj("etatBaseNcs", (state.ncs||[]).length);
+      maj("etatBaseClaims", (state.claims||[]).length);
+      maj("etatBaseRevues", (state.revues||[]).length);
+      maj("etatBaseIndicateurs", (state.indicateurs||[]).length);
+      maj("etatBaseProofs", (state.proofs||[]).length);
+    }
 
     // ---------- Actions : mode Planifier / Exécuter ----------
     function applyActionMode(mode){

@@ -451,6 +451,8 @@ const MENU = [
   { id: 'fiche5', lib: 'Fiche 5 blocs', ic: '▣', projet: 1 },
   { grp: 'Clôture', projet: 1 },
   { id: 'lecons', lib: 'RETEX', ic: '♺', projet: 1 },
+  { grp: 'Administration' },
+  { id: 'sauvegarde', lib: 'Sauvegarde des données', ic: '⇩' },
   { grp: 'Aide' },
   { id: 'aide', lib: "Mode d'emploi", ic: '?' }
 ];
@@ -481,7 +483,7 @@ const VUES = {
   decisions: () => vueRegistre('decisions'), reserves: () => vueRegistre('reserves'),
   obstacles: () => vueRegistre('obstacles'), tdb: vueTdb, indicateurs: () => vueRegistre('indicateurs'),
   alertes: vueAlertes, rapports: vueRapports, fiche5: vueFiche5, lecons: () => vueRegistre('lecons'),
-  aide: vueAide
+  sauvegarde: vueSauvegarde, aide: vueAide
 };
 
 function aller(v) {
@@ -1620,6 +1622,239 @@ function vueAide() {
         <li><strong>Renseigner le RETEX à la clôture.</strong> Les leçons apprises n'ont de valeur que si elles sont écrites pendant que le projet est encore frais en mémoire.</li>
       </ul>
     </div>`;
+}
+
+/* =========================================================================
+ *  SAUVEGARDE DES DONNÉES
+ *  Extraction en lecture seule, tous projets confondus. Aucune action
+ *  destructive : cet écran ne fait qu'exporter, jamais vider ni recharger.
+ * ========================================================================= */
+const SAUVEGARDE_TABLES = [
+  { table: 'projets', feuille: 'Projets' },
+  { table: 'projet_phases', feuille: 'Phases', ordre: 'ordre' },
+  { table: 'projet_jalons', feuille: 'Jalons', ordre: 'date_prevue' },
+  { table: 'projet_activites', feuille: 'Activites', ordre: 'ordre' },
+  { table: 'projet_livrables', feuille: 'Livrables', ordre: 'echeance' },
+  { table: 'projet_equipe', feuille: 'Equipe_Projet' },
+  { table: 'projet_parties_prenantes', feuille: 'Parties_Prenantes', ordre: 'ordre' },
+  { table: 'projet_raci', feuille: 'RACI', ordre: 'ordre' },
+  { table: 'projet_budget', feuille: 'Budget', ordre: 'ordre' },
+  { table: 'projet_risques', feuille: 'Risques' },
+  { table: 'projet_decisions', feuille: 'Decisions', ordre: 'date_decision' },
+  { table: 'projet_reserves', feuille: 'Reserves' },
+  { table: 'projet_indicateurs', feuille: 'Indicateurs', ordre: 'ordre' },
+  { table: 'projet_obstacles', feuille: 'Obstacles', ordre: 'date_signalement' },
+  { table: 'projet_lecons', feuille: 'RETEX' },
+  { table: 'projet_rapports', feuille: 'Rapports_Avancement', ordre: 'date_rapport' },
+  { table: 'acteurs', feuille: 'Acteurs', ordre: 'id_acteur' },
+  { table: 'acteur_droits', feuille: 'Droits_Acteurs' },
+  { table: 'module_acces', feuille: 'Module_Acces' },
+  { table: 'seuils_charge', feuille: 'Seuils_Charge' },
+  { table: 'jours_feries', feuille: 'Jours_Feries', ordre: 'date_ferie' }
+];
+
+function sauvegardeStatut(msg) {
+  const el = $('#sauvegardeStatut');
+  if (el) el.textContent = msg || '';
+}
+async function collecterSauvegarde() {
+  const resultat = {}; const erreurs = [];
+  for (const def of SAUVEGARDE_TABLES) {
+    sauvegardeStatut(`Extraction en cours : ${def.feuille}...`);
+    let q = sb.from(def.table).select('*');
+    if (def.ordre) q = q.order(def.ordre, { ascending: true });
+    const { data, error } = await q;
+    if (error) { erreurs.push(`${def.table} : ${error.message}`); resultat[def.table] = []; }
+    else resultat[def.table] = data || [];
+  }
+  sauvegardeStatut('');
+  return { resultat, erreurs };
+}
+function aplatirValeur(v) {
+  if (v === null || v === undefined) return '';
+  if (Array.isArray(v)) return v.join(' | ');
+  if (typeof v === 'object') return JSON.stringify(v);
+  return v;
+}
+async function telechargerSauvegardeExcel() {
+  if (typeof XLSX === 'undefined') { toast('Bibliothèque Excel indisponible (hors ligne ?).', 'err'); return; }
+  toast('Extraction des données en cours...', 'ok');
+  const { resultat, erreurs } = await collecterSauvegarde();
+  const wb = XLSX.utils.book_new();
+  let totalLignes = 0;
+  SAUVEGARDE_TABLES.forEach(def => {
+    const rows = (resultat[def.table] || []).map(r => {
+      const plat = {};
+      Object.keys(r).forEach(k => { plat[k] = aplatirValeur(r[k]); });
+      return plat;
+    });
+    totalLignes += rows.length;
+    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Info: 'Aucune donnée enregistrée' }]);
+    XLSX.utils.book_append_sheet(wb, ws, def.feuille.slice(0, 31));
+  });
+  XLSX.writeFile(wb, `GestionProjet_Sauvegarde_${auj()}.xlsx`);
+  if (erreurs.length) toast(`Sauvegarde générée avec ${erreurs.length} table(s) inaccessible(s).`, 'err');
+  else toast(`Sauvegarde Excel générée : ${totalLignes} enregistrements.`, 'ok');
+}
+function telechargerFichier(nom, contenu, type) {
+  const blob = new Blob([contenu], { type: type || 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nom;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function telechargerSauvegardeJson() {
+  toast('Extraction des données en cours...', 'ok');
+  const { resultat, erreurs } = await collecterSauvegarde();
+  const totalLignes = Object.values(resultat).reduce((s, arr) => s + arr.length, 0);
+  const paquet = {
+    plateforme: 'D2MG Pilotage — ANADER — Gestion de projet',
+    date_sauvegarde: new Date().toISOString(),
+    realisee_par: S.acteur ? `${S.acteur.nom_prenoms} (${S.acteur.role})` : '—',
+    nombre_tables: SAUVEGARDE_TABLES.length,
+    nombre_enregistrements: totalLignes,
+    tables_en_erreur: erreurs,
+    donnees: resultat
+  };
+  telechargerFichier(`GestionProjet_Sauvegarde_Brute_${auj()}.json`, JSON.stringify(paquet, null, 2), 'application/json');
+  if (erreurs.length) toast(`Sauvegarde générée avec ${erreurs.length} table(s) inaccessible(s).`, 'err');
+  else toast(`Sauvegarde brute générée : ${totalLignes} enregistrements.`, 'ok');
+}
+
+async function chargerEtatBase() {
+  const maj = (id, val) => { const el = $('#' + id); if (el) el.textContent = val; };
+  const compter = async t => {
+    const { count, error } = await sb.from(t).select('*', { count: 'exact', head: true });
+    return error ? '—' : (count || 0);
+  };
+  const [nbProjets, nbActivites, nbRisques, nbDecisions, nbObstacles, nbRapports, nbActeurs] = await Promise.all([
+    compter('projets'), compter('projet_activites'), compter('projet_risques'),
+    compter('projet_decisions'), compter('projet_obstacles'), compter('projet_rapports'), compter('acteurs')
+  ]);
+  maj('etatBaseProjets', nbProjets); maj('etatBaseActivites', nbActivites);
+  maj('etatBaseRisques', nbRisques); maj('etatBaseDecisions', nbDecisions);
+  maj('etatBaseObstacles', nbObstacles); maj('etatBaseRapports', nbRapports);
+  maj('etatBaseActeurs', nbActeurs);
+}
+
+function vueSauvegarde() {
+  $('#zone').innerHTML = `
+    <div class="topbar"><div><h1>Sauvegarde des données</h1>
+      <p>Extraction brute et complète des données de la chambre Gestion de projet, tous projets confondus. Ces exports sont en lecture seule : aucune donnée n'est modifiée ou supprimée depuis cet écran.</p></div></div>
+
+    <div class="carte">
+      <h3>État de la base</h3>
+      <p class="muted" style="margin:0 0 10px;font-size:12.5px">Volume actuellement enregistré, tous projets confondus (comptage en direct).</p>
+      <div class="kpis">
+        <div class="kpi"><div class="lib">Projets</div><div class="val" id="etatBaseProjets">…</div></div>
+        <div class="kpi"><div class="lib">Activités</div><div class="val" id="etatBaseActivites">…</div></div>
+        <div class="kpi"><div class="lib">Risques</div><div class="val" id="etatBaseRisques">…</div></div>
+        <div class="kpi"><div class="lib">Décisions</div><div class="val" id="etatBaseDecisions">…</div></div>
+        <div class="kpi"><div class="lib">Obstacles</div><div class="val" id="etatBaseObstacles">…</div></div>
+        <div class="kpi"><div class="lib">Rapports d'avancement</div><div class="val" id="etatBaseRapports">…</div></div>
+        <div class="kpi"><div class="lib">Membres d'équipe</div><div class="val" id="etatBaseActeurs">…</div></div>
+      </div>
+    </div>
+
+    <div class="deux-col">
+      <div class="carte">
+        <h3>Sauvegarde Excel</h3>
+        <p class="muted" style="font-size:12.5px">Un classeur avec un onglet par table (projets, phases, jalons, activités, livrables, équipe, parties prenantes, RACI, budget, risques, décisions, réserves, indicateurs, obstacles, RETEX, rapports...). Format lisible et exploitable.</p>
+        <button class="btn primaire" type="button" id="btnSauvExcel">Télécharger la sauvegarde Excel</button>
+      </div>
+      <div class="carte">
+        <h3>Sauvegarde brute (JSON)</h3>
+        <p class="muted" style="font-size:12.5px">Copie fidèle et intégrale de la base, champ par champ. À conserver pour une restauration technique éventuelle.</p>
+        <button class="btn doux" type="button" id="btnSauvJson">Télécharger la sauvegarde brute</button>
+      </div>
+    </div>
+
+    <div class="carte">
+      <h3>Conseil</h3>
+      <p class="muted" style="font-size:12.5px;margin:0">Vos données sont enregistrées en continu dans la base en ligne : ces sauvegardes sont un filet de sécurité supplémentaire. Un téléchargement mensuel, archivé hors de la plateforme, est une bonne pratique.</p>
+    </div>
+    <p class="muted" id="sauvegardeStatut" style="font-size:11.5px"></p>
+
+    ${S.acteur && ['Pilote', 'Co-pilote'].includes(S.acteur.role) ? `
+    <div class="carte">
+      <h3>Restauration des données</h3>
+      <p class="muted" style="font-size:12.5px">Réservé au Pilote et aux Co-pilotes. Recharge le contenu d'un fichier de sauvegarde brute (JSON) téléchargé depuis cet écran. Les enregistrements du fichier remplacent, table par table, ceux qui portent le même identifiant ; les autres données existantes ne sont pas touchées. Action irréversible, à réserver à une reprise après incident.</p>
+      <input type="file" id="restaurationFichier" accept="application/json" style="max-width:420px" />
+      <div style="margin-top:9px"><button class="btn" type="button" id="btnRestaurer" style="border-color:var(--bad);color:var(--bad)">Restaurer depuis ce fichier</button></div>
+      <p class="muted" id="restaurationStatut" style="font-size:11.5px;margin:8px 0 0"></p>
+    </div>` : ''}`;
+  $('#btnSauvExcel').addEventListener('click', telechargerSauvegardeExcel);
+  $('#btnSauvJson').addEventListener('click', telechargerSauvegardeJson);
+  const btnR = $('#btnRestaurer');
+  if (btnR) btnR.addEventListener('click', restaurerSauvegardeProjets);
+  chargerEtatBase();
+}
+
+/* ------------------------------------------------------ restauration */
+const RESTAURATION_TABLES = [
+  { table: 'acteurs', pk: 'id_acteur' },
+  { table: 'projets', pk: 'id_projet' },
+  { table: 'projet_phases', pk: 'id' },
+  { table: 'projet_jalons', pk: 'id' },
+  { table: 'projet_activites', pk: 'id_activite' },
+  { table: 'projet_livrables', pk: 'id' },
+  { table: 'projet_raci', pk: 'id' },
+  { table: 'projet_indicateurs', pk: 'id' },
+  { table: 'projet_obstacles', pk: 'id' },
+  { table: 'projet_equipe', pk: 'id' },
+  { table: 'projet_parties_prenantes', pk: 'id' },
+  { table: 'projet_budget', pk: 'id' },
+  { table: 'projet_risques', pk: 'id' },
+  { table: 'projet_decisions', pk: 'id' },
+  { table: 'projet_reserves', pk: 'id' },
+  { table: 'projet_lecons', pk: 'id' },
+  { table: 'projet_rapports', pk: 'id_rapport' },
+  { table: 'acteur_droits', pk: 'id' },
+  { table: 'module_acces', pk: 'id' },
+  { table: 'seuils_charge', pk: 'id' },
+  { table: 'jours_feries', pk: 'id' }
+];
+async function restaurerLotDeTables(paquet, tables, setStatut) {
+  if (!paquet || typeof paquet !== 'object' || !paquet.donnees || typeof paquet.donnees !== 'object') {
+    throw new Error('Fichier de sauvegarde invalide : structure inattendue (attendu un export JSON généré depuis cet écran).');
+  }
+  const rapport = [];
+  for (const def of tables) {
+    const rows = paquet.donnees[def.table];
+    if (!rows || !rows.length) { rapport.push({ table: def.table, n: 0, erreur: null }); continue; }
+    setStatut(`Restauration en cours : ${def.table} (${rows.length} enregistrement(s))...`);
+    let total = 0, erreur = null;
+    for (let i = 0; i < rows.length; i += 500) {
+      const lot = rows.slice(i, i + 500);
+      const { error } = await sb.from(def.table).upsert(lot, { onConflict: def.pk });
+      if (error) { erreur = error.message; break; }
+      total += lot.length;
+    }
+    rapport.push({ table: def.table, n: total, erreur });
+  }
+  setStatut('');
+  return rapport;
+}
+async function restaurerSauvegardeProjets() {
+  if (!S.acteur || !['Pilote', 'Co-pilote'].includes(S.acteur.role)) { toast('Réservé au Pilote et aux Co-pilotes.', 'err'); return; }
+  const input = $('#restaurationFichier');
+  if (!input.files || !input.files[0]) { toast('Choisissez d\'abord un fichier de sauvegarde JSON.', 'err'); return; }
+  if (!confirm(`Restaurer « ${input.files[0].name} » ? Les enregistrements du fichier remplaceront ceux qui portent le même identifiant dans la base actuelle. Cette action est irréversible.`)) return;
+  const setStatut = m => { const el = $('#restaurationStatut'); if (el) el.textContent = m || ''; };
+  try {
+    const texte = await input.files[0].text();
+    const paquet = JSON.parse(texte);
+    toast('Restauration en cours...', 'ok');
+    const rapport = await restaurerLotDeTables(paquet, RESTAURATION_TABLES, setStatut);
+    const erreurs = rapport.filter(r => r.erreur);
+    const total = rapport.reduce((s, r) => s + r.n, 0);
+    if (erreurs.length) { toast(`Restauration terminée avec ${erreurs.length} table(s) en erreur (voir la console). Total restauré : ${total}.`, 'err'); console.error('Erreurs de restauration :', erreurs); }
+    else toast(`Restauration terminée : ${total} enregistrement(s) restauré(s).`, 'ok');
+    chargerEtatBase();
+  } catch (e) {
+    setStatut('');
+    toast('Erreur de restauration : ' + e.message, 'err');
+  }
 }
 
 /* --------------------------------------------------------------- lancement */

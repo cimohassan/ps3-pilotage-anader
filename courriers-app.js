@@ -1082,14 +1082,15 @@ function vueParametrage() {
   if (!aDroit('cou.parametrer')) { refus(); return; }
   const o = D.etat.param || (D.etat.param = { tab: 'natures' });
   const tabs = [['natures', 'Natures & délais'], ['services', 'Services'], ['entites', 'Entités émettrices'],
-                ['agents', 'Agents & services'], ['seuils', 'Seuils de charge'], ['feries', 'Jours fériés']];
+                ['agents', 'Agents & services'], ['seuils', 'Seuils de charge'], ['feries', 'Jours fériés'],
+                ['sauvegarde', 'Sauvegarde des données']];
   $('#zone').innerHTML = `
     <div class="tete"><div><h1>Paramétrage</h1>
       <p>Grille des délais contractuels, organisation des services, rattachement des agents et calendrier ouvré. Ces paramètres pilotent tout le calcul des échéances.</p></div></div>
     <div class="onglets">${tabs.map(t => `<button data-tab="${t[0]}" class="${o.tab === t[0] ? 'active' : ''}">${ech(t[1])}</button>`).join('')}</div>
     <div id="pz"></div>`;
   $$('[data-tab]').forEach(b => b.addEventListener('click', () => { o.tab = b.dataset.tab; vueParametrage(); }));
-  ({ natures: pNatures, services: pServices, entites: pEntites, agents: pAgents, seuils: pSeuils, feries: pFeries }[o.tab] || pNatures)();
+  ({ natures: pNatures, services: pServices, entites: pEntites, agents: pAgents, seuils: pSeuils, feries: pFeries, sauvegarde: pSauvegarde }[o.tab] || pNatures)();
 }
 
 function pNatures() {
@@ -1220,6 +1221,202 @@ async function pFeries() {
   $$('[data-jd]').forEach(b => b.addEventListener('click', async () => {
     await sb.from('jours_feries').delete().eq('id', b.dataset.jd); await chargerFeries(); vueParametrage();
   }));
+}
+
+/* ============================================================ SAUVEGARDE DES DONNÉES
+   Extraction en lecture seule, tous statuts et tous services confondus.
+   Aucune action destructive : cet onglet ne fait qu'exporter. */
+const SAUVEGARDE_TABLES = [
+  { table: 'courriers', feuille: 'Courriers', ordre: 'created_at' },
+  { table: 'courrier_mouvements', feuille: 'Mouvements' },
+  { table: 'courrier_relances', feuille: 'Relances' },
+  { table: 'courrier_natures', feuille: 'Natures', ordre: 'libelle' },
+  { table: 'courrier_services', feuille: 'Services', ordre: 'ordre' },
+  { table: 'courrier_entites', feuille: 'Entites_Emettrices', ordre: 'libelle' },
+  { table: 'acteurs', feuille: 'Agents', ordre: 'nom_prenoms' },
+  { table: 'acteur_droits', feuille: 'Droits_Acteurs' },
+  { table: 'ref_droits', feuille: 'Referentiel_Droits' },
+  { table: 'module_acces', feuille: 'Module_Acces' },
+  { table: 'seuils_charge', feuille: 'Seuils_Charge' },
+  { table: 'jours_feries', feuille: 'Jours_Feries', ordre: 'date_ferie' }
+];
+function sauvegardeStatut(msg) {
+  const el = $('#sauvegardeStatut');
+  if (el) el.textContent = msg || '';
+}
+async function collecterSauvegarde() {
+  const resultat = {}; const erreurs = [];
+  for (const def of SAUVEGARDE_TABLES) {
+    sauvegardeStatut(`Extraction en cours : ${def.feuille}...`);
+    let q = sb.from(def.table).select('*');
+    if (def.ordre) q = q.order(def.ordre, { ascending: true });
+    const { data, error } = await q;
+    if (error) { erreurs.push(`${def.table} : ${error.message}`); resultat[def.table] = []; }
+    else resultat[def.table] = data || [];
+  }
+  sauvegardeStatut('');
+  return { resultat, erreurs };
+}
+function aplatirValeur(v) {
+  if (v === null || v === undefined) return '';
+  if (Array.isArray(v)) return v.join(' | ');
+  if (typeof v === 'object') return JSON.stringify(v);
+  return v;
+}
+async function telechargerSauvegardeExcel() {
+  if (typeof XLSX === 'undefined') { toast('Bibliothèque Excel indisponible (hors ligne ?).', 'err'); return; }
+  toast('Extraction des données en cours...', 'ok');
+  const { resultat, erreurs } = await collecterSauvegarde();
+  const wb = XLSX.utils.book_new();
+  let totalLignes = 0;
+  SAUVEGARDE_TABLES.forEach(def => {
+    const rows = (resultat[def.table] || []).map(r => {
+      const plat = {};
+      Object.keys(r).forEach(k => { plat[k] = aplatirValeur(r[k]); });
+      return plat;
+    });
+    totalLignes += rows.length;
+    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Info: 'Aucune donnée enregistrée' }]);
+    XLSX.utils.book_append_sheet(wb, ws, def.feuille.slice(0, 31));
+  });
+  XLSX.writeFile(wb, `GestionCourriers_Sauvegarde_${auj()}.xlsx`);
+  if (erreurs.length) toast(`Sauvegarde générée avec ${erreurs.length} table(s) inaccessible(s).`, 'err');
+  else toast(`Sauvegarde Excel générée : ${totalLignes} enregistrements.`, 'ok');
+}
+function telechargerFichier(nom, contenu, type) {
+  const blob = new Blob([contenu], { type: type || 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nom;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function telechargerSauvegardeJson() {
+  toast('Extraction des données en cours...', 'ok');
+  const { resultat, erreurs } = await collecterSauvegarde();
+  const totalLignes = Object.values(resultat).reduce((s, arr) => s + arr.length, 0);
+  const paquet = {
+    plateforme: 'D2MG Pilotage — ANADER — Gestion des courriers',
+    date_sauvegarde: new Date().toISOString(),
+    realisee_par: D.moi ? `${D.moi.nom_prenoms} (${D.moi.role})` : '—',
+    nombre_tables: SAUVEGARDE_TABLES.length,
+    nombre_enregistrements: totalLignes,
+    tables_en_erreur: erreurs,
+    donnees: resultat
+  };
+  telechargerFichier(`GestionCourriers_Sauvegarde_Brute_${auj()}.json`, JSON.stringify(paquet, null, 2), 'application/json');
+  if (erreurs.length) toast(`Sauvegarde générée avec ${erreurs.length} table(s) inaccessible(s).`, 'err');
+  else toast(`Sauvegarde brute générée : ${totalLignes} enregistrements.`, 'ok');
+}
+async function chargerEtatBaseCourriers() {
+  const maj = (id, val) => { const el = $('#' + id); if (el) el.textContent = val; };
+  const compter = async t => {
+    const { count, error } = await sb.from(t).select('*', { count: 'exact', head: true });
+    return error ? '—' : (count || 0);
+  };
+  const [nbCourriers, nbMouvements, nbRelances, nbAgents, nbServices, nbNatures] = await Promise.all([
+    compter('courriers'), compter('courrier_mouvements'), compter('courrier_relances'),
+    compter('acteurs'), compter('courrier_services'), compter('courrier_natures')
+  ]);
+  maj('etatBaseCourriers', nbCourriers); maj('etatBaseMouvements', nbMouvements);
+  maj('etatBaseRelances', nbRelances); maj('etatBaseAgents', nbAgents);
+  maj('etatBaseServices', nbServices); maj('etatBaseNatures', nbNatures);
+}
+function pSauvegarde() {
+  $('#pz').innerHTML = `
+    <div class="carte">
+      <h3>État de la base</h3>
+      <p class="aide" style="margin:0 0 10px">Volume actuellement enregistré, tous services et tous statuts confondus (comptage en direct).</p>
+      <div class="kpis">
+        <div class="kpi"><div class="lib">Courriers</div><div class="val" id="etatBaseCourriers">…</div></div>
+        <div class="kpi"><div class="lib">Mouvements</div><div class="val" id="etatBaseMouvements">…</div></div>
+        <div class="kpi"><div class="lib">Relances</div><div class="val" id="etatBaseRelances">…</div></div>
+        <div class="kpi"><div class="lib">Agents</div><div class="val" id="etatBaseAgents">…</div></div>
+        <div class="kpi"><div class="lib">Services</div><div class="val" id="etatBaseServices">…</div></div>
+        <div class="kpi"><div class="lib">Natures de courrier</div><div class="val" id="etatBaseNatures">…</div></div>
+      </div>
+    </div>
+    <div class="carte"><h3>Sauvegarde Excel</h3>
+      <p class="aide">Un classeur avec un onglet par table (courriers, mouvements, relances, natures, services, entités émettrices, agents, droits, jours fériés...). Format lisible et exploitable.</p>
+      <button class="btn primaire sm" type="button" id="btnSauvExcel">Télécharger la sauvegarde Excel</button>
+    </div>
+    <div class="carte"><h3>Sauvegarde brute (JSON)</h3>
+      <p class="aide">Copie fidèle et intégrale de la base, champ par champ. À conserver pour une restauration technique éventuelle.</p>
+      <button class="btn sm" type="button" id="btnSauvJson">Télécharger la sauvegarde brute</button>
+    </div>
+    <div class="carte"><h3>Conseil</h3>
+      <p class="aide" style="margin:0">Vos données sont enregistrées en continu dans la base en ligne : ces sauvegardes sont un filet de sécurité supplémentaire. Un téléchargement mensuel, archivé hors de la plateforme, est une bonne pratique.</p>
+    </div>
+    <p class="aide" id="sauvegardeStatut"></p>
+    ${D.moi && ['Pilote', 'Co-pilote'].includes(D.moi.role) ? `
+    <div class="carte"><h3>Restauration des données</h3>
+      <p class="aide">Réservé au Pilote et aux Co-pilotes. Recharge le contenu d'un fichier de sauvegarde brute (JSON) téléchargé depuis cet écran. Les enregistrements du fichier remplacent, table par table, ceux qui portent le même identifiant ; les autres données existantes ne sont pas touchées. Action irréversible, à réserver à une reprise après incident.</p>
+      <input type="file" id="restaurationFichier" accept="application/json" style="max-width:420px" />
+      <div style="margin-top:9px"><button class="btn sm" type="button" id="btnRestaurer" style="border-color:var(--rouge);color:var(--rouge)">Restaurer depuis ce fichier</button></div>
+      <p class="aide" id="restaurationStatut" style="margin-top:8px"></p>
+    </div>` : ''}`;
+  $('#btnSauvExcel').addEventListener('click', telechargerSauvegardeExcel);
+  $('#btnSauvJson').addEventListener('click', telechargerSauvegardeJson);
+  const btnR = $('#btnRestaurer');
+  if (btnR) btnR.addEventListener('click', restaurerSauvegardeCourriers);
+  chargerEtatBaseCourriers();
+}
+
+/* ------------------------------------------------------ restauration */
+const RESTAURATION_TABLES = [
+  { table: 'acteurs', pk: 'id_acteur' },
+  { table: 'courrier_services', pk: 'id' },
+  { table: 'courrier_natures', pk: 'id' },
+  { table: 'courrier_entites', pk: 'id' },
+  { table: 'courriers', pk: 'id_courrier' },
+  { table: 'courrier_mouvements', pk: 'id' },
+  { table: 'courrier_relances', pk: 'id' },
+  { table: 'acteur_droits', pk: 'id' },
+  { table: 'ref_droits', pk: 'code' },
+  { table: 'module_acces', pk: 'id' },
+  { table: 'seuils_charge', pk: 'id' },
+  { table: 'jours_feries', pk: 'id' }
+];
+async function restaurerLotDeTables(paquet, tables, setStatut) {
+  if (!paquet || typeof paquet !== 'object' || !paquet.donnees || typeof paquet.donnees !== 'object') {
+    throw new Error('Fichier de sauvegarde invalide : structure inattendue (attendu un export JSON généré depuis cet écran).');
+  }
+  const rapport = [];
+  for (const def of tables) {
+    const rows = paquet.donnees[def.table];
+    if (!rows || !rows.length) { rapport.push({ table: def.table, n: 0, erreur: null }); continue; }
+    setStatut(`Restauration en cours : ${def.table} (${rows.length} enregistrement(s))...`);
+    let total = 0, erreur = null;
+    for (let i = 0; i < rows.length; i += 500) {
+      const lot = rows.slice(i, i + 500);
+      const { error } = await sb.from(def.table).upsert(lot, { onConflict: def.pk });
+      if (error) { erreur = error.message; break; }
+      total += lot.length;
+    }
+    rapport.push({ table: def.table, n: total, erreur });
+  }
+  setStatut('');
+  return rapport;
+}
+async function restaurerSauvegardeCourriers() {
+  if (!D.moi || !['Pilote', 'Co-pilote'].includes(D.moi.role)) { toast('Réservé au Pilote et aux Co-pilotes.', 'err'); return; }
+  const input = $('#restaurationFichier');
+  if (!input.files || !input.files[0]) { toast('Choisissez d\'abord un fichier de sauvegarde JSON.', 'err'); return; }
+  if (!confirm(`Restaurer « ${input.files[0].name} » ? Les enregistrements du fichier remplaceront ceux qui portent le même identifiant dans la base actuelle. Cette action est irréversible.`)) return;
+  const setStatut = m => { const el = $('#restaurationStatut'); if (el) el.textContent = m || ''; };
+  try {
+    const texte = await input.files[0].text();
+    const paquet = JSON.parse(texte);
+    toast('Restauration en cours...', 'ok');
+    const rapport = await restaurerLotDeTables(paquet, RESTAURATION_TABLES, setStatut);
+    const erreurs = rapport.filter(r => r.erreur);
+    const total = rapport.reduce((s, r) => s + r.n, 0);
+    if (erreurs.length) { toast(`Restauration terminée avec ${erreurs.length} table(s) en erreur (voir la console). Total restauré : ${total}.`, 'err'); console.error('Erreurs de restauration :', erreurs); }
+    else toast(`Restauration terminée : ${total} enregistrement(s) restauré(s).`, 'ok');
+    chargerEtatBaseCourriers();
+  } catch (e) {
+    setStatut('');
+    toast('Erreur de restauration : ' + e.message, 'err');
+  }
 }
 
 /* ============================================================ MODE D'EMPLOI */
