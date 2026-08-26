@@ -428,6 +428,7 @@ async function demarrer() {
 const MENU = [
   { grp: 'Portefeuille' },
   { id: 'portefeuille', lib: 'Mes projets', ic: '▦' },
+  { id: 'import', lib: 'Importer un projet', ic: '⇧', droit: 'prj.importer' },
   { grp: 'Cadrage', projet: 1 },
   { id: 'charte', lib: 'Charte de projet', ic: '◈', projet: 1 },
   { id: 'parties', lib: 'Parties prenantes', ic: '⚉', projet: 1 },
@@ -461,6 +462,7 @@ function construireMenu() {
   let h = '';
   MENU.forEach(m => {
     if (m.projet && !S.projet) return;
+    if (m.droit && !peut(m.droit)) return;
     if (m.grp) { h += `<div class="grp">${ech(m.grp)}</div>`; return; }
     const n = m.badge ? m.badge() : 0;
     h += `<button type="button" class="lien${S.vue === m.id ? ' active' : ''}" data-vue="${m.id}">
@@ -483,7 +485,7 @@ const VUES = {
   decisions: () => vueRegistre('decisions'), reserves: () => vueRegistre('reserves'),
   obstacles: () => vueRegistre('obstacles'), tdb: vueTdb, indicateurs: () => vueRegistre('indicateurs'),
   alertes: vueAlertes, rapports: vueRapports, fiche5: vueFiche5, lecons: () => vueRegistre('lecons'),
-  sauvegarde: vueSauvegarde, aide: vueAide
+  import: vueImport, sauvegarde: vueSauvegarde, aide: vueAide
 };
 
 function aller(v) {
@@ -539,12 +541,16 @@ function vuePortefeuille() {
     <div class="topbar">
       <div><h1>Portefeuille de projets</h1>
         <p>Pilotage des projets de la D2MG selon une structure générique inspirée des standards PMP : cadrage, planification, exécution, maîtrise des écarts et clôture capitalisée.</p></div>
-      ${peut('prj.creer') ? '<button class="btn primaire" id="btnNouveau">+ Nouveau projet</button>' : ''}
+      <div style="display:flex;gap:9px;flex-wrap:wrap">
+        ${peut('prj.importer') ? '<button class="btn" id="btnImporter">⇧ Importer un classeur</button>' : ''}
+        ${peut('prj.creer') ? '<button class="btn primaire" id="btnNouveau">+ Nouveau projet</button>' : ''}
+      </div>
     </div>
     ${S.projets.length ? `<div class="pf">${cartes}</div>` : '<div class="carte"><p class="muted">Aucun projet visible. ' + (peut('prj.creer') ? 'Créez le premier avec « + Nouveau projet ».' : 'Vous verrez ici les projets dont vous êtes responsable ou membre.') + '</p></div>'}`;
 
   $$('[data-projet]').forEach(c => c.addEventListener('click', () => ouvrirProjet(c.dataset.projet)));
   const b = $('#btnNouveau'); if (b) b.addEventListener('click', modaleNouveauProjet);
+  const bi = $('#btnImporter'); if (bi) bi.addEventListener('click', () => aller('import'));
 }
 
 function modaleNouveauProjet() {
@@ -1855,6 +1861,806 @@ async function restaurerSauvegardeProjets() {
     setStatut('');
     toast('Erreur de restauration : ' + e.message, 'err');
   }
+}
+
+
+/* =========================================================================
+ *  IMPORT D'UN PROJET DEPUIS LE CLASSEUR DE CADRAGE (.xlsx)
+ *  -------------------------------------------------------------------------
+ *  Deux modes :
+ *   - creation   : le classeur cree un projet complet ;
+ *   - complement : le classeur enrichit un projet deja existant.
+ *  Rien n'est ecrit en base tant que l'utilisateur n'a pas valide l'apercu.
+ * ========================================================================= */
+
+const IMP_FEUILLES = [
+  { cle: 'phases', onglet: 'PHASES', table: 'projet_phases', titre: 'Phases',
+    cols: ['ordre','libelle','objectif_principal','statut','date_debut_prevue','date_fin_prevue','date_debut_reelle','date_fin_reelle','commentaire'],
+    obl: ['libelle'], nombres: ['ordre'], dates: ['date_debut_prevue','date_fin_prevue','date_debut_reelle','date_fin_reelle'],
+    listes: { statut: ['Vert','Orange','Rouge'] } },
+
+  { cle: 'parties', onglet: 'PARTIES PRENANTES', table: 'projet_parties_prenantes', titre: 'Parties prenantes',
+    cols: ['libelle','code_court','acteur_id','organisation','role_projet','influence','interet','strategie_engagement'],
+    obl: ['libelle'], acteurs: ['acteur_id'], ordonne: true,
+    listes: { role_projet: ['Commanditaire (MOA)',"Assistance à maîtrise d'ouvrage (AMO)","Maîtrise d'œuvre (MOE)",'Exécutant / Entreprise','Utilisateur / Bénéficiaire','Contrôle / Autorité','Fournisseur','Autre'],
+              influence: ['Faible','Moyen','Fort'], interet: ['Faible','Moyen','Fort'] } },
+
+  { cle: 'equipe', onglet: 'ÉQUIPE', table: 'projet_equipe', titre: 'Équipe projet',
+    cols: ['acteur_id','role_equipe'], obl: ['acteur_id'], acteurs: ['acteur_id'],
+    listes: { role_equipe: ['Membre','Responsable','Contributeur','Expert','Observateur'] } },
+
+  { cle: 'raci', onglet: 'RACI', table: 'projet_raci', titre: 'Matrice RACI', special: 'raci' },
+
+  { cle: 'activites', onglet: 'ACTIVITÉS', table: 'projet_activites', titre: 'Activités',
+    cols: ['code_wbs','denomination','ordre_phase','description','contenu_cle','responsable_id','priorite','statut','chemin_critique','date_debut_prevue','date_prevue','charge_jours','avancement_pct','commentaire'],
+    obl: ['denomination'], phase: 'ordre_phase', acteurs: ['responsable_id'],
+    nombres: ['charge_jours','avancement_pct'], booleens: ['chemin_critique'],
+    dates: ['date_debut_prevue','date_prevue'],
+    listes: { priorite: ['Basse','Moyenne','Haute','Critique'], statut: ['À faire','En cours','Réalisé'] },
+    ordonne: true },
+
+  { cle: 'jalons', onglet: 'JALONS', table: 'projet_jalons', titre: 'Jalons',
+    cols: ['libelle','ordre_phase','statut','responsable_id','responsable_externe','date_prevue','date_reelle','preuve','commentaire'],
+    obl: ['libelle'], phase: 'ordre_phase', acteurs: ['responsable_id'], dates: ['date_prevue','date_reelle'],
+    listes: { statut: ['Prévu','En cours','Réalisé','Manqué','Annulé'] } },
+
+  { cle: 'livrables', onglet: 'LIVRABLES', table: 'projet_livrables', titre: 'Livrables',
+    cols: ['libelle','ordre_phase','description','contenu_cle','responsable_id','responsable_externe','echeance','statut','emplacement','commentaire'],
+    obl: ['libelle'], phase: 'ordre_phase', acteurs: ['responsable_id'], dates: ['echeance'],
+    listes: { statut: ['À produire','En cours','Soumis','Validé','Abandonné'] } },
+
+  { cle: 'budget', onglet: 'BUDGET', table: 'projet_budget', titre: 'Budget',
+    cols: ['code_poste','libelle','type_ligne','montant_prevu','montant_actuel','montant_engage','montant_paye','statut','approbation','commentaire'],
+    obl: ['libelle'], nombres: ['montant_prevu','montant_actuel','montant_engage','montant_paye'], booleens: ['approbation'],
+    listes: { type_ligne: ['Base','Variation'], statut: ['À suivre','Validé','En négociation','Rejeté'] },
+    ordonne: true },
+
+  { cle: 'risques', onglet: 'RISQUES', table: 'projet_risques', titre: 'Risques',
+    cols: ['reference','categorie','description','zone_impactee','probabilite','impact','strategie','statut','plan_attenuation','declencheur','plan_contingence','proprietaire_id','proprietaire_externe','echeance'],
+    obl: ['description'], acteurs: ['proprietaire_id'], nombres: ['probabilite','impact'], dates: ['echeance'],
+    listes: { categorie: ['Délais / Logistique','Technique / Qualité','Coût / Achats','Ressources','Gouvernance / Contrat','HSE / Sécurité',"Continuité d'activité",'Coordination','Externe / Réglementaire'],
+              strategie: ['Éviter','Réduire','Transférer','Accepter','Exploiter'],
+              statut: ['Ouvert','En cours','Maîtrisé','Survenu','Clos'] } },
+
+  { cle: 'indicateurs', onglet: 'INDICATEURS', table: 'projet_indicateurs', titre: 'Indicateurs',
+    cols: ['libelle','ordre_phase','frequence','description','methode_calcul','cible','seuil_alerte','unite','statut','commentaire'],
+    obl: ['libelle'], phase: 'ordre_phase',
+    listes: { frequence: ['Quotidienne','Hebdomadaire','Mensuelle','Par phase','À la clôture'], statut: ['OK','Alerte','Non mesuré'] },
+    ordonne: true },
+
+  { cle: 'decisions', onglet: 'DÉCISIONS', table: 'projet_decisions', titre: 'Décisions',
+    cols: ['objet','decision','date_decision','instance','responsable_execution_id','responsable_externe','echeance','statut','impact_cout','impact_delai_jours','commentaire'],
+    obl: ['objet'], acteurs: ['responsable_execution_id'], nombres: ['impact_cout','impact_delai_jours'], dates: ['date_decision','echeance'],
+    listes: { instance: ['Comité de projet','Direction D2MG','Direction Générale','Responsable de projet','Comité technique'],
+              statut: ['En attente de décision','À exécuter','En cours','Exécutée','Annulée'] } },
+
+  { cle: 'reserves', onglet: 'RÉSERVES', table: 'projet_reserves', titre: 'Réserves',
+    cols: ['zone','categorie','description','responsable_id','responsable_externe','echeance_levee','date_levee','statut','commentaire'],
+    obl: ['description'], acteurs: ['responsable_id'], dates: ['echeance_levee','date_levee'],
+    listes: { categorie: ['Critique','Non critique'], statut: ['Ouverte','En cours de levée','Levée','Refusée'] } }
+];
+
+const IMP_CHARTE = {
+  'Dénomination du projet': 'denomination',
+  'Code / référence interne': 'code_projet',
+  'Type de projet': 'type_projet',
+  'Contexte et justification': 'contexte',
+  'Objectif du projet (formulation SMART)': 'objectif_projet',
+  'Livrable final attendu': 'livrable_final',
+  'Périmètre INCLUS': 'perimetre_inclus',
+  'Périmètre EXCLU (hors projet)': 'perimetre_exclus',
+  'Critères de succès / de réception': 'criteres_succes',
+  'Contraintes': 'contraintes',
+  'Hypothèses retenues': 'hypotheses',
+  'Gouvernance et circuit de décision': 'gouvernance',
+  'Responsable de projet': 'responsable_id',
+  'Commanditaire (MOA)': 'commanditaire_id',
+  'Sponsor / autorité de tutelle': 'sponsor',
+  'Statut du projet': 'statut',
+  'Date de début': 'date_debut',
+  'Date de fin prévue': 'date_fin_prevue',
+  'Date de fin de référence (baseline)': 'date_fin_baseline',
+  'Date de fin réelle': 'date_fin_reelle',
+  'Budget prévisionnel': 'budget_prevu',
+  'Budget approuvé (référence)': 'budget_approuve',
+  'Devise': 'devise',
+  'Météo du projet': 'appreciation_avancement',
+  "Points d'attention actuels": 'points_attention'
+};
+const IMP_CHARTE_LIB = {
+  denomination: 'Dénomination', code_projet: 'Code interne', type_projet: 'Type de projet',
+  contexte: 'Contexte', objectif_projet: 'Objectif', livrable_final: 'Livrable final',
+  perimetre_inclus: 'Périmètre inclus', perimetre_exclus: 'Périmètre exclu',
+  criteres_succes: 'Critères de succès', contraintes: 'Contraintes', hypotheses: 'Hypothèses',
+  gouvernance: 'Gouvernance', responsable_id: 'Responsable', commanditaire_id: 'Commanditaire',
+  sponsor: 'Sponsor', statut: 'Statut', date_debut: 'Date de début', date_fin_prevue: 'Fin prévue',
+  date_fin_baseline: 'Fin de référence', date_fin_reelle: 'Fin réelle', budget_prevu: 'Budget prévisionnel',
+  budget_approuve: 'Budget approuvé', devise: 'Devise', appreciation_avancement: 'Météo',
+  points_attention: "Points d'attention"
+};
+const IMP_CHARTE_LISTES = {
+  type_projet: ['Travaux / Réhabilitation','Acquisition / Marché','Maintenance','Organisation / Amélioration','Informatique / Digitalisation','Autre'],
+  statut: ['Non démarré','En cours','Suspendu','Clôturé','Abandonné'],
+  appreciation_avancement: ['Vert','Orange','Rouge']
+};
+const IMP_CHARTE_DATES = ['date_debut','date_fin_prevue','date_fin_baseline','date_fin_reelle'];
+const IMP_CHARTE_NOMBRES = ['budget_prevu','budget_approuve'];
+const IMP_CHARTE_ACTEURS = ['responsable_id','commanditaire_id'];
+
+let IMP = null;
+
+function impNorm(s) {
+  return String(s == null ? '' : s).trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ');
+}
+function impNormOnglet(s) {
+  return impNorm(String(s || '').replace(/^\s*\d+\s*[.)\-]\s*/, ''));
+}
+function impNormCol(s) {
+  return impNorm(String(s || '').replace(/\*/g, ''));
+}
+function impVide(v) {
+  if (v == null) return true;
+  const s = String(v).trim();
+  return s === '' || impNorm(s) === '[a completer]';
+}
+
+function impDate(v) {
+  if (impVide(v)) return null;
+  if (v instanceof Date && !isNaN(v)) {
+    const z = new Date(v.getTime() - v.getTimezoneOffset() * 60000);
+    return z.toISOString().slice(0, 10);
+  }
+  if (typeof v === 'number' && v > 20000 && v < 80000) {
+    const d = new Date(Date.UTC(1899, 11, 30) + v * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+  if (m) return m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0');
+  return undefined;
+}
+function impNombre(v) {
+  if (impVide(v)) return null;
+  if (typeof v === 'number') return v;
+  const s = String(v).replace(/[\s ]/g, '').replace(/,/g, '.').replace(/[^\d.\-]/g, '');
+  if (s === '' || isNaN(Number(s))) return undefined;
+  return Number(s);
+}
+function impBool(v) {
+  if (impVide(v)) return false;
+  return ['oui','o','vrai','true','1','x','yes'].includes(impNorm(v));
+}
+
+function impLireClasseur(wb) {
+  const res = { charte: {}, feuilles: {}, anomalies: [], onglets_absents: [] };
+  const err = (niveau, ou, msg) => res.anomalies.push({ niveau: niveau, ou: ou, msg: msg });
+
+  const idx = {};
+  wb.SheetNames.forEach(n => { idx[impNormOnglet(n)] = n; });
+
+  const nomCharte = idx['charte'];
+  if (!nomCharte) {
+    err('bloquant', 'Classeur', "L'onglet « 1. CHARTE » est introuvable. Vérifiez que le fichier déposé est bien le classeur de cadrage.");
+    return res;
+  }
+  const lignesCharte = XLSX.utils.sheet_to_json(wb.Sheets[nomCharte], { header: 1, raw: true, defval: '' });
+  const mapCharteNorm = {};
+  Object.keys(IMP_CHARTE).forEach(k => { mapCharteNorm[impNormCol(k)] = IMP_CHARTE[k]; });
+
+  lignesCharte.forEach(l => {
+    const champ = mapCharteNorm[impNormCol(l[0])];
+    if (!champ) return;
+    const brut = l[1];
+    if (impVide(brut)) return;
+    let val;
+    if (IMP_CHARTE_DATES.indexOf(champ) >= 0) {
+      val = impDate(brut);
+      if (val === undefined) { err('bloquant', 'Charte', '« ' + IMP_CHARTE_LIB[champ] + ' » : date illisible (« ' + brut + ' »). Format attendu : AAAA-MM-JJ.'); return; }
+    } else if (IMP_CHARTE_NOMBRES.indexOf(champ) >= 0) {
+      val = impNombre(brut);
+      if (val === undefined) { err('bloquant', 'Charte', '« ' + IMP_CHARTE_LIB[champ] + ' » : montant illisible (« ' + brut + ' »).'); return; }
+    } else if (IMP_CHARTE_LISTES[champ]) {
+      const t = IMP_CHARTE_LISTES[champ].find(o => impNorm(o) === impNorm(brut));
+      if (!t) { err('bloquant', 'Charte', '« ' + IMP_CHARTE_LIB[champ] + ' » : valeur « ' + brut + ' » non autorisée. Valeurs possibles : ' + IMP_CHARTE_LISTES[champ].join(', ') + '.'); return; }
+      val = t;
+    } else if (IMP_CHARTE_ACTEURS.indexOf(champ) >= 0) {
+      val = String(brut).trim().toUpperCase();
+      if (!S.acteurs.some(a => a.id_acteur === val)) {
+        err('bloquant', 'Charte', '« ' + IMP_CHARTE_LIB[champ] + ' » : le code acteur « ' + brut + ' » n\'existe pas dans la base. Créez cet acteur ou corrigez le classeur.');
+        return;
+      }
+    } else {
+      val = String(brut).trim();
+    }
+    res.charte[champ] = val;
+  });
+
+  IMP_FEUILLES.forEach(def => {
+    const nom = idx[impNormOnglet(def.onglet)];
+    if (!nom) { res.onglets_absents.push(def.titre); res.feuilles[def.cle] = []; return; }
+    const grille = XLSX.utils.sheet_to_json(wb.Sheets[nom], { header: 1, raw: true, defval: '' });
+    if (!grille.length) { res.feuilles[def.cle] = []; return; }
+
+    if (def.special === 'raci') { res.feuilles.raci = impLireRaci(grille, err); return; }
+
+    const entetes = (grille[0] || []).map(impNormCol);
+    const posDe = {};
+    def.cols.forEach(c => { const i = entetes.indexOf(impNormCol(c)); if (i >= 0) posDe[c] = i; });
+    const iMarq = entetes.findIndex(e => e.indexOf("ligne d'exemple") >= 0 || e.indexOf('ligne d exemple') >= 0);
+    if (iMarq >= 0) posDe._marqueur = iMarq;
+    const manquantes = def.obl.filter(c => posDe[c] === undefined);
+    if (manquantes.length) {
+      err('bloquant', def.titre, "Colonne(s) obligatoire(s) absente(s) de l'onglet : " + manquantes.join(', ') + ". L'onglet a peut-être été modifié.");
+      res.feuilles[def.cle] = []; return;
+    }
+
+    const lignes = [];
+    let nbExemples = 0;
+    for (let r = 1; r < grille.length; r++) {
+      const brute = grille[r] || [];
+      if (brute.every(c => impVide(c))) continue;
+      if (impEstExemple(def, brute, posDe)) { nbExemples++; continue; }
+      if (impEstNote(brute)) continue;
+
+      const o = {}; let ligneOk = true;
+      def.cols.forEach(c => {
+        if (posDe[c] === undefined) return;
+        const brut = brute[posDe[c]];
+        if (impVide(brut)) { o[c] = null; return; }
+        if (def.phase === c || (def.nombres || []).indexOf(c) >= 0) {
+          const n = impNombre(brut);
+          if (n === undefined) { err('bloquant', def.titre, 'Ligne ' + (r + 1) + ', colonne « ' + c + ' » : nombre illisible (« ' + brut + ' »).'); ligneOk = false; return; }
+          o[c] = n;
+        } else if ((def.dates || []).indexOf(c) >= 0) {
+          const d = impDate(brut);
+          if (d === undefined) { err('bloquant', def.titre, 'Ligne ' + (r + 1) + ', colonne « ' + c + ' » : date illisible (« ' + brut + ' »).'); ligneOk = false; return; }
+          o[c] = d;
+        } else if ((def.booleens || []).indexOf(c) >= 0) {
+          o[c] = impBool(brut);
+        } else if (def.listes && def.listes[c]) {
+          const t = def.listes[c].find(v => impNorm(v) === impNorm(brut));
+          if (!t) { err('bloquant', def.titre, 'Ligne ' + (r + 1) + ', colonne « ' + c + ' » : valeur « ' + brut + ' » non autorisée.'); ligneOk = false; return; }
+          o[c] = t;
+        } else if ((def.acteurs || []).indexOf(c) >= 0) {
+          const code = String(brut).trim().toUpperCase();
+          if (!S.acteurs.some(a => a.id_acteur === code)) { err('bloquant', def.titre, 'Ligne ' + (r + 1) + ', colonne « ' + c + ' » : le code acteur « ' + brut + ' » n\'existe pas dans la base.'); ligneOk = false; return; }
+          o[c] = code;
+        } else {
+          o[c] = String(brut).trim();
+        }
+      });
+      def.obl.forEach(c => { if (impVide(o[c])) { err('bloquant', def.titre, 'Ligne ' + (r + 1) + ' : la colonne obligatoire « ' + c + ' » est vide.'); ligneOk = false; } });
+      if (ligneOk) { o._ligne = r + 1; lignes.push(o); }
+    }
+    if (nbExemples) err('avertissement', def.titre, nbExemples + " ligne(s) d'exemple du gabarit ignorée(s). Si vous aviez saisi vos données sur cette ligne, effacez la mention « EXEMPLE » de la dernière colonne et recommencez.");
+    res.feuilles[def.cle] = lignes;
+  });
+
+  return res;
+}
+
+/* Les notes de bas d'onglet du gabarit ne sont pas des donnees. */
+function impEstNote(brute) {
+  const prem = String((brute || []).find(c => !impVide(c)) || '');
+  return /^(Rappel|Remplacez|Ce total|Rédigez|Cet onglet|Utilisez|Si la personne)\b/i.test(prem.trim());
+}
+
+function impEstExemple(def, brute, posDe) {
+  /* Le gabarit marque explicitement sa ligne d'exemple dans une colonne dediee.
+     On ne devine jamais par le contenu : un vrai projet peut legitimement
+     contenir le meme texte que l'exemple (une phase « 1. Cadrage », par ex.). */
+  if (posDe._marqueur === undefined) return false;
+  return !impVide(brute[posDe._marqueur]);
+}
+
+function impLireRaci(grille, err) {
+  const entetes = (grille[0] || []).map(x => String(x == null ? '' : x).trim());
+  const norm = entetes.map(impNormCol);
+  const iOrdre = norm.indexOf('ordre');
+  const iAct = norm.indexOf('activite');
+  const iPhase = norm.indexOf('ordre_phase');
+  if (iAct < 0) { err('bloquant', 'Matrice RACI', "La colonne « activite » est absente de l'onglet RACI."); return []; }
+
+  const iMarq = norm.findIndex(e => e.indexOf("ligne d'exemple") >= 0 || e.indexOf('ligne d exemple') >= 0);
+  const colonnesPP = [];
+  entetes.forEach((e, i) => {
+    if (i === iOrdre || i === iAct || i === iPhase || i === iMarq) return;
+    const lib = String(e || '').trim();
+    if (!lib) return;
+    if (/^PP\d+$/i.test(lib)) return;
+    colonnesPP.push({ i: i, code: lib });
+  });
+
+  const lignes = [];
+  let nbEx = 0;
+  for (let r = 1; r < grille.length; r++) {
+    const brute = grille[r] || [];
+    if (brute.every(c => impVide(c))) continue;
+    const act = String(brute[iAct] == null ? '' : brute[iAct]).trim();
+    if (!act) continue;
+    if (iMarq >= 0 && !impVide(brute[iMarq])) { nbEx++; continue; }
+    if (impEstNote(brute)) continue;
+
+    const assignations = {};
+    let nbA = 0;
+    colonnesPP.forEach(c => {
+      const v = impNorm(brute[c.i]);
+      if (!v) return;
+      const L = v.toUpperCase();
+      if (['R','A','C','I'].indexOf(L) < 0) {
+        err('avertissement', 'Matrice RACI', 'Ligne ' + (r + 1) + ', colonne « ' + c.code + ' » : « ' + brute[c.i] + ' » n\'est pas une lettre RACI valide, la case est ignorée.');
+        return;
+      }
+      assignations[c.code] = L;
+      if (L === 'A') nbA++;
+    });
+    if (nbA === 0) err('avertissement', 'Matrice RACI', 'Ligne ' + (r + 1) + ' (« ' + act + ' ») : aucun approbateur (A) désigné.');
+    if (nbA > 1)  err('avertissement', 'Matrice RACI', 'Ligne ' + (r + 1) + ' (« ' + act + ' ») : ' + nbA + ' approbateurs (A) désignés, il ne doit y en avoir qu\'un seul.');
+
+    lignes.push({
+      activite: act,
+      ordre: (iOrdre >= 0 && !impVide(brute[iOrdre])) ? (impNombre(brute[iOrdre]) || lignes.length + 1) : lignes.length + 1,
+      ordre_phase: (iPhase >= 0 && !impVide(brute[iPhase])) ? impNombre(brute[iPhase]) : null,
+      assignations: assignations, _ligne: r + 1
+    });
+  }
+  if (nbEx) err('avertissement', 'Matrice RACI', nbEx + " ligne(s) d'exemple du gabarit ignorée(s). Si vous aviez saisi vos données sur cette ligne, effacez la mention « EXEMPLE » de la dernière colonne et recommencez.");
+  return lignes;
+}
+
+function impControlerCoherence(lu) {
+  const err = (niveau, ou, msg) => lu.anomalies.push({ niveau: niveau, ou: ou, msg: msg });
+  const phases = lu.feuilles.phases || [];
+
+  if (impVide(lu.charte.denomination)) err('bloquant', 'Charte', "La dénomination du projet est obligatoire et n'est pas renseignée.");
+
+  phases.forEach((p, i) => { if (p.ordre == null) p.ordre = i + 1; });
+  const ordres = phases.map(p => Number(p.ordre));
+  const dbl = ordres.filter((o, i) => ordres.indexOf(o) !== i);
+  if (dbl.length) err('bloquant', 'Phases', "Deux phases portent le même numéro d'ordre (" + Array.from(new Set(dbl)).join(', ') + ").");
+
+  IMP_FEUILLES.filter(d => d.phase).forEach(def => {
+    (lu.feuilles[def.cle] || []).forEach(l => {
+      const o = l[def.phase];
+      if (o == null) return;
+      if (ordres.indexOf(Number(o)) < 0)
+        err('bloquant', def.titre, 'Ligne ' + l._ligne + ' : la phase n° ' + o + " n'existe pas dans l'onglet PHASES.");
+    });
+  });
+  (lu.feuilles.raci || []).forEach(l => {
+    if (l.ordre_phase != null && ordres.indexOf(Number(l.ordre_phase)) < 0)
+      err('bloquant', 'Matrice RACI', 'Ligne ' + l._ligne + ' : la phase n° ' + l.ordre_phase + " n'existe pas dans l'onglet PHASES.");
+  });
+
+  const base = (lu.feuilles.budget || []).filter(b => (b.type_ligne || 'Base') === 'Base')
+    .reduce((s, b) => s + (Number(b.montant_prevu) || 0), 0);
+  if (base > 0 && lu.charte.budget_prevu != null && Math.abs(base - Number(lu.charte.budget_prevu)) > 1) {
+    err('avertissement', 'Budget',
+      'La somme des postes de type « Base » (' + base.toLocaleString('fr-FR') + ') diffère du budget prévisionnel de la charte (' + Number(lu.charte.budget_prevu).toLocaleString('fr-FR') + ').');
+  }
+
+  const parOrdre = {}; phases.forEach(p => { parOrdre[Number(p.ordre)] = p; });
+  (lu.feuilles.activites || []).forEach(a => {
+    const p = parOrdre[Number(a.ordre_phase)];
+    if (!p) return;
+    if (a.date_prevue && p.date_fin_prevue && a.date_prevue > p.date_fin_prevue)
+      err('avertissement', 'Activités', 'Ligne ' + a._ligne + " : l'échéance (" + a.date_prevue + ') dépasse la fin de la phase « ' + p.libelle + ' » (' + p.date_fin_prevue + ').');
+    if (a.date_debut_prevue && p.date_debut_prevue && a.date_debut_prevue < p.date_debut_prevue)
+      err('avertissement', 'Activités', 'Ligne ' + a._ligne + ' : le début (' + a.date_debut_prevue + ') précède le début de la phase « ' + p.libelle + ' » (' + p.date_debut_prevue + ').');
+  });
+
+  const codes = (lu.feuilles.parties || []).map(p => impNorm(p.code_court)).filter(Boolean);
+  if (codes.length) {
+    const inconnus = {};
+    (lu.feuilles.raci || []).forEach(l => Object.keys(l.assignations).forEach(c => { if (codes.indexOf(impNorm(c)) < 0) inconnus[c] = 1; }));
+    const li = Object.keys(inconnus);
+    if (li.length) err('avertissement', 'Matrice RACI', 'Colonne(s) sans partie prenante correspondante : ' + li.join(', ') + ". Vérifiez les codes courts de l'onglet PARTIES PRENANTES.");
+  }
+
+  const resp = (lu.feuilles.equipe || []).filter(e => e.role_equipe === 'Responsable');
+  if (resp.length > 1) err('avertissement', 'Équipe projet', resp.length + ' personnes portent le rôle « Responsable ». Une seule est attendue.');
+
+  return lu;
+}
+
+
+/* ---------------------------------------------------- ECRAN D'IMPORT */
+
+function vueImport() {
+  S.projet = null;
+  if (!peut('prj.importer')) {
+    $('#zone').innerHTML = '<div class="carte"><p class="muted">Vous n\'avez pas le droit d\'importer un projet. Rapprochez-vous du Pilote du processus.</p></div>';
+    return;
+  }
+  IMP = null;
+  $('#zone').innerHTML =
+    '<div class="topbar"><div><h1>Importer un projet depuis un classeur</h1>' +
+    '<p>Déposez le classeur de cadrage renseigné (.xlsx). Le module le contrôle, vous présente ce qu\'il a compris, et n\'écrit rien tant que vous n\'avez pas validé.</p></div></div>' +
+
+    '<div class="carte"><h3>1. Que voulez-vous faire ?</h3>' +
+    '<div class="champs">' +
+      '<div class="full"><label>Mode d\'import</label>' +
+        '<select id="impMode">' +
+          '<option value="creation">Créer un nouveau projet à partir du classeur</option>' +
+          '<option value="complement">Compléter un projet existant</option>' +
+        '</select></div>' +
+      '<div class="full" id="impCibleBloc" style="display:none"><label>Projet à compléter</label>' +
+        '<select id="impCible"><option value="">—</option>' +
+        S.projets.map(p => '<option value="' + ech(p.id_projet) + '">' + ech(p.id_projet) + ' — ' + ech(p.denomination) + '</option>').join('') +
+        '</select>' +
+        '<p class="muted" style="font-size:12px;margin-top:5px">Seuls les projets auxquels vous avez accès sont proposés.</p></div>' +
+    '</div></div>' +
+
+    '<div class="carte"><h3>2. Déposer le classeur</h3>' +
+    '<input type="file" id="impFichier" accept=".xlsx,.xls">' +
+    '<p class="muted" style="font-size:12px;margin-top:7px">Le fichier est lu dans votre navigateur. Rien n\'est envoyé ni enregistré à cette étape.</p>' +
+    '<div style="margin-top:12px"><button class="btn primaire" id="impAnalyser">Analyser le classeur</button></div>' +
+    '</div>' +
+
+    '<div id="impResultat"></div>';
+
+  $('#impMode').addEventListener('change', e => {
+    $('#impCibleBloc').style.display = e.target.value === 'complement' ? '' : 'none';
+    $('#impResultat').innerHTML = '';
+  });
+  $('#impFichier').addEventListener('change', () => { $('#impResultat').innerHTML = ''; });
+  $('#impAnalyser').addEventListener('click', impAnalyser);
+}
+
+async function impAnalyser() {
+  const f = $('#impFichier').files && $('#impFichier').files[0];
+  if (!f) { toast('Choisissez d\'abord un fichier.', 'err'); return; }
+  const mode = $('#impMode').value;
+  const cible = mode === 'complement' ? $('#impCible').value : '';
+  if (mode === 'complement' && !cible) { toast('Choisissez le projet à compléter.', 'err'); return; }
+
+  let wb;
+  try {
+    const buf = await f.arrayBuffer();
+    wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  } catch (e) {
+    toast('Fichier illisible : ' + e.message, 'err'); return;
+  }
+
+  let lu;
+  try {
+    lu = impControlerCoherence(impLireClasseur(wb));
+  } catch (e) {
+    toast('Erreur pendant l\'analyse : ' + e.message, 'err');
+    console.error(e); return;
+  }
+
+  IMP = { mode: mode, cible: cible, fichier: f.name, lu: lu, existant: null, remplacer: {}, charteChoix: {} };
+
+  if (mode === 'complement') {
+    const ok = await impChargerExistant(cible);
+    if (!ok) return;
+  }
+  impRendreApercu();
+}
+
+/* Pour le mode complement : compter ce qui est deja en base, registre par registre. */
+async function impChargerExistant(idProjet) {
+  const p = S.projets.find(x => x.id_projet === idProjet);
+  if (!p) { toast('Projet introuvable.', 'err'); return false; }
+  const compte = {};
+  for (const def of IMP_FEUILLES) {
+    const { count, error } = await sb.from(def.table).select('*', { count: 'exact', head: true }).eq('id_projet', idProjet);
+    if (error) { toast('Erreur de lecture (' + def.titre + ') : ' + error.message, 'err'); return false; }
+    compte[def.cle] = count || 0;
+  }
+  IMP.existant = { projet: p, compte: compte };
+  return true;
+}
+
+function impRendreApercu() {
+  const lu = IMP.lu;
+  const bloquants = lu.anomalies.filter(a => a.niveau === 'bloquant');
+  const avert = lu.anomalies.filter(a => a.niveau === 'avertissement');
+
+  let h = '<div class="carte"><h3>3. Ce que le module a compris</h3>';
+  h += '<p class="muted" style="font-size:12.5px">Fichier : <strong>' + ech(IMP.fichier) + '</strong>' +
+       (IMP.mode === 'complement' ? ' — complément du projet <strong>' + ech(IMP.existant.projet.id_projet) + '</strong>' : ' — création d\'un nouveau projet') + '</p>';
+
+  /* --- charte --- */
+  h += '<h4 style="margin:14px 0 7px">Charte de projet</h4>';
+  const champs = Object.keys(IMP_CHARTE_LIB).filter(c => lu.charte[c] != null && lu.charte[c] !== '');
+  if (!champs.length) {
+    h += '<p class="muted">Aucun champ de charte renseigné dans le classeur.</p>';
+  } else if (IMP.mode === 'creation') {
+    h += '<p class="muted" style="font-size:12.5px">' + champs.length + ' champ(s) seront renseignés, dont : ' +
+         champs.slice(0, 6).map(c => ech(IMP_CHARTE_LIB[c])).join(', ') + (champs.length > 6 ? '…' : '') + '</p>';
+  } else {
+    const ex = IMP.existant.projet;
+    const vides = [], conflits = [];
+    champs.forEach(c => {
+      const actuel = ex[c];
+      const nouveau = lu.charte[c];
+      if (actuel == null || String(actuel).trim() === '') vides.push(c);
+      else if (String(actuel).trim() !== String(nouveau).trim()) conflits.push(c);
+    });
+    h += '<p class="muted" style="font-size:12.5px"><strong>' + vides.length + '</strong> champ(s) actuellement vides seront renseignés automatiquement.</p>';
+    if (conflits.length) {
+      h += '<p style="font-size:12.5px;margin:10px 0 6px">Ces champs ont déjà une valeur différente. Cochez ceux que vous voulez remplacer :</p>';
+      h += '<table><thead><tr><th style="width:34px"></th><th>Champ</th><th>Valeur actuelle</th><th>Valeur du classeur</th></tr></thead><tbody>';
+      conflits.forEach(c => {
+        h += '<tr><td><input type="checkbox" class="impChoixCharte" data-champ="' + ech(c) + '"></td>' +
+             '<td><strong>' + ech(IMP_CHARTE_LIB[c]) + '</strong></td>' +
+             '<td class="muted">' + ech(impApercuVal(ex[c])) + '</td>' +
+             '<td>' + ech(impApercuVal(lu.charte[c])) + '</td></tr>';
+      });
+      h += '</tbody></table>';
+    } else {
+      h += '<p class="muted" style="font-size:12.5px">Aucun conflit : aucune valeur existante ne sera écrasée.</p>';
+    }
+  }
+
+  /* --- registres --- */
+  h += '<h4 style="margin:18px 0 7px">Registres</h4>';
+  h += '<table><thead><tr><th>Registre</th><th class="num">Lignes du classeur</th>' +
+       (IMP.mode === 'complement' ? '<th class="num">Déjà en base</th><th>Action</th>' : '<th>Action</th>') +
+       '</tr></thead><tbody>';
+  IMP_FEUILLES.forEach(def => {
+    const n = (lu.feuilles[def.cle] || []).length;
+    const dejà = IMP.mode === 'complement' ? (IMP.existant.compte[def.cle] || 0) : 0;
+    let action;
+    if (n === 0) action = '<span class="muted">rien à importer</span>';
+    else if (IMP.mode === 'creation' || dejà === 0) action = '<span class="et vert">' + n + ' ligne(s) créée(s)</span>';
+    else action = '<label style="font-size:12px;display:flex;align-items:center;gap:6px">' +
+        '<input type="checkbox" class="impRemplacer" data-cle="' + def.cle + '"> remplacer les ' + dejà + ' existante(s)</label>' +
+        '<div class="muted" style="font-size:11.5px">sinon ce registre n\'est pas touché</div>';
+    h += '<tr><td><strong>' + ech(def.titre) + '</strong></td><td class="num">' + n + '</td>' +
+         (IMP.mode === 'complement' ? '<td class="num">' + dejà + '</td>' : '') +
+         '<td>' + action + '</td></tr>';
+  });
+  h += '</tbody></table>';
+
+  if (lu.onglets_absents.length)
+    h += '<p class="muted" style="font-size:12px;margin-top:8px">Onglet(s) absent(s) du classeur, ignoré(s) : ' + ech(lu.onglets_absents.join(', ')) + '.</p>';
+
+  h += '</div>';
+
+  /* --- anomalies --- */
+  if (bloquants.length) {
+    h += '<div class="carte"><h3 style="color:var(--bad)">Anomalies bloquantes (' + bloquants.length + ')</h3>' +
+         '<p class="muted" style="font-size:12.5px">Corrigez ces points dans le classeur, puis déposez-le à nouveau. Aucun import n\'est possible tant qu\'elles subsistent.</p>' +
+         '<ul style="margin:10px 0 0 18px;font-size:12.5px">' +
+         bloquants.map(a => '<li style="margin-bottom:5px"><strong>' + ech(a.ou) + '</strong> — ' + ech(a.msg) + '</li>').join('') +
+         '</ul></div>';
+  }
+  if (avert.length) {
+    h += '<div class="carte"><h3 style="color:var(--warn)">Avertissements (' + avert.length + ')</h3>' +
+         '<p class="muted" style="font-size:12.5px">L\'import reste possible. Vérifiez simplement que ces points sont volontaires.</p>' +
+         '<ul style="margin:10px 0 0 18px;font-size:12.5px">' +
+         avert.map(a => '<li style="margin-bottom:5px"><strong>' + ech(a.ou) + '</strong> — ' + ech(a.msg) + '</li>').join('') +
+         '</ul></div>';
+  }
+
+  /* --- action finale --- */
+  h += '<div class="carte" id="impZoneAction">';
+  if (bloquants.length) {
+    h += '<button class="btn" disabled>Import impossible : corrigez les anomalies bloquantes</button>';
+  } else {
+    h += '<button class="btn primaire" id="impLancer">' +
+         (IMP.mode === 'creation' ? 'Créer le projet' : 'Compléter le projet') + '</button>' +
+         '<span class="muted" style="font-size:12px;margin-left:10px">Cette action écrit dans la base.</span>';
+  }
+  h += '<div id="impProgres" style="margin-top:12px"></div></div>';
+
+  $('#impResultat').innerHTML = h;
+  const b = $('#impLancer');
+  if (b) b.addEventListener('click', impLancer);
+}
+
+function impApercuVal(v) {
+  const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  return s.length > 70 ? s.slice(0, 70) + '…' : s;
+}
+
+/* ------------------------------------------------------ ECRITURE EN BASE */
+
+async function impLancer() {
+  const btn = $('#impLancer');
+  if (btn) { btn.disabled = true; btn.textContent = 'Import en cours…'; }
+  const prog = $('#impProgres');
+  const etape = m => { if (prog) prog.innerHTML = '<p class="muted" style="font-size:12.5px">' + ech(m) + '</p>'; };
+
+  $$('.impRemplacer').forEach(c => { IMP.remplacer[c.dataset.cle] = c.checked; });
+  $$('.impChoixCharte').forEach(c => { IMP.charteChoix[c.dataset.champ] = c.checked; });
+
+  try {
+    const r = IMP.mode === 'creation' ? await impCreer(etape) : await impCompleter(etape);
+    if (prog) prog.innerHTML =
+      '<div class="et vert" style="font-size:13px;display:block;padding:10px 12px">Import terminé : <strong>' + r.total + '</strong> enregistrement(s) écrit(s) sur le projet <strong>' + ech(r.id) + '</strong>.' +
+      (r.erreurs.length ? '<br>' + r.erreurs.length + ' registre(s) en erreur : ' + ech(r.erreurs.map(e => e.titre).join(', ')) + '.' : '') +
+      '</div>';
+    toast('Import terminé : ' + r.total + ' enregistrement(s).', 'ok');
+    await chargerPortefeuille();
+    setTimeout(() => ouvrirProjet(r.id), 900);
+  } catch (e) {
+    console.error(e);
+    if (prog) prog.innerHTML = '<div class="et" style="font-size:13px;display:block;padding:10px 12px;background:#fbeae8;color:var(--bad)">' + ech(e.message) + '</div>';
+    toast('Import interrompu : ' + e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = IMP.mode === 'creation' ? 'Créer le projet' : 'Compléter le projet'; }
+  }
+}
+
+async function impCreer(etape) {
+  const lu = IMP.lu;
+  etape('Création du projet…');
+
+  const p = Object.assign({}, lu.charte);
+  if (!p.responsable_id) p.responsable_id = S.acteur.id_acteur;
+  if (!p.statut) p.statut = 'Non démarré';
+  if (!p.appreciation_avancement) p.appreciation_avancement = 'Vert';
+  if (!p.devise) p.devise = 'FCFA';
+  const { data: { user } } = await sb.auth.getUser();
+  p.created_by = user.id;
+
+  const { data: cree, error } = await sb.from('projets').insert(p).select().single();
+  if (error) throw new Error('Création du projet impossible : ' + error.message);
+
+  /* L'importateur doit appartenir a l'equipe pour pouvoir remplir les registres. */
+  await sb.from('projet_equipe').insert({
+    id_projet: cree.id_projet,
+    acteur_id: p.responsable_id,
+    role_equipe: 'Responsable'
+  });
+  if (S.acteur.id_acteur !== p.responsable_id) {
+    await sb.from('projet_equipe').insert({
+      id_projet: cree.id_projet, acteur_id: S.acteur.id_acteur, role_equipe: 'Contributeur'
+    });
+  }
+
+  const r = await impEcrireRegistres(cree.id_projet, etape, {});
+  return { id: cree.id_projet, total: r.total, erreurs: r.erreurs };
+}
+
+async function impCompleter(etape) {
+  const lu = IMP.lu, ex = IMP.existant.projet;
+
+  /* charte : champs vides + champs explicitement coches */
+  const maj = {};
+  Object.keys(IMP_CHARTE_LIB).forEach(c => {
+    const nouveau = lu.charte[c];
+    if (nouveau == null || nouveau === '') return;
+    const actuel = ex[c];
+    const estVide = actuel == null || String(actuel).trim() === '';
+    if (estVide) maj[c] = nouveau;
+    else if (String(actuel).trim() !== String(nouveau).trim() && IMP.charteChoix[c]) maj[c] = nouveau;
+  });
+  if (Object.keys(maj).length) {
+    etape('Mise à jour de la charte (' + Object.keys(maj).length + ' champ(s))…');
+    maj.updated_at = new Date().toISOString();
+    const { error } = await sb.from('projets').update(maj).eq('id_projet', ex.id_projet);
+    if (error) throw new Error('Mise à jour de la charte impossible : ' + error.message);
+  }
+
+  const r = await impEcrireRegistres(ex.id_projet, etape, IMP.existant.compte);
+  return { id: ex.id_projet, total: r.total, erreurs: r.erreurs };
+}
+
+/* Ecrit tous les registres, dans l'ordre des dependances.
+   Les phases d'abord : leurs identifiants generes servent aux autres feuilles. */
+async function impEcrireRegistres(idProjet, etape, compteExistant) {
+  const lu = IMP.lu;
+  let total = 0;
+  const erreurs = [];
+  const mapPhase = {};
+
+  const aEcrire = def => {
+    const n = (lu.feuilles[def.cle] || []).length;
+    if (!n) return false;
+    const dejà = compteExistant[def.cle] || 0;
+    if (dejà > 0 && !IMP.remplacer[def.cle]) return false;
+    return true;
+  };
+  const purger = async def => {
+    if ((compteExistant[def.cle] || 0) > 0 && IMP.remplacer[def.cle]) {
+      const { error } = await sb.from(def.table).delete().eq('id_projet', idProjet);
+      if (error) throw new Error('Impossible de vider le registre « ' + def.titre + ' » : ' + error.message);
+    }
+  };
+
+  /* 1. phases */
+  const defPhases = IMP_FEUILLES.find(d => d.cle === 'phases');
+  if (aEcrire(defPhases)) {
+    etape('Enregistrement des phases…');
+    await purger(defPhases);
+    const rows = lu.feuilles.phases.map((p, i) => {
+      const o = impNettoyer(p, defPhases);
+      o.id_projet = idProjet;
+      o.ordre = p.ordre == null ? i + 1 : Number(p.ordre);
+      if (!o.statut) o.statut = 'Vert';
+      return o;
+    });
+    const { data, error } = await sb.from('projet_phases').insert(rows).select('id,ordre');
+    if (error) { erreurs.push({ titre: defPhases.titre, msg: error.message }); }
+    else { (data || []).forEach(d => { mapPhase[Number(d.ordre)] = d.id; }); total += (data || []).length; }
+  } else {
+    /* le registre n'est pas reecrit : on recupere la correspondance existante */
+    const { data } = await sb.from('projet_phases').select('id,ordre').eq('id_projet', idProjet);
+    (data || []).forEach(d => { mapPhase[Number(d.ordre)] = d.id; });
+  }
+
+  /* 2. parties prenantes (avant RACI) */
+  const defPP = IMP_FEUILLES.find(d => d.cle === 'parties');
+  if (aEcrire(defPP)) {
+    etape('Enregistrement des parties prenantes…');
+    await purger(defPP);
+    const rows = lu.feuilles.parties.map((l, i) => {
+      const o = impNettoyer(l, defPP); o.id_projet = idProjet; o.ordre = i + 1; return o;
+    });
+    const { data, error } = await sb.from('projet_parties_prenantes').insert(rows).select('id');
+    if (error) erreurs.push({ titre: defPP.titre, msg: error.message }); else total += (data || []).length;
+  }
+
+  /* 3. equipe */
+  const defEq = IMP_FEUILLES.find(d => d.cle === 'equipe');
+  if (aEcrire(defEq)) {
+    etape('Enregistrement de l\'équipe…');
+    const { data: dejaLa } = await sb.from('projet_equipe').select('acteur_id').eq('id_projet', idProjet);
+    const connus = (dejaLa || []).map(x => x.acteur_id);
+    const rows = lu.feuilles.equipe
+      .filter(l => connus.indexOf(l.acteur_id) < 0)
+      .map(l => ({ id_projet: idProjet, acteur_id: l.acteur_id, role_equipe: l.role_equipe || 'Membre' }));
+    if (rows.length) {
+      const { data, error } = await sb.from('projet_equipe').insert(rows).select('id');
+      if (error) erreurs.push({ titre: defEq.titre, msg: error.message }); else total += (data || []).length;
+    }
+  }
+
+  /* 4. RACI */
+  const defRaci = IMP_FEUILLES.find(d => d.cle === 'raci');
+  if (aEcrire(defRaci)) {
+    etape('Enregistrement de la matrice RACI…');
+    await purger(defRaci);
+    const rows = lu.feuilles.raci.map((l, i) => ({
+      id_projet: idProjet, activite: l.activite, ordre: i + 1,
+      id_phase: l.ordre_phase != null ? (mapPhase[Number(l.ordre_phase)] || null) : null,
+      assignations: l.assignations || {}
+    }));
+    const { data, error } = await sb.from('projet_raci').insert(rows).select('id');
+    if (error) erreurs.push({ titre: defRaci.titre, msg: error.message }); else total += (data || []).length;
+  }
+
+  /* 5. les registres restants */
+  const restants = IMP_FEUILLES.filter(d => ['phases','parties','equipe','raci'].indexOf(d.cle) < 0);
+  for (const def of restants) {
+    if (!aEcrire(def)) continue;
+    etape('Enregistrement : ' + def.titre + '…');
+    await purger(def);
+    const rows = (lu.feuilles[def.cle] || []).map((l, i) => {
+      const o = impNettoyer(l, def);
+      o.id_projet = idProjet;
+      if (def.phase) {
+        o.id_phase = l[def.phase] != null ? (mapPhase[Number(l[def.phase])] || null) : null;
+        delete o[def.phase];
+      }
+      if (def.ordonne) o.ordre = i + 1;
+      return o;
+    });
+    const { data, error } = await sb.from(def.table).insert(rows).select('*');
+    if (error) erreurs.push({ titre: def.titre, msg: error.message });
+    else total += (data || []).length;
+  }
+
+  if (erreurs.length) console.error('Registres en erreur :', erreurs);
+  return { total: total, erreurs: erreurs };
+}
+
+/* Ne conserve que les colonnes reellement attendues par la table. */
+function impNettoyer(ligne, def) {
+  const o = {};
+  (def.cols || []).forEach(c => {
+    if (def.phase && c === def.phase) return;
+    if (ligne[c] === undefined) return;
+    o[c] = ligne[c];
+  });
+  return o;
 }
 
 /* --------------------------------------------------------------- lancement */
