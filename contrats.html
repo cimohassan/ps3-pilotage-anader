@@ -11,6 +11,7 @@
 <style>
 :root{
   --vert:#0B6E4F; --vert-fonce:#075039; --vert-clair:#E8F3EF;
+  --turquoise:#0C8B8E; --turquoise-fonce:#075E60; --turquoise-clair:#E1F5F5;
   --orange:#E08A0B; --orange-clair:#FDF3E1;
   --rouge:#C0392B; --rouge-clair:#FBEAE8;
   --bleu:#1F6FB2;  --bleu-clair:#E9F2FA;
@@ -37,20 +38,21 @@ button, input, select, textarea{font-family:inherit; font-size:14px;}
 /* ---- Écran d'accès (avant authentification / accès refusé) ---- */
 .ecran{min-height:100vh;display:grid;place-items:center;padding:24px}
 .boiteEcran{background:#fff;border:1px solid var(--gris-300);border-radius:var(--radius);box-shadow:var(--ombre);padding:32px;max-width:480px;text-align:center}
-.boiteEcran h2{color:var(--vert-fonce)}
+.boiteEcran h2{color:var(--turquoise-fonce)}
 
 /* ---- Mise en page générale ---- */
 .app{display:flex; min-height:100vh;}
 .barreLaterale{
-  width:230px; flex:0 0 230px; background:var(--vert-fonce); color:#fff;
+  width:230px; flex:0 0 230px; background:var(--turquoise-fonce); color:#fff;
   padding:14px 0; display:flex; flex-direction:column;
+  position:sticky; top:0; height:100vh;
 }
 .barreLaterale .logo{padding:0 16px 14px 16px; border-bottom:1px solid rgba(255,255,255,.15); margin-bottom:8px;}
 .barreLaterale .logo b{display:block; font-size:15px;}
 .barreLaterale .logo span{font-size:11px; opacity:.8;}
 .barreLaterale .qui{font-size:11.5px;background:rgba(255,255,255,.11);border-radius:9px;padding:8px 10px;margin:0 16px 12px;line-height:1.45}
 .barreLaterale .qui strong{display:block;color:#fff;font-size:12.5px}
-.menu{list-style:none; margin:0; padding:0; flex:1; overflow-y:auto;}
+.menu{list-style:none; margin:0; padding:0; flex:1; overflow-y:auto; min-height:0;}
 .menu li a{
   display:flex; align-items:center; gap:8px; justify-content:space-between;
   padding:9px 16px; color:#dfeee7; text-decoration:none; font-size:13.3px; cursor:pointer;
@@ -118,8 +120,8 @@ button, input, select, textarea{font-family:inherit; font-size:14px;}
   font-size:13px; font-weight:600; text-decoration:none;
 }
 .btn:hover{background:var(--gris-100);}
-.btn.primaire{background:var(--vert); border-color:var(--vert); color:#fff;}
-.btn.primaire:hover{background:var(--vert-fonce);}
+.btn.primaire{background:var(--turquoise); border-color:var(--turquoise); color:#fff;}
+.btn.primaire:hover{background:var(--turquoise-fonce);}
 .btn.danger{background:var(--rouge); border-color:var(--rouge); color:#fff;}
 .btn.danger:hover{background:#a13224;}
 .btn.alerte{background:var(--orange); border-color:var(--orange); color:#fff;}
@@ -139,7 +141,7 @@ button, input, select, textarea{font-family:inherit; font-size:14px;}
 .champ.erreur input, .champ.erreur select, .champ.erreur textarea{border-color:var(--rouge); background:var(--rouge-clair);}
 .champ .erreurChamp{font-size:11.5px; color:var(--rouge); margin-top:3px; font-weight:600;}
 fieldset{border:1px solid var(--gris-200); border-radius:8px; padding:12px; margin:0 0 14px 0;}
-legend{font-size:12.5px; font-weight:700; color:var(--vert-fonce); padding:0 6px;}
+legend{font-size:12.5px; font-weight:700; color:var(--turquoise-fonce); padding:0 6px;}
 
 /* ---- Messages ---- */
 .msgInfo,.msgOk,.msgErreur{padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:12px; border:1px solid transparent;}
@@ -182,9 +184,9 @@ tbody tr:hover{background:var(--gris-100);}
 .lexiquePop{background:var(--bleu-clair); border:1px solid #bcd8ef; border-radius:6px; padding:8px 10px; font-size:12px; margin-top:4px;}
 
 /* ---- Impression / rapport officiel ---- */
-.enteteOff{text-align:center; border-bottom:2px solid var(--vert-fonce); padding-bottom:10px; margin-bottom:14px;}
+.enteteOff{text-align:center; border-bottom:2px solid var(--turquoise-fonce); padding-bottom:10px; margin-bottom:14px;}
 .enteteOff .rep{font-size:11px; color:var(--gris-700);}
-.enteteOff .org{font-size:15px; font-weight:800; color:var(--vert-fonce); margin-top:4px;}
+.enteteOff .org{font-size:15px; font-weight:800; color:var(--turquoise-fonce); margin-top:4px;}
 .titreRapport{text-align:center; font-size:17px; font-weight:800; margin:10px 0 4px 0;}
 .sousTitreRapport{text-align:center; font-size:12.5px; color:var(--gris-700); margin-bottom:14px;}
 .blocSignature{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:26px;}
@@ -214,10 +216,10 @@ tbody tr:hover{background:var(--gris-100);}
 
 .onglets{display:flex; gap:4px; border-bottom:1px solid var(--gris-300); margin-bottom:14px; flex-wrap:wrap;}
 .onglets a{padding:8px 12px; font-size:12.5px; font-weight:600; color:var(--gris-700); text-decoration:none; border-bottom:2px solid transparent; cursor:pointer;}
-.onglets a.actif{color:var(--vert-fonce); border-bottom-color:var(--vert-fonce);}
+.onglets a.actif{color:var(--turquoise-fonce); border-bottom-color:var(--turquoise-fonce);}
 
 /* ---- Bande latérale rétractable (bureau) / tiroir (tablette, smartphone) ---- */
-.btnMenu{display:none;position:fixed;top:14px;left:14px;z-index:220;width:36px;height:36px;border:none;border-radius:9px;background:var(--vert-fonce);color:#fff;font-size:17px;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25);align-items:center;justify-content:center}
+.btnMenu{display:none;position:fixed;top:14px;left:14px;z-index:220;width:36px;height:36px;border:none;border-radius:9px;background:var(--turquoise-fonce);color:#fff;font-size:17px;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25);align-items:center;justify-content:center}
 body:has(#app:not(.hidden)) .btnMenu{display:flex}
 .fondMenu{display:none;position:fixed;inset:0;background:rgba(15,23,32,.45);z-index:210}
 .fondMenu.visible{display:block}

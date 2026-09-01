@@ -450,6 +450,7 @@ const MENU = [
   { id: 'alertes', lib: 'Alertes & relances', ic: '🔔', projet: 1, badge: () => nbAlertes() },
   { id: 'rapports', lib: 'Rapports d\'avancement', ic: '✎', projet: 1 },
   { id: 'fiche5', lib: 'Fiche 5 blocs', ic: '▣', projet: 1 },
+  { id: 'rapportProjet', lib: 'Rapport de présentation', ic: '📄', projet: 1 },
   { grp: 'Clôture', projet: 1 },
   { id: 'lecons', lib: 'RETEX', ic: '♺', projet: 1 },
   { grp: 'Administration' },
@@ -484,7 +485,7 @@ const VUES = {
   livrables: () => vueRegistre('livrables'), budget: vueBudget, risques: vueRisques,
   decisions: () => vueRegistre('decisions'), reserves: () => vueRegistre('reserves'),
   obstacles: () => vueRegistre('obstacles'), tdb: vueTdb, indicateurs: () => vueRegistre('indicateurs'),
-  alertes: vueAlertes, rapports: vueRapports, fiche5: vueFiche5, lecons: () => vueRegistre('lecons'),
+  alertes: vueAlertes, rapports: vueRapports, fiche5: vueFiche5, rapportProjet: vueRapportProjet, lecons: () => vueRegistre('lecons'),
   import: vueImport, sauvegarde: vueSauvegarde, aide: vueAide
 };
 
@@ -761,6 +762,39 @@ const CHAMPS_CHARTE = [
   { k: 'points_attention', l: 'Points d\'attention actuels', t: 'textarea', full: 1 }
 ];
 
+function charteWordHtml() {
+  const p = S.projet;
+  const bloc = (t, v) => `<p><strong>${ech(t)} :</strong><br>${v ? nl2br(v) : 'Non renseigné'}</p>`;
+  const membres = S.equipe.map(m => `<li>${ech(nomActeur(m.acteur_id))}${m.role_equipe ? ' — ' + ech(m.role_equipe) : ''}</li>`).join('') || '<li class="muted">Aucun membre enregistré.</li>';
+  return `
+    <h2>Identification</h2>
+    <p><strong>Type :</strong> ${ech(p.type_projet || '—')} · <strong>Statut :</strong> ${ech(p.statut || '—')}</p>
+    <p><strong>Responsable :</strong> ${ech(nomActeur(p.responsable_id))} · <strong>Commanditaire :</strong> ${ech(p.commanditaire_id ? nomActeur(p.commanditaire_id) : (p.sponsor || '—'))}</p>
+    <p><strong>Période :</strong> ${fdate(p.date_debut)} → ${fdate(p.date_fin_prevue)}${p.date_fin_reelle ? ' (terminé le ' + fdate(p.date_fin_reelle) + ')' : ''}</p>
+    <p><strong>Budget :</strong> ${fnum(p.budget_approuve || p.budget_prevu)} ${ech(p.devise || '')} · <strong>Météo :</strong> ${ech(p.appreciation_avancement || '—')}</p>
+    <h2>Cadrage</h2>
+    ${bloc('Contexte et justification', p.contexte)}
+    ${bloc('Objectif du projet', p.objectif_projet)}
+    ${bloc('Livrable final attendu', p.livrable_final)}
+    ${bloc('Critères de succès', p.criteres_succes)}
+    <h2>Périmètre</h2>
+    ${bloc('Inclus dans le projet', p.perimetre_inclus)}
+    ${bloc('Exclu du projet', p.perimetre_exclus)}
+    <h2>Cadre d'exécution</h2>
+    ${bloc('Contraintes', p.contraintes)}
+    ${bloc('Hypothèses', p.hypotheses)}
+    ${bloc('Gouvernance', p.gouvernance)}
+    ${bloc('Points d\'attention actuels', p.points_attention)}
+    <h2>Équipe projet</h2>
+    <ul>${membres}</ul>`;
+}
+function telechargerCharteWord() {
+  const p = S.projet;
+  telechargerFichier('Charte_de_projet_' + (p.id_projet || 'projet') + '.doc',
+    documentWordHtml('Charte de projet — ' + p.denomination, '<h1>Charte de projet</h1><p class="sub">' + ech(p.denomination) + ' — ' + ech(p.id_projet) + (p.code_projet ? ' / ' + ech(p.code_projet) : '') + ' · D2MG Pilotage — ANADER · ' + fdate(auj()) + '</p>' + charteWordHtml()),
+    'application/msword');
+  toast('Charte de projet téléchargée (Word).', 'ok');
+}
 function vueCharte() {
   const p = S.projet;
   const bloc = (t, v) => `<p style="margin:0 0 9px"><strong>${t} :</strong><br><span class="muted">${v ? nl2br(v) : 'Non renseigné'}</span></p>`;
@@ -773,7 +807,7 @@ function vueCharte() {
     <div class="topbar">
       <div><h1>Charte de projet</h1><p>Document de référence du projet : ce qu'on fait, pourquoi, pour qui, dans quel périmètre, avec quel budget et quelle gouvernance.</p></div>
       <div style="display:flex;gap:8px">
-        ${peut('prj.exporter') ? '<button class="btn" id="btnImpCharte">Imprimer</button>' : ''}
+        ${peut('prj.exporter') ? '<button class="btn" id="btnImpCharte">Imprimer</button><button class="btn" id="btnWordCharte">Télécharger (Word)</button>' : ''}
         ${peut('prj.modifier') ? '<button class="btn primaire" id="btnEditCharte">Modifier la charte</button>' : ''}
       </div>
     </div>
@@ -847,11 +881,30 @@ function vueCharte() {
   }));
   const bi = $('#btnImpCharte');
   if (bi) bi.addEventListener('click', () => imprimer($('#zone').innerHTML.replace(/<button[\s\S]*?<\/button>/g, '')));
+  const bw = $('#btnWordCharte');
+  if (bw) bw.addEventListener('click', () => telechargerCharteWord());
 }
 
 /* =========================================================================
  *  MATRICE RACI
  * ========================================================================= */
+function construireRaciTableHtml(interactif) {
+  const pp = S.parties.length ? S.parties : [];
+  if (!pp.length) return '<p class="muted">Aucune partie prenante enregistrée.</p>';
+  const modif = interactif && peut('prj.equipe');
+  const entetes = pp.map(x => `<th style="text-align:center">${ech(x.code_court || x.libelle.slice(0, 10))}</th>`).join('');
+  const lignes = S.raci.map(r => {
+    const cells = pp.map(x => {
+      const k = x.code_court || String(x.id);
+      const v = (r.assignations || {})[k] || '';
+      return `<td class="cell ${v}" ${modif ? `data-raci="${r.id}" data-pp="${k}"` : ''} title="Cliquer pour changer">${v || '·'}</td>`;
+    }).join('');
+    return `<tr><td>${ech(r.activite)}</td><td class="muted" style="font-size:11px">${ech(nomPhase(r.id_phase))}</td>${cells}${modif ? `<td><button class="btn sm danger" data-delr="${r.id}">✕</button></td>` : ''}</tr>`;
+  }).join('');
+  return `<table class="matrice"><thead><tr><th style="width:32%">Activité / processus</th><th>Phase</th>${entetes}${modif ? '<th></th>' : ''}</tr></thead>
+      <tbody>${lignes}</tbody></table>
+      ${S.raci.length ? '' : '<div class="vide">Aucune activité dans la matrice.</div>'}`;
+}
 function vueRaci() {
   const pp = S.parties.length ? S.parties : [];
   const modif = peut('prj.equipe');
@@ -863,28 +916,23 @@ function vueRaci() {
     $('#goPP').addEventListener('click', () => aller('parties'));
     return;
   }
-  const entetes = pp.map(x => `<th style="text-align:center">${ech(x.code_court || x.libelle.slice(0, 10))}</th>`).join('');
-  const lignes = S.raci.map(r => {
-    const cells = pp.map(x => {
-      const k = x.code_court || String(x.id);
-      const v = (r.assignations || {})[k] || '';
-      return `<td class="cell ${v}" ${modif ? `data-raci="${r.id}" data-pp="${k}"` : ''} title="Cliquer pour changer">${v || '·'}</td>`;
-    }).join('');
-    return `<tr><td>${ech(r.activite)}</td><td class="muted" style="font-size:11px">${ech(nomPhase(r.id_phase))}</td>${cells}${modif ? `<td><button class="btn sm danger" data-delr="${r.id}">✕</button></td>` : ''}</tr>`;
-  }).join('');
 
   $('#zone').innerHTML = `
     <div class="topbar">
       <div><h1>Matrice RACI</h1><p>Une seule lettre <strong>A</strong> par ligne : une activité n'a qu'un seul approbateur. Cliquez sur une case pour faire tourner R → A → C → I → vide.</p></div>
-      ${modif ? '<button class="btn primaire" id="btnAddRaci">+ Ajouter une activité</button>' : ''}
+      <div style="display:flex;gap:8px">
+        ${peut('prj.exporter') ? '<button class="btn" id="btnImgRaci">🖼 Télécharger (image A4)</button>' : ''}
+        ${modif ? '<button class="btn primaire" id="btnAddRaci">+ Ajouter une activité</button>' : ''}
+      </div>
     </div>
     <div class="carte" style="padding:11px 13px">
       <span class="et rouge">R</span> Réalise &nbsp; <span class="et orange">A</span> Approuve / rend compte &nbsp;
       <span class="et bleu">C</span> Consulté &nbsp; <span class="et gris">I</span> Informé
     </div>
-    <div class="tw"><table class="matrice"><thead><tr><th style="width:32%">Activité / processus</th><th>Phase</th>${entetes}${modif ? '<th></th>' : ''}</tr></thead>
-      <tbody>${lignes}</tbody></table>
-      ${S.raci.length ? '' : '<div class="vide">Aucune activité dans la matrice.</div>'}</div>`;
+    <div class="tw" id="raciCapture">${construireRaciTableHtml(true)}</div>`;
+
+  const bImg = $('#btnImgRaci');
+  if (bImg) bImg.addEventListener('click', () => telechargerVisuelA4('raciCapture', 'Matrice RACI — ' + S.projet.denomination, S.projet.id_projet, 'Matrice_RACI_' + S.projet.id_projet + '.png'));
 
   const b = $('#btnAddRaci');
   if (b) b.addEventListener('click', () => {
@@ -1186,16 +1234,14 @@ function graduationsPlanning(min, max, total, posi) {
   return ticks;
 }
 
-function vuePlanning() {
+function construirePlanningItems() {
   const items = [];
   S.phases.forEach(p => items.push({ t: 'phase', lib: p.libelle, d: p.date_debut_prevue, f: p.date_fin_prevue, dr: p.date_debut_reelle, fr: p.date_fin_reelle, st: p.statut }));
   S.activites.forEach(a => items.push({ t: 'act', lib: a.denomination, d: a.date_debut_prevue, f: a.date_prevue, dr: a.date_debut_reelle, fr: a.date_realisation, crit: a.chemin_critique, st: a.statut }));
-  const avec = items.filter(i => i.d && i.f);
-  if (!avec.length) {
-    $('#zone').innerHTML = `<div class="topbar"><div><h1>Planning visuel</h1><p>Vue calendaire des phases et activités.</p></div></div>
-      <div class="carte"><p class="muted">Renseignez des dates de début et de fin prévues sur les phases ou les activités pour afficher le planning.</p></div>`;
-    return;
-  }
+  return items.filter(i => i.d && i.f);
+}
+function ganttHtml(avec, idCapture) {
+  if (!avec.length) return { html: '', min: null, max: null, total: 0, dansPeriode: false };
   const min = avec.reduce((m, i) => i.d < m ? i.d : m, avec[0].d);
   const max = avec.reduce((m, i) => i.f > m ? i.f : m, avec[0].f);
   const total = Math.max(joursCal(min, max), 1);
@@ -1217,10 +1263,8 @@ function vuePlanning() {
   const posAuj = posi(auj());
   const graduations = graduationsPlanning(min, max, total, posi);
   const dansPeriode = posAuj >= 0 && posAuj <= 100;
-  $('#zone').innerHTML = `
-    <div class="topbar"><div><h1>Planning visuel</h1>
-      <p>Barre claire = prévu, barre foncée = réel. Du ${fdate(min)} au ${fdate(max)}. Échelle graduée ${total <= 70 ? 'par semaine' : 'par mois'} ; le trait rouge marque aujourd'hui${dansPeriode ? '' : ' (hors période affichée)'}.</p></div></div>
-    <div class="gantt" style="position:relative">
+  const html = `
+    <div class="gantt"${idCapture ? ` id="${idCapture}"` : ''} style="position:relative">
       <div class="gline" style="margin-bottom:6px">
         <div></div>
         <div style="position:relative;height:15px">
@@ -1236,6 +1280,25 @@ function vuePlanning() {
       <div style="font-size:11px;color:var(--muted);margin:14px 0 9px">Activités</div>
       ${avec.filter(i => i.t === 'act').map(ligne).join('') || '<div class="muted" style="font-size:12px">Aucune activité datée.</div>'}
     </div>`;
+  return { html, min, max, total, dansPeriode };
+}
+function vuePlanning() {
+  const avec = construirePlanningItems();
+  if (!avec.length) {
+    $('#zone').innerHTML = `<div class="topbar"><div><h1>Planning visuel</h1><p>Vue calendaire des phases et activités.</p></div></div>
+      <div class="carte"><p class="muted">Renseignez des dates de début et de fin prévues sur les phases ou les activités pour afficher le planning.</p></div>`;
+    return;
+  }
+  const { html, min, max, total, dansPeriode } = ganttHtml(avec, 'ganttCapture');
+  $('#zone').innerHTML = `
+    <div class="topbar">
+      <div><h1>Planning visuel</h1>
+      <p>Barre claire = prévu, barre foncée = réel. Du ${fdate(min)} au ${fdate(max)}. Échelle graduée ${total <= 70 ? 'par semaine' : 'par mois'} ; le trait rouge marque aujourd'hui${dansPeriode ? '' : ' (hors période affichée)'}.</p></div>
+      ${peut('prj.exporter') ? '<button class="btn primaire" id="btnImgGantt">🖼 Télécharger (image A4)</button>' : ''}
+    </div>
+    ${html}`;
+  const bg = $('#btnImgGantt');
+  if (bg) bg.addEventListener('click', () => telechargerVisuelA4('ganttCapture', 'Planning visuel — ' + S.projet.denomination, 'Du ' + fdate(min) + ' au ' + fdate(max), 'Planning_visuel_' + (S.projet.id_projet || 'projet') + '.png'));
 }
 
 
@@ -1301,8 +1364,7 @@ function vueBudget() {
 /* =========================================================================
  *  RISQUES (registre + matrice de criticité)
  * ========================================================================= */
-function vueRisques() {
-  const actifs = S.risques.filter(r => r.statut !== 'Clos');
+function construireMatriceCriticiteHtml(actifs) {
   let cells = '';
   for (let i = 5; i >= 1; i--) {
     cells += `<tr><td class="axe">${i}</td>`;
@@ -1314,11 +1376,19 @@ function vueRisques() {
     }
     cells += '</tr>';
   }
+  return `<table class="heat"><tbody>${cells}
+        <tr><td class="axe"></td>${[1,2,3,4,5].map(p => `<td class="axe">${p}</td>`).join('')}</tr></tbody></table>`;
+}
+function vueRisques() {
+  const actifs = S.risques.filter(r => r.statut !== 'Clos');
   const crit = actifs.filter(r => (r.probabilite * r.impact) >= 15).length;
   const synth = `<div class="deux-col" style="margin-bottom:15px">
-    <div class="carte"><h3>Matrice de criticité (risques actifs)</h3>
-      <table class="heat"><tbody>${cells}
-        <tr><td class="axe"></td>${[1,2,3,4,5].map(p => `<td class="axe">${p}</td>`).join('')}</tr></tbody></table>
+    <div class="carte">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <h3 style="margin:0">Matrice de criticité (risques actifs)</h3>
+        ${peut('prj.exporter') ? '<button class="btn sm" id="btnImgCrit">🖼 Télécharger (image A4)</button>' : ''}
+      </div>
+      <div id="critCapture">${construireMatriceCriticiteHtml(actifs)}</div>
       <div class="muted" style="font-size:11px;margin-top:6px">Axe vertical : impact — Axe horizontal : probabilité. Rouge = criticité ≥ 15.</div>
     </div>
     <div class="carte"><h3>Synthèse</h3>
@@ -1331,6 +1401,8 @@ function vueRisques() {
     </div></div>`;
   const tri = S.risques.slice().sort((a, b) => (b.probabilite * b.impact) - (a.probabilite * a.impact));
   vueRegistre('risques', synth, tri);
+  const bImg = document.getElementById('btnImgCrit');
+  if (bImg) bImg.addEventListener('click', () => telechargerVisuelA4('critCapture', 'Matrice de criticité des risques — ' + S.projet.denomination, S.projet.id_projet, 'Matrice_criticite_' + (S.projet.id_projet || 'projet') + '.png'));
 }
 
 /* =========================================================================
@@ -1655,15 +1727,26 @@ function fiche5Html() {
       ${!p.points_attention && !risq.length && !obs.length && !dec.length ? '<p class="muted">Aucun point d\'attention particulier à ce jour.</p>' : ''}
     </div>`;
 }
+function telechargerFiche5Word() {
+  const p = S.projet;
+  telechargerFichier("Fiche_5_blocs_" + (p.id_projet || 'projet') + '.doc',
+    documentWordHtml("Fiche d'état d'avancement — " + p.denomination, '<div class="bloc5" style="border:none;padding:0">' + fiche5Html() + '</div>'),
+    'application/msword');
+  toast('Fiche 5 blocs téléchargée (Word).', 'ok');
+}
 function vueFiche5() {
   $('#zone').innerHTML = `
     <div class="topbar"><div><h1>Fiche d'état d'avancement</h1>
       <p>Synthèse en 5 blocs destinée à la Direction : où on en est, ce qui reste, ce qui avance, ce qui est fait, ce qui inquiète.</p></div>
-      ${peut('prj.exporter') ? '<button class="btn primaire" id="btnPdf">Exporter en PDF</button>' : ''}
+      <div style="display:flex;gap:8px">
+        ${peut('prj.exporter') ? '<button class="btn" id="btnWordFiche5">Télécharger (Word)</button><button class="btn primaire" id="btnPdf">Exporter en PDF</button>' : ''}
+      </div>
     </div>
     <div class="carte">${fiche5Html()}</div>`;
   const b = $('#btnPdf');
   if (b) b.addEventListener('click', () => imprimer(fiche5Html()));
+  const bw = $('#btnWordFiche5');
+  if (bw) bw.addEventListener('click', () => telechargerFiche5Word());
 }
 
 function imprimer(html) {
@@ -1672,6 +1755,120 @@ function imprimer(html) {
   window.print();
 }
 window.addEventListener('afterprint', () => document.body.classList.remove('impression'));
+
+/* =========================================================================
+ *  RAPPORT DE PRÉSENTATION DE PROJET (document consolidé)
+ *  Cadrage (charte, parties prenantes, RACI) + Planification (phases,
+ *  jalons, activités, planning visuel, livrables) + Budget + Risques +
+ *  Suivi des performances (fiche 5 blocs, indicateurs).
+ * ========================================================================= */
+async function genererRapportProjetHtml() {
+  const p = S.projet;
+
+  /* ---- 1. Cadrage ---- */
+  const bloc = (t, v) => `<p><strong>${ech(t)} :</strong><br>${v ? nl2br(v) : 'Non renseigné'}</p>`;
+  const membres = S.equipe.map(m => `<li>${ech(nomActeur(m.acteur_id))}${m.role_equipe ? ' — ' + ech(m.role_equipe) : ''}</li>`).join('') || '<li class="muted">Aucun membre enregistré.</li>';
+  const partiesLignes = S.parties.map(pp => `<tr><td>${ech(pp.code_court || '')}</td><td>${ech(pp.libelle)}</td><td>${ech(pp.organisation || '—')}</td><td>${ech(pp.role_projet || '—')}</td><td>${ech(pp.influence || '—')}</td><td>${ech(pp.interet || '—')}</td></tr>`).join('');
+  const partiesTable = S.parties.length ? `<table><thead><tr><th>Code</th><th>Partie prenante</th><th>Organisation</th><th>Rôle</th><th>Influence</th><th>Intérêt</th></tr></thead><tbody>${partiesLignes}</tbody></table>` : '<p class="muted">Aucune partie prenante enregistrée.</p>';
+  const raciTable = construireRaciTableHtml(false);
+
+  const cadrageHtml = `
+    <h2>1. Cadrage</h2>
+    <h3>1.1 Charte de projet</h3>
+    <p><strong>Type :</strong> ${ech(p.type_projet || '—')} · <strong>Statut :</strong> ${ech(p.statut || '—')} · <strong>Météo :</strong> ${ech(p.appreciation_avancement || '—')}</p>
+    <p><strong>Responsable :</strong> ${ech(nomActeur(p.responsable_id))} · <strong>Commanditaire :</strong> ${ech(p.commanditaire_id ? nomActeur(p.commanditaire_id) : (p.sponsor || '—'))}</p>
+    <p><strong>Période :</strong> ${fdate(p.date_debut)} → ${fdate(p.date_fin_prevue)}</p>
+    ${bloc('Objectif du projet', p.objectif_projet)}
+    ${bloc('Livrable final attendu', p.livrable_final)}
+    ${bloc('Périmètre inclus', p.perimetre_inclus)}
+    ${bloc('Périmètre exclu', p.perimetre_exclus)}
+    <h3>1.2 Parties prenantes</h3>${partiesTable}
+    <h3>1.3 Matrice RACI</h3>${raciTable}
+    <h3>1.4 Équipe projet</h3><ul>${membres}</ul>`;
+
+  /* ---- 2. Planification ---- */
+  const phasesLignes = S.phases.map(ph => `<tr><td>${ech(ph.libelle)}</td><td>${fdate(ph.date_debut_prevue)}</td><td>${fdate(ph.date_fin_prevue)}</td><td>${ech(ph.statut || '—')}</td></tr>`).join('');
+  const jalonsLignes = S.jalons.map(j => `<tr><td>${ech(j.libelle)}</td><td>${fdate(j.date_prevue)}</td><td>${ech(j.statut || '—')}</td></tr>`).join('');
+  const livrablesLignes = S.livrables.map(l => `<tr><td>${ech(l.libelle)}</td><td>${ech(nomPhase(l.id_phase))}</td><td>${fdate(l.echeance)}</td><td>${ech(l.statut || '—')}</td></tr>`).join('');
+  const avecPlan = construirePlanningItems();
+  let ganttImg = '<p class="muted">Aucune date renseignée pour afficher le planning.</p>';
+  if (avecPlan.length) {
+    const { html: ganttMarkup, min: ganttMin, max: ganttMax } = ganttHtml(avecPlan);
+    const dataUrl = await capturerHtmlEnImage(`<div style="padding:14px;font-family:Arial">${ganttMarkup}</div>`, 1400);
+    ganttImg = dataUrl ? `<img src="${dataUrl}" alt="Planning visuel">` : ('<p class="muted">Planning du ' + fdate(ganttMin) + ' au ' + fdate(ganttMax) + ' (image indisponible hors ligne).</p>');
+  }
+  const planifHtml = `
+    <h2>2. Planification</h2>
+    <h3>2.1 Phases</h3>${S.phases.length ? `<table><thead><tr><th>Phase</th><th>Début prévu</th><th>Fin prévue</th><th>Statut</th></tr></thead><tbody>${phasesLignes}</tbody></table>` : '<p class="muted">Aucune phase enregistrée.</p>'}
+    <h3>2.2 Jalons</h3>${S.jalons.length ? `<table><thead><tr><th>Jalon</th><th>Date prévue</th><th>Statut</th></tr></thead><tbody>${jalonsLignes}</tbody></table>` : '<p class="muted">Aucun jalon enregistré.</p>'}
+    <h3>2.3 Planning visuel</h3>${ganttImg}
+    <h3>2.4 Livrables</h3>${S.livrables.length ? `<table><thead><tr><th>Livrable</th><th>Phase</th><th>Échéance</th><th>Statut</th></tr></thead><tbody>${livrablesLignes}</tbody></table>` : '<p class="muted">Aucun livrable enregistré.</p>'}`;
+
+  /* ---- 3. Budget ---- */
+  const prevu = S.budget.reduce((s, l) => s + Number(l.montant_prevu || 0), 0);
+  const actuel = S.budget.reduce((s, l) => s + Number(l.montant_actuel != null ? l.montant_actuel : l.montant_prevu || 0), 0);
+  const engage = S.budget.reduce((s, l) => s + Number(l.montant_engage || 0), 0);
+  const paye = S.budget.reduce((s, l) => s + Number(l.montant_paye || 0), 0);
+  const ref = Number(p.budget_approuve || p.budget_prevu || 0);
+  const dev = p.devise || '';
+  const budgetLignes = S.budget.map(l => `<tr><td>${ech(l.code_poste || '')}</td><td>${ech(l.libelle)}</td><td>${fnum(l.montant_prevu)}</td><td>${fnum(l.montant_actuel != null ? l.montant_actuel : l.montant_prevu)}</td><td>${ech(l.statut || '—')}</td></tr>`).join('');
+  const budgetHtml = `
+    <h2>3. Budget</h2>
+    <p><strong>Budget de référence approuvé :</strong> ${fnum(ref)} ${ech(dev)} &nbsp; <strong>Total des postes (prévu) :</strong> ${fnum(prevu)} ${ech(dev)}</p>
+    <p><strong>Coût actuel projeté :</strong> ${fnum(actuel)} ${ech(dev)} &nbsp; <strong>Engagé :</strong> ${fnum(engage)} ${ech(dev)} &nbsp; <strong>Payé :</strong> ${fnum(paye)} ${ech(dev)}</p>
+    ${S.budget.length ? `<table><thead><tr><th>Poste</th><th>Désignation</th><th>Prévu</th><th>Actuel</th><th>Statut</th></tr></thead><tbody>${budgetLignes}</tbody></table>` : '<p class="muted">Aucun poste budgétaire enregistré.</p>'}`;
+
+  /* ---- 4. Risques ---- */
+  const risquesActifs = S.risques.filter(r => r.statut !== 'Clos');
+  const critImg = await capturerHtmlEnImage(`<div style="padding:14px;font-family:Arial">${construireMatriceCriticiteHtml(risquesActifs)}</div>`, 500);
+  const risquesLignes = risquesActifs.map(r => `<tr><td>${ech(r.reference || '')}</td><td>${ech(r.description)}</td><td>${ech(r.categorie || '—')}</td><td>${r.probabilite * r.impact}</td><td>${ech(r.strategie || '—')}</td><td>${ech(r.statut || '—')}</td></tr>`).join('');
+  const risquesHtml = `
+    <h2>4. Risques</h2>
+    <h3>4.1 Matrice de criticité</h3>${critImg ? `<img src="${critImg}" alt="Matrice de criticité" style="max-width:340px">` : '<p class="muted">Image indisponible hors ligne.</p>'}
+    <h3>4.2 Registre des risques actifs</h3>${risquesActifs.length ? `<table><thead><tr><th>Réf.</th><th>Risque</th><th>Catégorie</th><th>P×I</th><th>Stratégie</th><th>Statut</th></tr></thead><tbody>${risquesLignes}</tbody></table>` : '<p class="muted">Aucun risque actif.</p>'}`;
+
+  /* ---- 5. Suivi des performances ---- */
+  const indicLignes = S.indicateurs.map(i => `<tr><td>${ech(i.libelle)}</td><td>${ech(i.cible || '—')}</td><td>${ech(i.valeur_mesuree || '—')} ${ech(i.unite || '')}</td><td>${fdate(i.date_mesure)}</td><td>${ech(i.statut || '—')}</td></tr>`).join('');
+  const performanceHtml = `
+    <h2>5. Suivi des performances</h2>
+    <div class="bloc5" style="padding:0;border:none">${fiche5Html()}</div>
+    <h3>5.1 Indicateurs de pilotage</h3>${S.indicateurs.length ? `<table><thead><tr><th>Indicateur</th><th>Cible</th><th>Dernière mesure</th><th>Date</th><th>Statut</th></tr></thead><tbody>${indicLignes}</tbody></table>` : '<p class="muted">Aucun indicateur renseigné.</p>'}`;
+
+  return `
+    <h1>Rapport de présentation de projet</h1>
+    <p class="sub">${ech(p.denomination)} — ${ech(p.id_projet)}${p.code_projet ? ' / ' + ech(p.code_projet) : ''} · D2MG Pilotage — ANADER · Édité le ${fdate(auj())}</p>
+    ${cadrageHtml}
+    ${planifHtml}
+    ${budgetHtml}
+    ${risquesHtml}
+    ${performanceHtml}`;
+}
+async function telechargerRapportProjetWord() {
+  toast('Génération du rapport en cours…', 'ok');
+  const html = await genererRapportProjetHtml();
+  telechargerFichier('Rapport_presentation_projet_' + (S.projet.id_projet || 'projet') + '.doc',
+    documentWordHtml('Rapport de présentation de projet — ' + S.projet.denomination, html), 'application/msword');
+  toast('Rapport téléchargé (Word).', 'ok');
+}
+async function telechargerRapportProjetPdf() {
+  toast('Génération du rapport en cours…', 'ok');
+  const html = await genererRapportProjetHtml();
+  imprimer(html);
+}
+function vueRapportProjet() {
+  $('#zone').innerHTML = `
+    <div class="topbar"><div><h1>Rapport de présentation de projet</h1>
+      <p>Document consolidé prêt à diffuser : cadrage (charte, parties prenantes, RACI), planification (phases, jalons, planning visuel, livrables), budget, risques et suivi des performances.</p></div>
+      <div style="display:flex;gap:8px">
+        ${peut('prj.exporter') ? '<button class="btn" id="btnRapportPdf">Exporter en PDF</button><button class="btn primaire" id="btnRapportWord">Télécharger (Word)</button>' : ''}
+      </div>
+    </div>
+    <div class="carte"><p class="muted">Le document reprend automatiquement les données actuelles du projet. Sa génération peut prendre quelques secondes (capture du planning visuel et de la matrice de criticité).</p></div>`;
+  const bp = $('#btnRapportPdf');
+  if (bp) bp.addEventListener('click', telechargerRapportProjetPdf);
+  const bw = $('#btnRapportWord');
+  if (bw) bw.addEventListener('click', telechargerRapportProjetWord);
+}
 
 /* ------------------------------------------------------------- Mode d'emploi */
 function vueAide() {
@@ -1785,6 +1982,88 @@ async function telechargerSauvegardeExcel() {
   if (erreurs.length) toast(`Sauvegarde générée avec ${erreurs.length} table(s) inaccessible(s).`, 'err');
   else toast(`Sauvegarde Excel générée : ${totalLignes} enregistrements.`, 'ok');
 }
+/* =========================================================================
+ *  TÉLÉCHARGEMENTS — image A4 (html2canvas) et documents Word (.doc HTML)
+ * ========================================================================= */
+function telechargerImage(nom, blob) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nom;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const A4_PAYSAGE_L = 1754, A4_PAYSAGE_H = 1240; // ~150 dpi, 297 x 210 mm (paysage)
+async function capturerVisuelA4Canvas(elementId, titre, sousTitre) {
+  if (typeof html2canvas === 'undefined') { toast("Capture d'image indisponible (hors ligne ?).", 'err'); return null; }
+  const el = document.getElementById(elementId);
+  if (!el) { toast('Élément introuvable pour la capture.', 'err'); return null; }
+  const source = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+  const marge = 56;
+  const page = document.createElement('canvas');
+  page.width = A4_PAYSAGE_L; page.height = A4_PAYSAGE_H;
+  const ctx = page.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, page.width, page.height);
+  ctx.fillStyle = '#9C3D2A'; ctx.font = 'bold 28px Arial'; ctx.fillText(titre || '', marge, 50);
+  ctx.fillStyle = '#8a7570'; ctx.font = '15px Arial'; ctx.fillText(sousTitre || '', marge, 76);
+  const zoneY = 96, zoneH = page.height - zoneY - marge, zoneW = page.width - marge * 2;
+  const ratio = Math.min(zoneW / source.width, zoneH / source.height, 1);
+  const w = source.width * ratio, h = source.height * ratio;
+  const x = marge + (zoneW - w) / 2, y = zoneY + (zoneH - h) / 2;
+  ctx.drawImage(source, x, y, w, h);
+  ctx.strokeStyle = '#ecdfda'; ctx.strokeRect(x - 0.5, y - 0.5, w + 1, h + 1);
+  ctx.fillStyle = '#8a7570'; ctx.font = '12px Arial';
+  ctx.fillText('D2MG Pilotage — ANADER — Gestion de projet — ' + new Date().toLocaleDateString('fr-FR'), marge, page.height - 18);
+  return page;
+}
+async function telechargerVisuelA4(elementId, titre, sousTitre, nomFichier) {
+  toast('Génération de l\'image en cours…', 'ok');
+  try {
+    const page = await capturerVisuelA4Canvas(elementId, titre, sousTitre);
+    if (!page) return;
+    page.toBlob(blob => { telechargerImage(nomFichier, blob); toast('Image téléchargée.', 'ok'); }, 'image/png');
+  } catch (e) {
+    console.error(e); toast("Échec de la génération de l'image : " + (e && e.message ? e.message : e), 'err');
+  }
+}
+async function capturerHtmlEnImage(html, largeurPx) {
+  if (typeof html2canvas === 'undefined') return null;
+  const hote = document.createElement('div');
+  hote.style.position = 'fixed'; hote.style.left = '-99999px'; hote.style.top = '0';
+  hote.style.width = (largeurPx || 1400) + 'px'; hote.style.background = '#fff';
+  hote.innerHTML = html;
+  document.body.appendChild(hote);
+  let dataUrl = null;
+  try {
+    const canvas = await html2canvas(hote, { scale: 2, backgroundColor: '#ffffff' });
+    dataUrl = canvas.toDataURL('image/png');
+  } catch (e) { console.error(e); }
+  document.body.removeChild(hote);
+  return dataUrl;
+}
+function documentWordHtml(titre, corpsHtml) {
+  return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="utf-8"><title>' + ech(titre) + '</title>' +
+    '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->' +
+    '<style>' +
+      '@page{size:21cm 29.7cm;margin:2cm}' +
+      'body{font-family:Calibri,Arial,sans-serif;color:#2a211f;font-size:11pt;line-height:1.42}' +
+      'h1{color:#9C3D2A;font-size:20pt;margin:0 0 4pt}' +
+      'h2{color:#9C3D2A;font-size:15pt;margin:16pt 0 6pt;border-bottom:1pt solid #ecdfda;padding-bottom:3pt}' +
+      'h3{color:#9C3D2A;font-size:12.5pt;margin:10pt 0 5pt}' +
+      'p{margin:0 0 6pt} ul{margin:4pt 0;padding-left:18pt} li{margin-bottom:2pt}' +
+      'table{border-collapse:collapse;width:100%;margin:6pt 0 10pt;font-size:10pt}' +
+      'th,td{border:1pt solid #ecdfda;padding:4pt 6pt;text-align:left;vertical-align:top}' +
+      'th{background:#FCEDE9;color:#9C3D2A}' +
+      '.muted{color:#8a7570} .sub{color:#8a7570;font-size:9.5pt;margin:0 0 14pt}' +
+      '.et{padding:1pt 6pt;border-radius:8pt;font-size:9pt;font-weight:700;display:inline-block}' +
+      '.et.gris{background:#eee9e7;color:#6b5b57} .et.corail{background:#FCEDE9;color:#9C3D2A}' +
+      '.et.vert{background:#e7f7ef;color:#19945d} .et.orange{background:#fdf2e0;color:#cb8800}' +
+      '.et.rouge{background:#fdecec;color:#cf3f3f} .et.bleu{background:#e9f2fa;color:#1b6db0}' +
+      '.bloc5{border:1pt solid #ecdfda;border-radius:4pt;padding:8pt 10pt;margin-bottom:8pt}' +
+      '.bloc5 h3{margin-top:0}' +
+      'img{max-width:100%}' +
+    '</style></head><body>' + corpsHtml + '</body></html>';
+}
+
 function telechargerFichier(nom, contenu, type) {
   const blob = new Blob([contenu], { type: type || 'text/plain' });
   const a = document.createElement('a');

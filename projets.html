@@ -6,6 +6,7 @@
 <title>Gestion de projet — D2MG Pilotage</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --corail:#E2725B; --corail-fonce:#9C3D2A; --corail-clair:#FCEDE9; --corail-vif:#FA8072;
@@ -23,7 +24,8 @@
   .box{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--ombre);padding:32px;max-width:500px;text-align:center}
 
   .app-shell{display:flex;min-height:100vh}
-  .sidebar{width:236px;flex:0 0 236px;background:var(--corail-fonce);color:#f7e4de;padding:16px 10px;display:flex;flex-direction:column}
+  .sidebar{width:236px;flex:0 0 236px;background:var(--corail-fonce);color:#f7e4de;padding:16px 10px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .sidebar #menu{flex:1;overflow-y:auto;min-height:0}
   .sidebar .marque{font-size:14.5px;font-weight:700;color:#fff;margin:4px 8px 3px;line-height:1.3}
   .sidebar .sous{font-size:11px;opacity:.8;margin:0 8px 14px}
   .sidebar .who{font-size:11.5px;background:rgba(255,255,255,.12);border-radius:9px;padding:8px 9px;margin:0 4px 12px;line-height:1.45}
