@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gestion des contrats fournisseurs — D2MG Pilotage</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --vert:#0B6E4F; --vert-fonce:#075039; --vert-clair:#E8F3EF;
+  --orange:#E08A0B; --orange-clair:#FDF3E1;
+  --rouge:#C0392B; --rouge-clair:#FBEAE8;
+  --bleu:#1F6FB2;  --bleu-clair:#E9F2FA;
+  --violet:#6C4A9C; --violet-clair:#EFE9F6;
+  --gris-900:#1C2529; --gris-700:#3E4C54; --gris-500:#6B7A82;
+  --gris-300:#C9D3D8; --gris-200:#E2E9EC; --gris-100:#F1F5F7; --blanc:#fff;
+  --ombre:0 1px 3px rgba(16,32,40,.08),0 4px 14px rgba(16,32,40,.06);
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Segoe UI",Arial,Helvetica,sans-serif;
+  background:var(--gris-100); color:var(--gris-900);
+  font-size:14px; line-height:1.5;
+}
+.hidden{display:none !important}
+a{color:var(--bleu);}
+h1,h2,h3,h4{margin:0 0 8px 0; color:var(--gris-900); font-weight:600;}
+h1{font-size:20px;} h2{font-size:17px;} h3{font-size:15px;} h4{font-size:13.5px;}
+p{margin:0 0 8px 0;}
+button, input, select, textarea{font-family:inherit; font-size:14px;}
+
+/* ---- Écran d'accès (avant authentification / accès refusé) ---- */
+.ecran{min-height:100vh;display:grid;place-items:center;padding:24px}
+.boiteEcran{background:#fff;border:1px solid var(--gris-300);border-radius:var(--radius);box-shadow:var(--ombre);padding:32px;max-width:480px;text-align:center}
+.boiteEcran h2{color:var(--vert-fonce)}
+
+/* ---- Mise en page générale ---- */
+.app{display:flex; min-height:100vh;}
+.barreLaterale{
+  width:230px; flex:0 0 230px; background:var(--vert-fonce); color:#fff;
+  padding:14px 0; display:flex; flex-direction:column;
+}
+.barreLaterale .logo{padding:0 16px 14px 16px; border-bottom:1px solid rgba(255,255,255,.15); margin-bottom:8px;}
+.barreLaterale .logo b{display:block; font-size:15px;}
+.barreLaterale .logo span{font-size:11px; opacity:.8;}
+.barreLaterale .qui{font-size:11.5px;background:rgba(255,255,255,.11);border-radius:9px;padding:8px 10px;margin:0 16px 12px;line-height:1.45}
+.barreLaterale .qui strong{display:block;color:#fff;font-size:12.5px}
+.menu{list-style:none; margin:0; padding:0; flex:1; overflow-y:auto;}
+.menu li a{
+  display:flex; align-items:center; gap:8px; justify-content:space-between;
+  padding:9px 16px; color:#dfeee7; text-decoration:none; font-size:13.3px; cursor:pointer;
+  border-left:3px solid transparent;
+}
+.menu li a .lib{display:flex; align-items:center; gap:8px;}
+.menu li a:hover{background:rgba(255,255,255,.08);}
+.menu li a.actif{background:rgba(255,255,255,.14); border-left-color:#fff; font-weight:600;}
+.pastille{
+  background:var(--rouge); color:#fff; border-radius:10px; font-size:10.5px;
+  padding:1px 6px; min-width:16px; text-align:center; font-weight:700;
+}
+.pastille.orange{background:var(--orange);}
+.piedLateral{border-top:1px solid rgba(255,255,255,.18);padding:10px 10px 0;margin-top:8px}
+.piedLateral button.lien{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:none;color:#dfeee7;padding:8px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;font-family:inherit}
+.piedLateral button.lien:hover{background:rgba(255,255,255,.1)}
+
+.contenuPrincipal{flex:1; min-width:0; display:flex; flex-direction:column;}
+.barreSup{
+  background:#fff; border-bottom:1px solid var(--gris-300); padding:10px 20px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.barreSup .titrePage{font-size:16px; font-weight:700;}
+
+.zoneContenu{padding:18px 20px; flex:1; min-width:0; max-width:100%; overflow-x:hidden;}
+
+/* ---- Cartes ---- */
+.carte{background:#fff; border:1px solid var(--gris-300); border-radius:var(--radius); box-shadow:var(--ombre); margin-bottom:16px;}
+.carte > .tete{padding:12px 16px; border-bottom:1px solid var(--gris-200); display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.carte > .tete h2, .carte > .tete h3{margin:0;}
+.carte > .corps{padding:16px;}
+.carte.compact > .corps{padding:10px 16px;}
+
+/* ---- Grilles ---- */
+.grille{display:grid; gap:14px;}
+.g2{grid-template-columns:repeat(2,1fr);}
+.g3{grid-template-columns:repeat(3,1fr);}
+.g4{grid-template-columns:repeat(4,1fr);}
+.g5{grid-template-columns:repeat(5,1fr);}
+@media (max-width: 900px){ .g2,.g3,.g4,.g5{grid-template-columns:repeat(2,1fr);} }
+
+/* ---- KPI ---- */
+.kpi{background:#fff; border:1px solid var(--gris-300); border-radius:var(--radius); padding:14px; box-shadow:var(--ombre);}
+.kpi .valeur{font-size:26px; font-weight:800; line-height:1;}
+.kpi .libelle{font-size:12px; color:var(--gris-500); margin-top:4px;}
+.kpi.vert .valeur{color:var(--vert);}
+.kpi.orange .valeur{color:var(--orange);}
+.kpi.rouge .valeur{color:var(--rouge);}
+.kpi.bleu .valeur{color:var(--bleu);}
+.kpi.gris .valeur{color:var(--gris-700);}
+
+/* ---- Étiquettes / badges ---- */
+.et{display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:700; white-space:nowrap;}
+.et.vert{background:var(--vert-clair); color:var(--vert-fonce);}
+.et.orange{background:var(--orange-clair); color:#8a5c07;}
+.et.rouge{background:var(--rouge-clair); color:var(--rouge);}
+.et.bleu{background:var(--bleu-clair); color:var(--bleu);}
+.et.gris{background:var(--gris-200); color:var(--gris-700);}
+.et.violet{background:var(--violet-clair); color:var(--violet);}
+
+/* ---- Boutons ---- */
+.btn{
+  display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:7px;
+  border:1px solid var(--gris-300); background:#fff; color:var(--gris-900); cursor:pointer;
+  font-size:13px; font-weight:600; text-decoration:none;
+}
+.btn:hover{background:var(--gris-100);}
+.btn.primaire{background:var(--vert); border-color:var(--vert); color:#fff;}
+.btn.primaire:hover{background:var(--vert-fonce);}
+.btn.danger{background:var(--rouge); border-color:var(--rouge); color:#fff;}
+.btn.danger:hover{background:#a13224;}
+.btn.alerte{background:var(--orange); border-color:var(--orange); color:#fff;}
+.btn.mini{padding:4px 9px; font-size:11.5px; border-radius:5px;}
+.btn[disabled]{opacity:.5; cursor:not-allowed;}
+.barreActions{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+
+/* ---- Formulaires ---- */
+.champ{margin-bottom:12px;}
+.champ label{display:block; font-size:12.5px; font-weight:700; color:var(--gris-700); margin-bottom:4px;}
+.champ label .oblig{color:var(--rouge);}
+.champ input, .champ select, .champ textarea{
+  width:100%; padding:8px 10px; border:1px solid var(--gris-300); border-radius:6px; background:#fff; color:var(--gris-900);
+}
+.champ input:focus, .champ select:focus, .champ textarea:focus{outline:2px solid var(--bleu); outline-offset:1px;}
+.champ .aide{font-size:11.5px; color:var(--gris-500); margin-top:3px;}
+.champ.erreur input, .champ.erreur select, .champ.erreur textarea{border-color:var(--rouge); background:var(--rouge-clair);}
+.champ .erreurChamp{font-size:11.5px; color:var(--rouge); margin-top:3px; font-weight:600;}
+fieldset{border:1px solid var(--gris-200); border-radius:8px; padding:12px; margin:0 0 14px 0;}
+legend{font-size:12.5px; font-weight:700; color:var(--vert-fonce); padding:0 6px;}
+
+/* ---- Messages ---- */
+.msgInfo,.msgOk,.msgErreur{padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:12px; border:1px solid transparent;}
+.msgInfo{background:var(--bleu-clair); color:#144a76; border-color:#bcd8ef;}
+.msgOk{background:var(--vert-clair); color:var(--vert-fonce); border-color:#bfe0d1;}
+.msgErreur{background:var(--rouge-clair); color:var(--rouge); border-color:#f0c3ba;}
+
+/* ---- Tableaux ---- */
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th,td{padding:8px 10px; text-align:left; border-bottom:1px solid var(--gris-200); vertical-align:top;}
+th{background:var(--gris-100); font-size:11.5px; text-transform:uppercase; letter-spacing:.02em; color:var(--gris-700); font-weight:700;}
+tbody tr:hover{background:var(--gris-100);}
+.tableauScroll{overflow-x:auto;}
+.num{text-align:right; font-variant-numeric:tabular-nums;}
+
+/* ---- Kanban ---- */
+.kanban{display:flex; gap:12px; overflow-x:auto; padding-bottom:6px;}
+.colonne{flex:0 0 260px; background:var(--gris-100); border-radius:var(--radius); padding:10px; min-height:200px;}
+.colonne h4{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+.colonne h4 .cpt{background:var(--gris-300); border-radius:10px; padding:1px 7px; font-size:11px;}
+.fiche{background:#fff; border:1px solid var(--gris-300); border-left:4px solid var(--gris-300); border-radius:8px; padding:9px 10px; margin-bottom:8px; box-shadow:var(--ombre); cursor:pointer;}
+.fiche:hover{border-color:var(--bleu);}
+.fiche.bord-vert{border-left-color:var(--vert);}
+.fiche.bord-orange{border-left-color:var(--orange);}
+.fiche.bord-rouge{border-left-color:var(--rouge);}
+.fiche .num{font-size:11px; color:var(--gris-500); text-align:left;}
+.fiche .obj{font-size:12.5px; font-weight:600; margin:3px 0;}
+.fiche .bas{display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:11px;}
+
+/* ---- Barres graphiques CSS ---- */
+.barreG{display:grid; grid-template-columns:150px 1fr 40px; align-items:center; gap:8px; margin-bottom:6px; font-size:12px;}
+.barreG .lb{color:var(--gris-700); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.barreG .zn{background:var(--gris-200); border-radius:5px; height:14px; overflow:hidden;}
+.barreG .zn i{display:block; height:100%; border-radius:5px; background:var(--bleu);}
+.barreG .zn i.vert{background:var(--vert);} .barreG .zn i.orange{background:var(--orange);} .barreG .zn i.rouge{background:var(--rouge);}
+.barreG .vl{font-weight:700; text-align:right;}
+
+/* ---- Lexique / info-bulle ---- */
+.terme{color:inherit; border-bottom:1px dotted var(--bleu); cursor:help;}
+.lexiquePop{background:var(--bleu-clair); border:1px solid #bcd8ef; border-radius:6px; padding:8px 10px; font-size:12px; margin-top:4px;}
+
+/* ---- Impression / rapport officiel ---- */
+.enteteOff{text-align:center; border-bottom:2px solid var(--vert-fonce); padding-bottom:10px; margin-bottom:14px;}
+.enteteOff .rep{font-size:11px; color:var(--gris-700);}
+.enteteOff .org{font-size:15px; font-weight:800; color:var(--vert-fonce); margin-top:4px;}
+.titreRapport{text-align:center; font-size:17px; font-weight:800; margin:10px 0 4px 0;}
+.sousTitreRapport{text-align:center; font-size:12.5px; color:var(--gris-700); margin-bottom:14px;}
+.blocSignature{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:26px;}
+.blocSignature div{border:1px solid var(--gris-300); border-radius:8px; padding:10px; text-align:center; font-size:11.5px; min-height:70px;}
+.blocSignature div b{display:block; margin-bottom:30px; color:var(--gris-700);}
+.piedOff{text-align:center; font-size:10.5px; color:var(--gris-500); margin-top:20px; border-top:1px solid var(--gris-200); padding-top:8px;}
+
+.muet{color:var(--gris-500); font-style:italic;}
+@media print{
+  .barreLaterale,.barreSup,.noPrint,.barreActions{display:none!important;}
+  body{background:#fff;}
+  .zoneContenu{padding:0;}
+  .carte{box-shadow:none; border:none;}
+  table{ -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  th{ -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+}
+
+/* ---- Modale / toast ---- */
+.voileModale{position:fixed; inset:0; background:rgba(20,25,30,.45); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; z-index:200; overflow:auto;}
+.modale{background:#fff; border-radius:var(--radius); max-width:640px; width:100%; box-shadow:0 10px 40px rgba(0,0,0,.25);}
+.modale .tete{padding:14px 18px; border-bottom:1px solid var(--gris-200); display:flex; justify-content:space-between; align-items:center;}
+.modale .corps{padding:18px; max-height:70vh; overflow:auto;}
+.modale .pied{padding:12px 18px; border-top:1px solid var(--gris-200); display:flex; justify-content:flex-end; gap:8px;}
+.hoteToast{position:fixed; bottom:18px; right:18px; z-index:300; display:flex; flex-direction:column; gap:8px;}
+.toast{padding:10px 16px; border-radius:8px; color:#fff; font-size:13px; box-shadow:var(--ombre); min-width:220px;}
+.toast.ok{background:var(--vert-fonce);} .toast.err{background:var(--rouge);} .toast.info{background:var(--bleu);}
+
+.onglets{display:flex; gap:4px; border-bottom:1px solid var(--gris-300); margin-bottom:14px; flex-wrap:wrap;}
+.onglets a{padding:8px 12px; font-size:12.5px; font-weight:600; color:var(--gris-700); text-decoration:none; border-bottom:2px solid transparent; cursor:pointer;}
+.onglets a.actif{color:var(--vert-fonce); border-bottom-color:var(--vert-fonce);}
+</style>
+</head>
+<body>
+
+<div class="hoteToast" id="hoteToast"></div>
+
+<section id="ecranAcces" class="ecran hidden">
+  <div class="boiteEcran">
+    <h2>Accès non autorisé</h2>
+    <p class="muet" id="msgAcces">Vous n'avez pas accès à la chambre « Gestion des contrats fournisseurs ».</p>
+    <a class="btn primaire" href="index.html" style="display:inline-block;margin-top:14px">← Retour à l'accueil</a>
+  </div>
+</section>
+
+<div class="app hidden" id="app">
+  <nav class="barreLaterale noPrint">
+    <div class="logo">
+      <b>D2MG Pilotage</b>
+      <span>Contrats Fournisseurs — ANADER</span>
+    </div>
+    <div class="qui" id="qui">—</div>
+    <ul class="menu" id="menu"></ul>
+    <div class="piedLateral">
+      <button type="button" class="lien" onclick="window.location.href='index.html'">⌂ Retour à l'accueil</button>
+      <button type="button" class="lien" id="btnDeco">↪ Se déconnecter</button>
+    </div>
+  </nav>
+  <div class="contenuPrincipal">
+    <div class="barreSup noPrint">
+      <div class="titrePage" id="titrePage">Tableau de bord</div>
+    </div>
+    <div class="zoneContenu" id="contenu">Chargement…</div>
+  </div>
+</div>
+
+<div id="hoteModale"></div>
+
+<script src="contrats-app.js"></script>
+</body>
+</html>
