@@ -1075,9 +1075,13 @@ function rendreExtractionTexte(etat){
 
       '<div class="champ"><label>📷 Scan ou photo du document (PDF ou image)</label>' +
         '<input type="file" id="imp_fichier" accept="application/pdf,image/*" multiple onchange="lancerOcrImportContrat(this.files)">' +
-        '<p class="aide">Reconnaissance de texte exécutée directement dans votre navigateur (gratuite, aucun envoi du document à un service extérieur). Pour un PDF, les ' + OCR_MAX_PAGES_DEFAUT + ' premières pages sont analysées automatiquement — l’essentiel (parties, objet, montant, dates) s’y trouve presque toujours ; complétez le texte à la main si une information utile se trouve plus loin. Un document manuscrit, trop penché ou de mauvaise qualité sera mal reconnu : vérifiez toujours soigneusement les champs marqués 🔎 avant d’enregistrer.</p>' +
-        '<div id="ocrProgression" style="display:none" class="msgInfo"></div>' +
       '</div>' +
+      '<div class="champ"><label>Nombre de pages à analyser (si PDF multi-pages)</label>' +
+        '<input type="number" id="imp_nbPages" min="1" max="25" value="' + OCR_MAX_PAGES_DEFAUT + '" style="max-width:120px">' +
+        '<p class="aide">Augmentez ce nombre si les informations utiles (montant, dates, signature) se trouvent au-delà des premières pages — un avenant ou un bon de commande court peut tenir sur 2 à 4 pages, un contrat plus long davantage. Traiter plus de pages prend simplement un peu plus de temps, sans coût.</p>' +
+      '</div>' +
+      '<p class="aide">Reconnaissance de texte exécutée directement dans votre navigateur (gratuite, aucun envoi du document à un service extérieur), à une résolution renforcée pour améliorer la fiabilité. Un document manuscrit, trop penché, flou ou de mauvaise qualité de scan reste mal reconnu : relisez toujours le texte reconnu ci-dessous et vérifiez soigneusement les champs marqués 🔎 avant d’enregistrer.</p>' +
+      '<div id="ocrProgression" style="display:none" class="msgInfo"></div>' +
 
       '<p class="aide" style="text-align:center">— ou copiez-collez directement le texte —</p>' +
       '<div class="champ"><label>Texte du contrat / bon de commande</label>' +
@@ -1147,7 +1151,7 @@ function rendreExtractionTexte(etat){
    mots-clés que le collage manuel (extraireContratDepuisTexte) —
    la vérification humaine des champs marqués reste inchangée.
    ============================================================ */
-const OCR_MAX_PAGES_DEFAUT = 3;
+const OCR_MAX_PAGES_DEFAUT = 6;
 let __ocrEnCours = false;
 
 function libelleEtapeOcr(status){
@@ -1161,6 +1165,39 @@ function libelleEtapeOcr(status){
   return lib[status] || status;
 }
 
+// Prépare une image pour l'OCR : passage en niveaux de gris + renforcement du
+// contraste (étirement d'histogramme). Un scan administratif est souvent gris
+// clair / peu contrasté (photocopie, tampon, papier jauni) ; ce traitement,
+// classique en préparation OCR, améliore la lisibilité des caractères sans
+// dénaturer le texte (contrairement à un seuillage noir/blanc trop agressif,
+// risqué sur un document dont on ne connaît pas la qualité à l'avance).
+function ameliorerContrasteCanvas(canvas){
+  const ctx = canvas.getContext("2d");
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+  let min = 255, max = 0;
+  const gris = new Uint8ClampedArray(d.length/4);
+  for (let i=0, p=0; i<d.length; i+=4, p++){
+    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    gris[p] = g;
+    if (g<min) min=g;
+    if (g>max) max=g;
+  }
+  const etendue = Math.max(1, max-min);
+  for (let i=0, p=0; i<d.length; i+=4, p++){
+    const v = Math.round((gris[p]-min) * 255/etendue);
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+// Cible ~300 DPI (résolution recommandée par Tesseract pour une bonne
+// reconnaissance), avec un plafond de sécurité pour ne pas produire un canevas
+// démesurément lourd sur un PDF au format inhabituel (grand format, affiche…).
+const OCR_DPI_CIBLE = 300;
+const OCR_COTE_MAX_PX = 3600;
+
 async function pdfVersImagesCanvas(file, maxPages){
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data:buf}).promise;
@@ -1168,14 +1205,46 @@ async function pdfVersImagesCanvas(file, maxPages){
   const images = [];
   for (let i=1; i<=n; i++){
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({scale:2.2});
+    let echelle = OCR_DPI_CIBLE/72;
+    const vTest = page.getViewport({scale:echelle});
+    const coteMax = Math.max(vTest.width, vTest.height);
+    if (coteMax > OCR_COTE_MAX_PX) echelle *= OCR_COTE_MAX_PX/coteMax;
+    const viewport = page.getViewport({scale:echelle});
     const canvas = document.createElement("canvas");
     canvas.width = viewport.width; canvas.height = viewport.height;
     const ctx = canvas.getContext("2d");
     await page.render({canvasContext:ctx, viewport}).promise;
-    images.push(canvas);
+    images.push(ameliorerContrasteCanvas(canvas));
   }
   return {images, total:pdf.numPages};
+}
+
+// Convertit une photo (jpg/png…) en canevas, en la limitant à une taille
+// raisonnable pour l'OCR (une photo de téléphone peut dépasser 4000 px de
+// côté : inutile et coûteux en temps de traitement au-delà de ~3600 px), puis
+// lui applique le même renforcement de contraste que pour un PDF.
+async function imageVersCanvasPretOcr(file){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("Image illisible"));
+      el.src = url;
+    });
+    let echelle = 1;
+    const coteMax = Math.max(img.naturalWidth, img.naturalHeight);
+    if (coteMax > OCR_COTE_MAX_PX) echelle = OCR_COTE_MAX_PX/coteMax;
+    else if (coteMax < 1600) echelle = 1600/coteMax; // agrandit une photo trop petite (Tesseract recommande une image suffisamment résolue)
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth*echelle);
+    canvas.height = Math.round(img.naturalHeight*echelle);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return ameliorerContrasteCanvas(canvas);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 async function lancerOcrImportContrat(files){
@@ -1185,6 +1254,9 @@ async function lancerOcrImportContrat(files){
     toast("Les librairies de reconnaissance n'ont pas pu être chargées (vérifiez votre connexion internet).", "err");
     return;
   }
+  const inputNbPages = document.getElementById("imp_nbPages");
+  const nbPages = Math.max(1, Math.min(25, parseInt((inputNbPages && inputNbPages.value) || OCR_MAX_PAGES_DEFAUT, 10) || OCR_MAX_PAGES_DEFAUT));
+
   __ocrEnCours = true;
   const zone = document.getElementById("ocrProgression");
   const majEtat = (msg) => { if (zone) { zone.style.display = "block"; zone.textContent = msg; } };
@@ -1198,6 +1270,7 @@ async function lancerOcrImportContrat(files){
         }
       }
     });
+    await worker.setParameters({ user_defined_dpi: String(OCR_DPI_CIBLE) });
 
     let texteTotal = "";
     let pageGlobale = 0;
@@ -1205,9 +1278,9 @@ async function lancerOcrImportContrat(files){
       const estPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
       if (estPdf) {
         majEtat("Lecture du PDF « " + file.name + " »…");
-        const {images, total} = await pdfVersImagesCanvas(file, OCR_MAX_PAGES_DEFAUT);
+        const {images, total} = await pdfVersImagesCanvas(file, nbPages);
         if (total > images.length) {
-          toast("Document de " + total + " pages : seules les " + images.length + " premières sont analysées automatiquement.", "info", 5000);
+          toast("Document de " + total + " pages : seules les " + images.length + " premières sont analysées (réglez « Nombre de pages à analyser » si besoin, puis relancez).", "info", 6000);
         }
         for (const canvas of images) {
           pageGlobale++;
@@ -1218,7 +1291,8 @@ async function lancerOcrImportContrat(files){
       } else if (/^image\//.test(file.type)) {
         pageGlobale++;
         majEtat("Reconnaissance — « " + file.name + " »…");
-        const { data:{text} } = await worker.recognize(file);
+        const canvas = await imageVersCanvasPretOcr(file);
+        const { data:{text} } = await worker.recognize(canvas);
         texteTotal += (texteTotal ? "\n\n--- page suivante ---\n\n" : "") + text;
       } else {
         toast("Fichier ignoré (format non pris en charge) : " + file.name, "err");
