@@ -1151,6 +1151,36 @@ function modaleActivite(a) {
 /* =========================================================================
  *  PLANNING VISUEL (Gantt simplifié)
  * ========================================================================= */
+const MOIS_ABREGES_GANTT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+function fdateCourtGantt(d) { try { return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }); } catch (e) { return d; } }
+
+/* Graduations de l'échelle temporelle du planning : une graduation par semaine
+ * (lundi) pour un planning court, sinon par mois, tous les 2 ou 3 mois si la
+ * durée totale dépasse 15 mois, resp. 2 ans et demi, pour rester lisible. */
+function graduationsPlanning(min, max, total, posi) {
+  const ticks = [];
+  if (total <= 70) {
+    let d = new Date(min + 'T00:00:00');
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // recule jusqu'au lundi
+    const fin = new Date(max + 'T00:00:00');
+    while (d <= fin) {
+      const isoD = iso(d);
+      if (isoD >= min) ticks.push({ lib: fdateCourtGantt(isoD), pos: posi(isoD) });
+      d.setDate(d.getDate() + 7);
+    }
+  } else {
+    const pas = total > 900 ? 3 : total > 450 ? 2 : 1;
+    let d = new Date(min.slice(0, 7) + '-01T00:00:00');
+    const fin = new Date(max + 'T00:00:00');
+    while (d <= fin) {
+      const isoD = iso(d);
+      ticks.push({ lib: MOIS_ABREGES_GANTT[d.getMonth()] + ' ' + d.getFullYear(), pos: posi(isoD) });
+      d.setMonth(d.getMonth() + pas);
+    }
+  }
+  return ticks;
+}
+
 function vuePlanning() {
   const items = [];
   S.phases.forEach(p => items.push({ t: 'phase', lib: p.libelle, d: p.date_debut_prevue, f: p.date_fin_prevue, dr: p.date_debut_reelle, fr: p.date_fin_reelle, st: p.statut }));
@@ -1180,17 +1210,29 @@ function vuePlanning() {
   };
 
   const posAuj = posi(auj());
+  const graduations = graduationsPlanning(min, max, total, posi);
+  const dansPeriode = posAuj >= 0 && posAuj <= 100;
   $('#zone').innerHTML = `
     <div class="topbar"><div><h1>Planning visuel</h1>
-      <p>Barre claire = prévu, barre foncée = réel. Du ${fdate(min)} au ${fdate(max)}. Le trait vertical marque aujourd'hui.</p></div></div>
+      <p>Barre claire = prévu, barre foncée = réel. Du ${fdate(min)} au ${fdate(max)}. Échelle graduée ${total <= 70 ? 'par semaine' : 'par mois'} ; le trait rouge marque aujourd'hui${dansPeriode ? '' : ' (hors période affichée)'}.</p></div></div>
     <div class="gantt" style="position:relative">
-      ${posAuj >= 0 && posAuj <= 100 ? `<div style="position:absolute;left:calc(210px + 10px + (100% - 220px - 24px) * ${posAuj / 100});top:12px;bottom:12px;width:2px;background:var(--bad);opacity:.55"></div>` : ''}
+      <div class="gline" style="margin-bottom:6px">
+        <div></div>
+        <div style="position:relative;height:15px">
+          ${graduations.map(g => `<span style="position:absolute;left:${g.pos}%;transform:translateX(${g.pos < 4 ? '0' : g.pos > 96 ? '-100%' : '-50%'});font-size:10.5px;color:var(--muted);white-space:nowrap;top:0">${ech(g.lib)}</span>`).join('')}
+        </div>
+      </div>
+      <div style="position:absolute;left:232px;right:12px;top:31px;bottom:12px;pointer-events:none">
+        ${graduations.map(g => `<div style="position:absolute;left:${g.pos}%;top:0;bottom:0;width:1px;background:#f0e6e1"></div>`).join('')}
+        ${dansPeriode ? `<div style="position:absolute;left:${posAuj}%;top:0;bottom:0;width:2px;background:var(--bad);opacity:.6"></div>` : ''}
+      </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:9px">Phases</div>
       ${avec.filter(i => i.t === 'phase').map(ligne).join('')}
       <div style="font-size:11px;color:var(--muted);margin:14px 0 9px">Activités</div>
       ${avec.filter(i => i.t === 'act').map(ligne).join('') || '<div class="muted" style="font-size:12px">Aucune activité datée.</div>'}
     </div>`;
 }
+
 
 /* =========================================================================
  *  BUDGET (registre + synthèse)

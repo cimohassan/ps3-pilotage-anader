@@ -2555,6 +2555,14 @@ const Aide = {
     '<h3>1. Ce que fait ce module</h3>' +
     '<p>Il centralise les contrats fournisseurs de la D2MG : qui est engagé, jusqu\'à quand, à quelles conditions, et ce qu\'il reste à faire avant chaque échéance de préavis. Il ne remplace pas le contrat papier ni l\'avis d\'un juriste — il évite d\'oublier une échéance et donne une vision chiffrée de chaque fournisseur.</p>' +
 
+    '<h3>Manuel d\'utilisation</h3>' +
+    '<p class="muet" style="margin:0 0 12px">La description ci-dessous couvre l\'essentiel. Pour le détail complet, écran par écran, consultez ou téléchargez le manuel d\'utilisation du module.</p>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">' +
+      '<a href="Manuel_Utilisation_Gestion_des_Contrats_Fournisseurs_D2MG.pdf" target="_blank" rel="noopener" class="btn primaire" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px">📖 Consulter le manuel (PDF)</a>' +
+      '<a href="Manuel_Utilisation_Gestion_des_Contrats_Fournisseurs_D2MG.pdf" download class="btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px">⬇ Télécharger le manuel (PDF)</a>' +
+      '<a href="Manuel_Utilisation_Gestion_des_Contrats_Fournisseurs_D2MG.docx" download class="btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px">⬇ Télécharger le manuel (Word)</a>' +
+    '</div>' +
+
     '<h3>2. Parcours conseillé</h3>' +
     '<ol style="padding-left:20px">' +
       '<li>Ouvrez le <b>Tableau de bord</b> : regardez le nombre de contrats en retard de préavis et le score fournisseur moyen.</li>' +
