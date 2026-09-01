@@ -18,6 +18,9 @@
 const SUPABASE_URL = 'https://tcirboephslicjmhokbh.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjaXJib2VwaHNsaWNqbWhva2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNjYxNjUsImV4cCI6MjEwMDg0MjE2NX0.e3f1B__NmDVL5G1Cze1p115ya2Rs-ErzzTUr25UCKEg';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 /* ============================================================
    SECTION 1 — Constantes métier (reprises telles quelles de la
@@ -1068,14 +1071,20 @@ const VueImporter = {
 function rendreExtractionTexte(etat){
   if (!etat.valeurs) {
     return '<div class="carte"><div class="tete"><h2>🔎 Extraction automatique depuis un document</h2></div><div class="corps">' +
-      '<p class="msgInfo">Ouvrez le contrat ou le bon de commande d\'origine (Word, PDF, e-mail…), copiez son texte, puis collez-le ci-dessous. Le module reconnaît automatiquement le fournisseur, les dates, le montant, la nature du contrat, etc. et pré-remplit le formulaire — vous vérifiez et complétez avant d\'enregistrer.</p>' +
-      '<p class="aide">Limite assumée : un document scanné en image (sans texte sélectionnable) ne peut pas être lu automatiquement. Passez alors par la saisie manuelle ou le gabarit CSV.</p>' +
+      '<p class="msgInfo">Déposez un scan ou une photo du contrat/bon de commande (PDF ou image), ou copiez-collez son texte si vous l’avez déjà à disposition (Word, e-mail…). Le module reconnaît automatiquement le fournisseur, les dates, le montant, la nature du contrat, etc. et pré-remplit le formulaire — vous vérifiez et complétez avant d’enregistrer.</p>' +
+
+      '<div class="champ"><label>📷 Scan ou photo du document (PDF ou image)</label>' +
+        '<input type="file" id="imp_fichier" accept="application/pdf,image/*" multiple onchange="lancerOcrImportContrat(this.files)">' +
+        '<p class="aide">Reconnaissance de texte exécutée directement dans votre navigateur (gratuite, aucun envoi du document à un service extérieur). Pour un PDF, les ' + OCR_MAX_PAGES_DEFAUT + ' premières pages sont analysées automatiquement — l’essentiel (parties, objet, montant, dates) s’y trouve presque toujours ; complétez le texte à la main si une information utile se trouve plus loin. Un document manuscrit, trop penché ou de mauvaise qualité sera mal reconnu : vérifiez toujours soigneusement les champs marqués 🔎 avant d’enregistrer.</p>' +
+        '<div id="ocrProgression" style="display:none" class="msgInfo"></div>' +
+      '</div>' +
+
+      '<p class="aide" style="text-align:center">— ou copiez-collez directement le texte —</p>' +
       '<div class="champ"><label>Texte du contrat / bon de commande</label>' +
         '<textarea id="imp_texte" rows="12" placeholder="Collez ici le texte du document…">' + ech(etat.brut||"") + '</textarea></div>' +
       '<div class="barreActions"><button class="btn primaire" onclick="analyserImportTexte()">🔎 Analyser le texte</button></div>' +
     '</div></div>';
   }
-
   const v = etat.valeurs, det = etat.detectes || {}, erreurs = etat.erreurs || [];
   const champErreur = (champ) => erreurs.find(e => e.champ === champ);
   const val = (champ, def) => v[champ] != null ? v[champ] : (def||"");
@@ -1130,6 +1139,112 @@ function rendreExtractionTexte(etat){
   '</div></form></div></div>';
 }
 
+/* ============================================================
+   SECTION 11c — Reconnaissance de texte (OCR) depuis un scan/photo
+   Exécutée entièrement dans le navigateur (Tesseract.js + pdf.js) :
+   aucun envoi du document à un service externe. Le texte reconnu
+   alimente ensuite exactement le même moteur d'extraction par
+   mots-clés que le collage manuel (extraireContratDepuisTexte) —
+   la vérification humaine des champs marqués reste inchangée.
+   ============================================================ */
+const OCR_MAX_PAGES_DEFAUT = 3;
+let __ocrEnCours = false;
+
+function libelleEtapeOcr(status){
+  const lib = {
+    "loading tesseract core":"Chargement du moteur de reconnaissance",
+    "initializing tesseract":"Initialisation",
+    "loading language traineddata":"Chargement du dictionnaire français",
+    "initializing api":"Préparation",
+    "recognizing text":"Lecture du texte"
+  };
+  return lib[status] || status;
+}
+
+async function pdfVersImagesCanvas(file, maxPages){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  const n = Math.min(pdf.numPages, maxPages);
+  const images = [];
+  for (let i=1; i<=n; i++){
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({scale:2.2});
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    await page.render({canvasContext:ctx, viewport}).promise;
+    images.push(canvas);
+  }
+  return {images, total:pdf.numPages};
+}
+
+async function lancerOcrImportContrat(files){
+  if (!files || !files.length) return;
+  if (__ocrEnCours) { toast("Une reconnaissance est déjà en cours, patientez.", "err"); return; }
+  if (!window.pdfjsLib || !window.Tesseract) {
+    toast("Les librairies de reconnaissance n'ont pas pu être chargées (vérifiez votre connexion internet).", "err");
+    return;
+  }
+  __ocrEnCours = true;
+  const zone = document.getElementById("ocrProgression");
+  const majEtat = (msg) => { if (zone) { zone.style.display = "block"; zone.textContent = msg; } };
+  majEtat("Préparation…");
+
+  try {
+    const worker = await Tesseract.createWorker("fra", 1, {
+      logger: (m) => {
+        if (m && m.status && typeof m.progress === "number") {
+          majEtat(libelleEtapeOcr(m.status) + " — " + Math.round(m.progress*100) + " %");
+        }
+      }
+    });
+
+    let texteTotal = "";
+    let pageGlobale = 0;
+    for (const file of Array.from(files)) {
+      const estPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      if (estPdf) {
+        majEtat("Lecture du PDF « " + file.name + " »…");
+        const {images, total} = await pdfVersImagesCanvas(file, OCR_MAX_PAGES_DEFAUT);
+        if (total > images.length) {
+          toast("Document de " + total + " pages : seules les " + images.length + " premières sont analysées automatiquement.", "info", 5000);
+        }
+        for (const canvas of images) {
+          pageGlobale++;
+          majEtat("Reconnaissance — page " + pageGlobale + "…");
+          const { data:{text} } = await worker.recognize(canvas);
+          texteTotal += (texteTotal ? "\n\n--- page suivante ---\n\n" : "") + text;
+        }
+      } else if (/^image\//.test(file.type)) {
+        pageGlobale++;
+        majEtat("Reconnaissance — « " + file.name + " »…");
+        const { data:{text} } = await worker.recognize(file);
+        texteTotal += (texteTotal ? "\n\n--- page suivante ---\n\n" : "") + text;
+      } else {
+        toast("Fichier ignoré (format non pris en charge) : " + file.name, "err");
+      }
+    }
+
+    await worker.terminate();
+
+    if (!texteTotal.trim()) {
+      if (zone) zone.style.display = "none";
+      toast("Aucun texte n'a pu être reconnu dans le(s) fichier(s) fourni(s). Essayez une meilleure qualité de scan ou saisissez le texte manuellement.", "err", 6000);
+      __ocrEnCours = false;
+      return;
+    }
+
+    App.aller("importer", {onglet:"texte", brut:texteTotal});
+    toast("Texte reconnu : relisez-le, corrigez une éventuelle erreur de lecture, puis cliquez sur « Analyser le texte ».", "ok", 6000);
+  } catch(e){
+    console.error(e);
+    if (zone) zone.style.display = "none";
+    toast("Échec de la reconnaissance automatique : " + (e && e.message ? e.message : e), "err", 6000);
+  } finally {
+    __ocrEnCours = false;
+  }
+}
+
 function analyserImportTexte(){
   const texte = (document.getElementById("imp_texte").value || "").trim();
   if (!texte) { toast("Collez d'abord le texte du contrat ou du bon de commande.", "err"); return; }
@@ -1172,12 +1287,34 @@ const MOIS_FR = {
 };
 
 function extraireMontant(texte){
-  let m = texte.match(/([0-9][0-9\s.,]{3,})\s*(?:F\s?CFA|FCFA|XOF)\b/i);
-  if (!m) m = texte.match(/montant[^0-9]{0,20}([0-9][0-9\s.,]{3,})/i);
-  if (!m) return null;
-  const brut = m[1].replace(/[^\d]/g,"");
-  const n = parseInt(brut,10);
-  return (isNaN(n) || n<=0) ? null : n;
+  // Les contrats ANADER expriment très souvent le montant en toutes lettres suivi
+  // du chiffre entre parenthèses ("treize millions ... (13 675 303) francs CFA TTC") :
+  // on collecte tous les candidats plausibles (ce format + le format chiffré direct),
+  // puis on préfère ceux explicitement qualifiés TTC / "toutes taxes" (le montant
+  // global du contrat), sinon le plus élevé (généralement le total, devant un sous-
+  // montant HT ou une composante mensuelle/partielle).
+  const candidats = [];
+  const collecter = (re) => { let m; while ((m = re.exec(texte))) candidats.push({val:m[1], deb:m.index, fin:m.index+m[0].length}); };
+  collecter(/\(\s*([0-9][0-9\s.,]{2,})\s*\)\s*(?:francs?\s*CFA|F\s?CFA|FCFA|XOF)/gi);
+  collecter(/([0-9][0-9\s.,]{3,})\s*(?:F\s?CFA|FCFA|XOF)\b/gi);
+
+  if (!candidats.length) {
+    const mm = texte.match(/montant[^0-9]{0,20}([0-9][0-9\s.,]{3,})/i);
+    if (!mm) return null;
+    const n = parseInt(mm[1].replace(/[^\d]/g,""),10);
+    return (isNaN(n) || n<=0) ? null : n;
+  }
+
+  const nombres = candidats.map(c => {
+    const n = parseInt(String(c.val).replace(/[^\d]/g,""),10);
+    const fenetre = texte.slice(Math.max(0,c.deb-30), c.fin+30).toLowerCase();
+    return {n, ttc:/\bttc\b|toutes taxes/.test(fenetre)};
+  }).filter(c => !isNaN(c.n) && c.n>0);
+  if (!nombres.length) return null;
+
+  const ttc = nombres.filter(c => c.ttc);
+  const pool = ttc.length ? ttc : nombres;
+  return pool.reduce((max,c) => c.n>max ? c.n : max, 0) || null;
 }
 function extraireDates(texte){
   const trouvees = [];
@@ -1194,6 +1331,22 @@ function extraireDates(texte){
   }
   trouvees.sort((a,b) => a.index - b.index);
   return trouvees;
+}
+function extrairePeriodeExplicite(texte){
+  // Cible la formulation explicite de durée ("...du 14 février 2024 au 14 février
+  // 2025", "du 01/01/2025 au 31/12/2025") : plus fiable que l'heuristique générale
+  // (première/dernière date rencontrée dans tout le document), qui peut se faire
+  // piéger par une date de loi, d'immatriculation ou de tampon de signature.
+  const reMoisFr = "(\\d{1,2}(?:er)?\\s+(?:janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre)\\s+\\d{4})";
+  const reNum = "(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{4})";
+  const re = new RegExp("du\\s+(?:" + reMoisFr + "|" + reNum + ")\\s+au\\s+(?:" + reMoisFr + "|" + reNum + ")", "i");
+  const m = texte.match(re);
+  if (!m) return null;
+  const brut1 = m[1] || m[2], brut2 = m[3] || m[4];
+  if (!brut1 || !brut2) return null;
+  const d1 = extraireDates(brut1), d2 = extraireDates(brut2);
+  if (!d1.length || !d2.length) return null;
+  return {debut:d1[0].iso, fin:d2[0].iso};
 }
 function extraireFournisseur(texte){
   const t = normaliserTexte(texte);
@@ -1237,14 +1390,20 @@ function extraireContratDepuisTexte(texte){
   const montant = extraireMontant(texte);
   if (montant) { valeurs.montant = montant; detectes.montant = true; }
 
-  const dates = extraireDates(texte);
-  if (dates.length >= 2) {
-    const iso1 = dates[0].iso, isoN = dates[dates.length-1].iso;
-    const [deb, fin] = iso1 <= isoN ? [iso1, isoN] : [isoN, iso1];
-    valeurs.dateDebut = deb; valeurs.dateFin = fin;
+  const periode = extrairePeriodeExplicite(texte);
+  if (periode) {
+    valeurs.dateDebut = periode.debut; valeurs.dateFin = periode.fin;
     detectes.dateDebut = true; detectes.dateFin = true;
-  } else if (dates.length === 1) {
-    valeurs.dateFin = dates[0].iso; detectes.dateFin = true;
+  } else {
+    const dates = extraireDates(texte);
+    if (dates.length >= 2) {
+      const iso1 = dates[0].iso, isoN = dates[dates.length-1].iso;
+      const [deb, fin] = iso1 <= isoN ? [iso1, isoN] : [isoN, iso1];
+      valeurs.dateDebut = deb; valeurs.dateFin = fin;
+      detectes.dateDebut = true; detectes.dateFin = true;
+    } else if (dates.length === 1) {
+      valeurs.dateFin = dates[0].iso; detectes.dateFin = true;
+    }
   }
 
   const regime = extraireRegime(texte);
