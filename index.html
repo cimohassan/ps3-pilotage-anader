@@ -155,11 +155,28 @@
   .toast{background:#1f2937;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;box-shadow:0 6px 16px rgba(0,0,0,.2)}
   .toast.ok{background:var(--ok)} .toast.error{background:var(--bad)}
   .muted{color:var(--muted)}
+
+  /* ---- Bande latérale rétractable (bureau) / tiroir (tablette, smartphone) ---- */
+  .btnMenu{display:none;position:fixed;top:14px;left:14px;z-index:220;width:36px;height:36px;border:none;border-radius:9px;background:var(--primary);color:#fff;font-size:17px;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25);align-items:center;justify-content:center}
+  body:has(#salon:not(.hidden)) .btnMenu{display:flex}
+  .fondMenu{display:none;position:fixed;inset:0;background:rgba(15,23,32,.45);z-index:210}
+  .fondMenu.visible{display:block}
+  .sidebar .brand{margin-top:44px}
+  .sidebar{transition:width .22s ease,min-width .22s ease,padding .22s ease,transform .22s ease}
+  .sidebar.menuReplie{width:0!important;min-width:0!important;flex:0 0 0!important;padding:0!important;overflow:hidden;border:none}
+  @media(max-width:900px){
+    .sidebar{position:fixed!important;top:0;left:0;height:100vh!important;z-index:215;width:232px!important;transform:translateX(-101%)}
+    .sidebar.menuOuvert{transform:translateX(0);box-shadow:0 0 26px rgba(0,0,0,.3)}
+    .sidebar.menuReplie{width:232px!important;min-width:232px!important;padding:26px 18px!important;overflow:visible}
+    .main-content{padding-top:60px}
+  }
 </style>
 </head>
 <body>
 
 <div id="toasts" class="toasts"></div>
+<button type="button" class="btnMenu noPrint" id="btnMenu" onclick="toggleMenuLateral()" title="Afficher/masquer le menu" aria-label="Afficher/masquer le menu">☰</button>
+<div class="fondMenu noPrint" id="fondMenu" onclick="fermerMenuMobile()"></div>
 
 <!-- ====================== CHARGEMENT INITIAL ====================== -->
 <section id="chargementInitial" class="screen">
@@ -922,6 +939,47 @@ function retirerUtilisateur(idActeur){
   }
   $('#chargementInitial').classList.add('hidden');
 })();
+})();
+</script>
+<script>
+(function(){
+  function cote(){ return document.querySelector('.sidebar'); }
+  function fond(){ return document.getElementById('fondMenu'); }
+  function estMobile(){ return window.matchMedia('(max-width:900px)').matches; }
+  window.appliquerEtatMenu = function(){
+    var c = cote(); if (!c) return;
+    var replie = false;
+    try { replie = localStorage.getItem('d2mgMenuReplie') === '1'; } catch(e){}
+    c.classList.toggle('menuReplie', replie);
+    c.classList.remove('menuOuvert');
+    var f = fond(); if (f) f.classList.remove('visible');
+  };
+  window.toggleMenuLateral = function(){
+    var c = cote(); if (!c) return;
+    if (estMobile()){
+      var ouvert = c.classList.toggle('menuOuvert');
+      var f = fond(); if (f) f.classList.toggle('visible', ouvert);
+    } else {
+      var replie = c.classList.toggle('menuReplie');
+      try { localStorage.setItem('d2mgMenuReplie', replie ? '1' : '0'); } catch(e){}
+    }
+  };
+  window.fermerMenuMobile = function(){
+    var c = cote(); if (!c) return;
+    c.classList.remove('menuOuvert');
+    var f = fond(); if (f) f.classList.remove('visible');
+  };
+  document.addEventListener('DOMContentLoaded', function(){
+    appliquerEtatMenu();
+    var c = cote();
+    if (c) c.addEventListener('click', function(e){
+      if (estMobile() && e.target.closest('button,a')) fermerMenuMobile();
+    });
+    window.addEventListener('resize', function(){
+      var f = fond();
+      if (!estMobile() && f) f.classList.remove('visible');
+    });
+  });
 })();
 </script>
 </body>
