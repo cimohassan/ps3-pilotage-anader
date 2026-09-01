@@ -1978,7 +1978,9 @@ const VueFournisseurs = {
     }).sort((a,b) => (a.score??999) - (b.score??999));
 
     return '' +
-    '<div class="carte"><div class="tete"><h2>⚑ Grille fournisseur</h2></div><div class="corps">' +
+    '<div class="carte"><div class="tete"><h2>⚑ Grille fournisseur</h2>' +
+      '<button class="btn" onclick="exporterGrilleFournisseurExcel()">⭳ Exporter (Excel)</button>' +
+    '</div><div class="corps">' +
     '<p class="muet">Cinq critères pondérés — méthode de calcul rappelée pour chaque critère, jamais une appréciation vague. Escalade automatique si le score reste sous ' +
       DB.params.seuils.scoreAlerteFournisseur + '/100 pendant ' + DB.params.seuils.periodesConsecutivesEscalade + ' périodes de suite.</p>' +
     '<table><thead><tr><th>Fournisseur</th><th>Secteur</th><th class="num">Contrats actifs</th><th class="num">Dernier score</th><th class="num">Tendance</th><th>Statut</th><th></th></tr></thead><tbody>' +
@@ -2001,6 +2003,33 @@ const VueFournisseurs = {
   }
 };
 
+function exporterGrilleFournisseurExcel(){
+  const fournisseursLignes = (DB.params.fournisseurs || []).map(f => {
+    const score = dernierScoreFournisseur(f.id);
+    const nbActifs = DB.contrats.filter(o => o.fournisseurId===f.id && estActif(o)).length;
+    return {
+      "Fournisseur": f.nom, "Secteur": f.secteur || "", "Actif": (f.actif===false ? "Non" : "Oui"),
+      "Contrats actifs": nbActifs, "Dernier score": score==null ? "" : score,
+      "Statut": fournisseurEnEscalade(f.id) ? "Escalade — revue requise" :
+        (score!=null && score < DB.params.seuils.scoreAlerteFournisseur ? "Sous le seuil" : (score==null ? "Non évalué" : "Normal"))
+    };
+  });
+  const evalLignes = [];
+  (DB.params.fournisseurs || []).forEach(f => {
+    evaluationsFournisseur(f.id).forEach(e => {
+      const ligne = {"Fournisseur": f.nom, "Période": e.periode, "Date": e.date};
+      Object.keys(CRITERES_EVALUATION).forEach(k => { ligne[CRITERES_EVALUATION[k].libelle] = e.scores[k]; });
+      ligne["Total"] = e.total;
+      ligne["Commentaire"] = e.commentaire || "";
+      evalLignes.push(ligne);
+    });
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fournisseursLignes.length ? fournisseursLignes : [{Info:"Aucun fournisseur enregistré"}]), "Fournisseurs");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(evalLignes.length ? evalLignes : [{Info:"Aucune évaluation enregistrée"}]), "Évaluations");
+  XLSX.writeFile(wb, "Contrats_GrilleFournisseur_" + auj() + ".xlsx");
+  toast("Grille fournisseur exportée (Excel).", "ok");
+}
 function ouvrirModaleFournisseur(fid){
   const f = fournisseur(fid);
   const evals = evaluationsFournisseur(fid);

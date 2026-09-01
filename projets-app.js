@@ -686,7 +686,10 @@ function vueRegistre(nom, extraHtml, lignesForcees) {
   $('#zone').innerHTML = `
     <div class="topbar">
       <div><h1>${ech(cfg.titre)}</h1><p>${ech(cfg.intro)}</p></div>
-      ${modif ? `<button class="btn primaire" id="btnAdd">+ Ajouter</button>` : ''}
+      <div style="display:flex;gap:8px">
+        ${lignes.length ? `<button class="btn" id="btnCsvRegistre">Exporter (CSV)</button>` : ''}
+        ${modif ? `<button class="btn primaire" id="btnAdd">+ Ajouter</button>` : ''}
+      </div>
     </div>
     ${extraHtml || ''}
     <div class="tw">
@@ -694,6 +697,8 @@ function vueRegistre(nom, extraHtml, lignesForcees) {
       ${lignes.length ? '' : '<div class="vide">Aucun enregistrement pour le moment.</div>'}
     </div>`;
 
+  const csvBtn = $('#btnCsvRegistre');
+  if (csvBtn) csvBtn.addEventListener('click', () => exporterRegistreCsv(nom));
   const add = $('#btnAdd');
   if (add) add.addEventListener('click', () => modaleRegistre(nom, null));
   $$('[data-edit]').forEach(b => b.addEventListener('click', () => modaleRegistre(nom, lignes.find(x => String(x.id) === b.dataset.edit))));
@@ -1237,6 +1242,39 @@ function vuePlanning() {
 /* =========================================================================
  *  BUDGET (registre + synthèse)
  * ========================================================================= */
+function exporterBudgetExcel() {
+  const dev = S.projet.devise || '';
+  const lignes = S.budget.map(l => ({
+    'Poste': l.code_poste || '',
+    'Désignation': l.libelle || '',
+    'Type': l.type_ligne || 'Base',
+    'Prévu': Number(l.montant_prevu || 0),
+    'Actuel': l.montant_actuel != null ? Number(l.montant_actuel) : Number(l.montant_prevu || 0),
+    'Engagé': Number(l.montant_engage || 0),
+    'Payé': Number(l.montant_paye || 0),
+    'Écart (Actuel - Prévu)': (l.montant_actuel != null ? Number(l.montant_actuel) : Number(l.montant_prevu || 0)) - Number(l.montant_prevu || 0),
+    'Statut': l.statut || '',
+    'Approuvé': l.approbation ? 'Oui' : 'Non',
+    'Devise': dev
+  }));
+  const prevu = S.budget.reduce((s, l) => s + Number(l.montant_prevu || 0), 0);
+  const actuel = S.budget.reduce((s, l) => s + Number(l.montant_actuel != null ? l.montant_actuel : l.montant_prevu || 0), 0);
+  const engage = S.budget.reduce((s, l) => s + Number(l.montant_engage || 0), 0);
+  const paye = S.budget.reduce((s, l) => s + Number(l.montant_paye || 0), 0);
+  const ref = Number(S.projet.budget_approuve || S.projet.budget_prevu || 0);
+  const synthese = [
+    { 'Indicateur': 'Budget de référence approuvé', 'Valeur': ref, 'Devise': dev },
+    { 'Indicateur': 'Total des postes (prévu)', 'Valeur': prevu, 'Devise': dev },
+    { 'Indicateur': 'Coût actuel projeté', 'Valeur': actuel, 'Devise': dev },
+    { 'Indicateur': 'Engagé', 'Valeur': engage, 'Devise': dev },
+    { 'Indicateur': 'Payé', 'Valeur': paye, 'Devise': dev }
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(synthese), 'Synthèse');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignes.length ? lignes : [{ Info: 'Aucun poste enregistré' }]), 'Postes budgétaires');
+  XLSX.writeFile(wb, `GestionProjet_Budget_${(S.projet.id_projet || 'projet')}_${auj()}.xlsx`);
+  toast('Budget exporté (Excel).', 'ok');
+}
 function vueBudget() {
   const prevu = S.budget.reduce((s, l) => s + Number(l.montant_prevu || 0), 0);
   const actuel = S.budget.reduce((s, l) => s + Number(l.montant_actuel != null ? l.montant_actuel : l.montant_prevu || 0), 0);
@@ -1253,8 +1291,11 @@ function vueBudget() {
     <div class="kpi ${clDer}"><div class="lib">Coût actuel projeté</div><div class="val" style="font-size:19px">${fnum(actuel)}</div>
       <div class="sub">${derivePct === null ? 'référence non définie' : (derivePct > 0 ? '+' : '') + derivePct.toFixed(1) + '% vs référence'}</div></div>
     <div class="kpi"><div class="lib">Engagé / Payé</div><div class="val" style="font-size:19px">${fnum(engage)}</div><div class="sub">payé : ${fnum(paye)}</div></div>
-  </div>`;
+  </div>
+  <div class="barre" style="margin-top:10px"><button class="btn primaire" id="btnBudgetExcel">Exporter (Excel)</button></div>`;
   vueRegistre('budget', synth);
+  const b = $('#btnBudgetExcel');
+  if (b) b.addEventListener('click', exporterBudgetExcel);
 }
 
 /* =========================================================================
@@ -1751,6 +1792,19 @@ function telechargerFichier(nom, contenu, type) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
+function csvLigne(vals) {
+  return vals.map(v => { v = v === null || v === undefined ? '' : String(v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';');
+}
+function telechargerCsv(nom, contenu) { telechargerFichier(nom, '\ufeff' + contenu, 'text/csv'); }
+function exporterRegistreCsv(nom) {
+  const cfg = REG[nom];
+  const lignes = donneesRegistre(nom);
+  const l = [csvLigne(cfg.cols.map(c => c.l))];
+  lignes.forEach(r => l.push(csvLigne(cfg.cols.map(c => r[c.k]))));
+  telechargerCsv('GestionProjet_' + nom + '_' + auj() + '.csv', l.join('\r\n'));
+  toast(lignes.length + ' ligne(s) exportée(s).', 'ok');
+}
+
 async function telechargerSauvegardeJson() {
   toast('Extraction des données en cours...', 'ok');
   const { resultat, erreurs } = await collecterSauvegarde();
