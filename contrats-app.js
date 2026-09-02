@@ -300,7 +300,7 @@ async function chargerReferentiels(){
   ]);
   DB.params.agents = (ag.data||[]).map(mapActeurVersAgent);
   DB.params.services = (sv.data||[]).map(s => ({id:s.id, libelle:s.libelle, ordre:s.ordre, chefId:s.chef_id}));
-  DB.params.fournisseurs = (fo.data||[]).map(f => ({id:f.id, nom:f.nom, secteur:f.secteur}));
+  DB.params.fournisseurs = (fo.data||[]).map(f => ({id:f.id, nom:f.nom, secteur:f.secteur||"", ville:f.ville||"", email:f.email||"", directeur:f.directeur||"", personneContact:f.personne_contact||"", telephone:f.telephone||""}));
   DB.params.joursFeries = (jf.data||[]).map(j => j.date_ferie);
   const p = pa.data;
   DB.params.seuils = Object.assign(seuilsParDefaut(), (p && p.seuils) || {});
@@ -330,7 +330,7 @@ async function sauver(){
     ];
     if (DB.contrats.length) ops.push(sb.from('contrats').upsert(DB.contrats.map(mapContratVersLigne), {onConflict:'id'}));
     if (DB.params.fournisseurs.length) ops.push(sb.from('contrats_fournisseurs').upsert(
-      DB.params.fournisseurs.map(f => ({id:f.id, nom:f.nom, secteur:f.secteur, updated_at:new Date().toISOString()})), {onConflict:'id'}));
+      DB.params.fournisseurs.map(f => ({id:f.id, nom:f.nom, secteur:f.secteur||null, ville:f.ville||null, email:f.email||null, directeur:f.directeur||null, personne_contact:f.personneContact||null, telephone:f.telephone||null, updated_at:new Date().toISOString()})), {onConflict:'id'}));
     if (DB.params.services.length) ops.push(sb.from('contrats_services').upsert(
       DB.params.services.map(s => ({id:s.id, libelle:s.libelle, ordre:s.ordre||0, chef_id:s.chefId||null})), {onConflict:'id'}));
     if (DB.evaluations && DB.evaluations.length) ops.push(sb.from('contrats_evaluations').upsert(
@@ -457,11 +457,26 @@ function nouvelIdFournisseur(){
   }, 0);
   return "F" + String(max + 1 + (__compteurIdFournisseur++)).padStart(2,"0");
 }
+let __compteurIdService = 0;
+function nouvelIdService(){
+  const max = DB.params.services.reduce((m,s) => {
+    const n = parseInt(String(s.id).replace(/^S/i,""),10);
+    return isNaN(n) ? m : Math.max(m,n);
+  }, 0);
+  return "S" + String(max + 1 + (__compteurIdService++)).padStart(2,"0");
+}
+function construireService(libelle, chefId){
+  return {id: nouvelIdService(), libelle: (libelle||"").trim(), ordre: DB.params.services.length, chefId: chefId || null};
+}
+function serviceParLibelleExact(libelle){
+  const n = normaliserTexte(libelle);
+  if (!n) return null;
+  return DB.params.services.find(s => normaliserTexte(s.libelle) === n) || null;
+}
 function validerFournisseur(nom, secteur){
   const erreurs = [];
-  const n = (nom||"").trim(), s = (secteur||"").trim();
-  if (!n) erreurs.push({champ:"nom", message:"Le nom du fournisseur est obligatoire."});
-  if (!s) erreurs.push({champ:"secteur", message:"Le secteur d'activité est obligatoire."});
+  const n = (nom||"").trim();
+  if (!n) erreurs.push({champ:"nom", message:"La raison sociale du fournisseur est obligatoire."});
   if (n) {
     const doublon = fournisseurParNomExact(n);
     if (doublon) erreurs.push({champ:"nom", message:"Un fournisseur « " + doublon.nom + " » existe déjà dans le référentiel (" + doublon.id + ")."});
@@ -473,8 +488,14 @@ function fournisseurParNomExact(nom){
   if (!n) return null;
   return DB.params.fournisseurs.find(f => normaliserTexte(f.nom) === n) || null;
 }
-function construireFournisseur(nom, secteur){
-  return {id: nouvelIdFournisseur(), nom: (nom||"").trim(), secteur: (secteur||"").trim()};
+function construireFournisseur(nom, secteur, extra){
+  extra = extra || {};
+  return {
+    id: nouvelIdFournisseur(), nom: (nom||"").trim(), secteur: (secteur||"").trim(),
+    ville: (extra.ville||"").trim(), email: (extra.email||"").trim(),
+    directeur: (extra.directeur||"").trim(), personneContact: (extra.personneContact||"").trim(),
+    telephone: (extra.telephone||"").trim()
+  };
 }
 
 function avecLexique(texte){
@@ -904,7 +925,7 @@ const VueEnregistrer = {
     '<fieldset><legend>Identification</legend>' +
     '<div class="grille g2">' +
       champTexte("objet","Objet du contrat", val("objet"), champErreur("objet"), true) +
-      champSelect("fournisseurId","Fournisseur", DB.params.fournisseurs.map(f=>[f.id,f.nom+" — "+f.secteur]), val("fournisseurId"), champErreur("fournisseurId"), true) +
+      champSelect("fournisseurId","Fournisseur", DB.params.fournisseurs.map(f=>[f.id, f.nom + (f.secteur ? " — " + f.secteur : "")]), val("fournisseurId"), champErreur("fournisseurId"), true) +
     '</div>' +
     '<div class="grille g3">' +
       champSelect("natureId","Nature du contrat", Object.values(NATURES_CONTRAT).map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), true, 'apercuEcheanceFormulaire()') +
@@ -1104,7 +1125,7 @@ function rendreExtractionTexte(etat){
 
   '<fieldset><legend>Identification</legend><div class="grille g2">' +
     champTexte("objet", marque("objet","Objet du contrat"), val("objet"), champErreur("objet"), true) +
-    champSelect("fournisseurId", marque("fournisseurId","Fournisseur"), DB.params.fournisseurs.map(f=>[f.id,f.nom+" — "+f.secteur]), val("fournisseurId"), champErreur("fournisseurId"), true) +
+    champSelect("fournisseurId", marque("fournisseurId","Fournisseur"), DB.params.fournisseurs.map(f=>[f.id, f.nom + (f.secteur ? " — " + f.secteur : "")]), val("fournisseurId"), champErreur("fournisseurId"), true) +
   '</div><div class="grille g3">' +
     champSelect("natureId", marque("natureId","Nature du contrat"), Object.values(NATURES_CONTRAT).map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), true) +
     champSelect("serviceId","Service porteur", DB.params.services.map(s=>[s.id,s.libelle]), val("serviceId"), champErreur("serviceId"), true) +
@@ -2640,18 +2661,27 @@ function paramReferentiels(etat){
     DB.params.services.map(s=>'<option value="'+ech(s.id)+'"'+(String(s.id)===String(sel||"")?" selected":"")+'>'+ech(s.libelle)+'</option>').join("");
 
   return '<div class="grille g2">' +
-    '<div class="carte"><div class="tete"><h3>Services</h3></div><div class="corps"><table><thead><tr><th>Service</th><th>Chef de service (escalade niveau 1)</th></tr></thead><tbody>' +
-      DB.params.services.map(s => '<tr><td>' + ech(s.libelle) + '</td><td>' +
-        (complet ? '<select onchange="changerChefService(\''+s.id+'\',this.value)">' + optionsAgents(s.chefId) + '</select>'
-                 : ech(s.chefId ? libelleAgent(s.chefId) : "—")) +
-        '</td></tr>').join("") +
-      '</tbody></table></div></div>' +
+    '<div class="carte"><div class="tete"><h3>Services</h3>' +
+      (complet ? '<button class="btn mini" onclick="ouvrirModaleAjoutService()">+ Ajouter un service</button>' : '') +
+      '</div><div class="corps">' +
+      (DB.params.services.length ?
+        '<table><thead><tr><th>Service</th><th>Chef de service (escalade niveau 1)</th>' + (complet ? '<th></th>' : '') + '</tr></thead><tbody>' +
+        DB.params.services.map(s => '<tr><td>' + ech(s.libelle) + '</td><td>' +
+          (complet ? '<select onchange="changerChefService(\''+s.id+'\',this.value)">' + optionsAgents(s.chefId) + '</select>'
+                   : ech(s.chefId ? libelleAgent(s.chefId) : "—")) +
+          '</td>' + (complet ? '<td><button class="btn mini" title="Supprimer ce service" onclick="confirmerSuppressionService(\''+s.id+'\')">🗑</button></td>' : '') +
+          '</tr>').join("") +
+        '</tbody></table>'
+        : '<p class="muet">Aucun service enregistré' + (complet ? ' — cliquez sur « + Ajouter un service » ci-dessus pour créer le premier.' : '.') + '</p>') +
+      '</div></div>' +
     '<div class="carte"><div class="tete"><h3>Acteurs</h3></div><div class="corps"><table><thead><tr><th>Nom</th><th>Fonction</th><th>Service (portée « voir mon service »)</th></tr></thead><tbody>' +
       agentsTries.map(a => '<tr><td>' + ech(a.nom) + '</td><td>' + ech(a.fonction || a.role || "—") + '</td><td>' +
         (complet ? '<select onchange="changerServiceActeur(\''+a.id+'\',this.value)">' + optionsServices(a.serviceId) + '</select>'
                  : ech(libelleService(a.serviceId))) +
         '</td></tr>').join("") +
-      '</tbody></table></div></div>' +
+      '</tbody></table>' +
+      (complet ? '<p class="aide">La liste des acteurs et leurs droits d\'usage sont gérés depuis l\'accueil D2MG Pilotage (fiche acteur). Cet écran ne gère que leur rattachement à un service de ce module.</p>' : '') +
+      '</div></div>' +
     '</div>' +
     (complet ? '<div class="carte"><div class="tete"><h3>Destinataires institutionnels</h3></div><div class="corps">' +
       '<p class="muet">Utilisés pour l\'escalade des retards de préavis (niveau 2) et les demandes d\'avis juridique.</p>' +
@@ -2667,8 +2697,10 @@ function paramReferentiels(etat){
       '<button class="btn" onclick="telechargerGabaritImportFournisseursCSV()">⭳ Télécharger le gabarit CSV</button>' +
       '<label class="btn">⭱ Importer une liste (CSV)<input type="file" accept=".csv" style="display:none" onchange="chargerFichierImportFournisseursCSV(this.files[0])"></label>' +
     '</div>' : '<p class="muet">Réservé aux profils ayant le droit d\'enregistrer un contrat ou de paramétrer le module.</p>') +
-    '<div class="tableauScroll"><table><thead><tr><th>Nom</th><th>Secteur</th></tr></thead><tbody>' +
-      DB.params.fournisseurs.map(f=>'<tr><td>'+ech(f.nom)+'</td><td>'+ech(f.secteur)+'</td></tr>').join("") + '</tbody></table></div>' +
+    '<div class="tableauScroll"><table><thead><tr><th>Nom</th><th>Secteur</th><th>Ville</th><th>Contact</th><th>Téléphone</th><th>E-mail</th>' + (gere ? '<th></th>' : '') + '</tr></thead><tbody>' +
+      DB.params.fournisseurs.map(f=>'<tr><td>'+ech(f.nom)+'</td><td>'+ech(f.secteur||"—")+'</td><td>'+ech(f.ville||"—")+'</td><td>'+ech(f.personneContact||f.directeur||"—")+'</td><td>'+ech(f.telephone||"—")+'</td><td>'+ech(f.email||"—")+'</td>' +
+        (gere ? '<td><button class="btn mini" title="Supprimer ce fournisseur" onclick="confirmerSuppressionFournisseur(\''+f.id+'\')">🗑</button></td>' : '') +
+        '</tr>').join("") + '</tbody></table></div>' +
     (lignesImport ? rendreApercuImportFournisseursCSV(lignesImport) : '') +
     '</div></div>';
 }
@@ -2699,14 +2731,25 @@ function enregistrerDestinataires(){
 /* ---- Ajout unitaire d'un fournisseur ---- */
 function ouvrirModaleAjoutFournisseur(){
   if (!peutGererFournisseurs()) { toast("Vous n'avez pas les droits pour ajouter un fournisseur.", "err"); return; }
-  const secteurs = [...new Set(DB.params.fournisseurs.map(f=>f.secteur))].sort((a,b)=>a.localeCompare(b,"fr"));
+  const secteurs = [...new Set(DB.params.fournisseurs.map(f=>f.secteur).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"fr"));
   const corps =
-    '<div class="champ"><label>Nom du fournisseur <span class="oblig">*</span></label>' +
+    '<div class="champ"><label>Raison sociale <span class="oblig">*</span></label>' +
     '<input type="text" id="mFrn_nom" placeholder="Raison sociale exacte"></div>' +
-    '<div class="champ"><label>Secteur d\'activité <span class="oblig">*</span></label>' +
-    '<input type="text" id="mFrn_secteur" list="dlSecteursFournisseurs" placeholder="Ex. Maintenance technique">' +
-    '<datalist id="dlSecteursFournisseurs">' + secteurs.map(s=>'<option value="'+ech(s)+'">').join("") + '</datalist></div>' +
-    '<p class="aide">Le référentiel bloque les doublons : un nom déjà présent (à l\'accent et à la casse près) ne peut pas être ajouté deux fois.</p>';
+    '<div class="grille g2">' +
+      '<div class="champ"><label>Ville</label><input type="text" id="mFrn_ville" placeholder="Ex. Abidjan"></div>' +
+      '<div class="champ"><label>Élément de la rubrique / Secteur</label>' +
+      '<input type="text" id="mFrn_secteur" list="dlSecteursFournisseurs" placeholder="Ex. Maintenance technique">' +
+      '<datalist id="dlSecteursFournisseurs">' + secteurs.map(s=>'<option value="'+ech(s)+'">').join("") + '</datalist></div>' +
+    '</div>' +
+    '<div class="grille g2">' +
+      '<div class="champ"><label>E-mail de la structure</label><input type="email" id="mFrn_email" placeholder="contact@fournisseur.ci"></div>' +
+      '<div class="champ"><label>Directeur(trice)</label><input type="text" id="mFrn_directeur" placeholder="Nom du directeur ou de la directrice"></div>' +
+    '</div>' +
+    '<div class="grille g2">' +
+      '<div class="champ"><label>Personne contact</label><input type="text" id="mFrn_contact" placeholder="Nom du contact opérationnel"></div>' +
+      '<div class="champ"><label>Téléphone du contact</label><input type="text" id="mFrn_telephone" placeholder="Ex. 07 00 00 00 00"></div>' +
+    '</div>' +
+    '<p class="aide">Seule la raison sociale est obligatoire. Le référentiel bloque les doublons : un nom déjà présent (à l\'accent et à la casse près) ne peut pas être ajouté deux fois.</p>';
   const pied = '<button class="btn" onclick="fermerModale()">Annuler</button>' +
     '<button class="btn primaire" onclick="soumettreAjoutFournisseur()">Enregistrer le fournisseur</button>';
   ouvrirModale("Ajouter un fournisseur", corps, pied);
@@ -2717,7 +2760,14 @@ function soumettreAjoutFournisseur(){
   const secteur = (document.getElementById("mFrn_secteur").value||"").trim();
   const erreurs = validerFournisseur(nom, secteur);
   if (erreurs.length) { toast(erreurs.map(e=>e.message).join(" "), "err", 6000); return; }
-  const f = construireFournisseur(nom, secteur);
+  const extra = {
+    ville: (document.getElementById("mFrn_ville").value||"").trim(),
+    email: (document.getElementById("mFrn_email").value||"").trim(),
+    directeur: (document.getElementById("mFrn_directeur").value||"").trim(),
+    personneContact: (document.getElementById("mFrn_contact").value||"").trim(),
+    telephone: (document.getElementById("mFrn_telephone").value||"").trim()
+  };
+  const f = construireFournisseur(nom, secteur, extra);
   DB.params.fournisseurs.push(f);
   sauver();
   fermerModale();
@@ -2725,25 +2775,104 @@ function soumettreAjoutFournisseur(){
   App.aller("parametrage", {onglet:"referentiels", lignesImportFournisseurs:null});
 }
 
+/* ---- Ajout d'un service ---- */
+function ouvrirModaleAjoutService(){
+  if (!aDroit("parametrer")) { toast("Vous n'avez pas les droits pour ajouter un service.", "err"); return; }
+  const corps =
+    '<div class="champ"><label>Libellé du service <span class="oblig">*</span></label>' +
+    '<input type="text" id="mSvc_libelle" placeholder="Ex. Division Marchés"></div>' +
+    '<div class="champ"><label>Chef de service (escalade niveau 1)</label>' +
+    '<select id="mSvc_chef"><option value="">— Aucun —</option>' +
+    DB.params.agents.slice().sort((a,b)=>a.nom.localeCompare(b.nom,"fr")).map(a=>'<option value="'+ech(a.id)+'">'+ech(a.nom)+'</option>').join("") +
+    '</select></div>' +
+    '<p class="aide">Une fois le service créé, il apparaît dans la liste déroulante « Service » de chaque acteur, dans la carte Acteurs ci-dessus.</p>';
+  const pied = '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn primaire" onclick="soumettreAjoutService()">Enregistrer le service</button>';
+  ouvrirModale("Ajouter un service", corps, pied);
+}
+function soumettreAjoutService(){
+  if (!aDroit("parametrer")) { toast("Vous n'avez pas les droits pour ajouter un service.", "err"); return; }
+  const libelle = (document.getElementById("mSvc_libelle").value||"").trim();
+  const chefId = document.getElementById("mSvc_chef").value || null;
+  if (!libelle) { toast("Le libellé du service est obligatoire.", "err"); return; }
+  const doublon = serviceParLibelleExact(libelle);
+  if (doublon) { toast("Un service « " + doublon.libelle + " » existe déjà.", "err", 5000); return; }
+  const s = construireService(libelle, chefId);
+  DB.params.services.push(s);
+  sauver();
+  fermerModale();
+  toast("Service « " + s.libelle + " » ajouté.", "ok");
+  App.aller("parametrage", {onglet:"referentiels"});
+}
+
+/* ---- Suppression d'un service ou d'un fournisseur du référentiel ---- */
+function confirmerSuppressionService(id){
+  if (!aDroit("parametrer")) { toast("Vous n'avez pas les droits pour supprimer un service.", "err"); return; }
+  const s = service(id); if (!s) return;
+  const acteursLies = DB.params.agents.filter(a => a.serviceId === id).length;
+  const contratsLies = DB.contrats.filter(o => o.serviceId === id).length;
+  if (acteursLies || contratsLies) {
+    toast("Impossible de supprimer « " + s.libelle + " » : " + acteursLies + " acteur(s) et " + contratsLies + " contrat(s) y sont encore rattachés.", "err", 7000);
+    return;
+  }
+  const corps = '<p>Supprimer définitivement le service <b>' + ech(s.libelle) + '</b> ? Cette action est irréversible.</p>';
+  const pied = '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn danger" onclick="executerSuppressionService(\''+id+'\')">Supprimer</button>';
+  ouvrirModale("Supprimer un service", corps, pied);
+}
+async function executerSuppressionService(id){
+  const s = service(id); if (!s) { fermerModale(); return; }
+  const { error } = await sb.from('contrats_services').delete().eq('id', id);
+  if (error) { toast("Erreur de suppression : " + error.message, "err", 6000); return; }
+  DB.params.services = DB.params.services.filter(x => x.id !== id);
+  fermerModale();
+  toast("Service « " + s.libelle + " » supprimé.", "ok");
+  App.aller("parametrage", {onglet:"referentiels"});
+}
+function confirmerSuppressionFournisseur(id){
+  if (!peutGererFournisseurs()) { toast("Vous n'avez pas les droits pour supprimer un fournisseur.", "err"); return; }
+  const f = fournisseur(id); if (!f) return;
+  const contratsLies = DB.contrats.filter(o => o.fournisseurId === id).length;
+  if (contratsLies) {
+    toast("Impossible de supprimer « " + f.nom + " » : " + contratsLies + " contrat(s) y sont encore rattaché(s).", "err", 7000);
+    return;
+  }
+  const corps = '<p>Supprimer définitivement le fournisseur <b>' + ech(f.nom) + '</b> du référentiel ? Cette action est irréversible.</p>';
+  const pied = '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn danger" onclick="executerSuppressionFournisseur(\''+id+'\')">Supprimer</button>';
+  ouvrirModale("Supprimer un fournisseur", corps, pied);
+}
+async function executerSuppressionFournisseur(id){
+  const f = fournisseur(id); if (!f) { fermerModale(); return; }
+  const { error } = await sb.from('contrats_fournisseurs').delete().eq('id', id);
+  if (error) { toast("Erreur de suppression : " + error.message, "err", 6000); return; }
+  DB.params.fournisseurs = DB.params.fournisseurs.filter(x => x.id !== id);
+  await sb.from('contrats_evaluations').delete().eq('fournisseur_id', id);
+  DB.evaluations = (DB.evaluations||[]).filter(e => e.fournisseurId !== id);
+  fermerModale();
+  toast("Fournisseur « " + f.nom + " » supprimé du référentiel.", "ok");
+  App.aller("parametrage", {onglet:"referentiels"});
+}
+
 /* ---- Import en masse depuis un gabarit CSV ---- */
-const ENTETES_GABARIT_CSV_FOURNISSEURS = ["Nom du fournisseur","Secteur d'activité"];
+const ENTETES_GABARIT_CSV_FOURNISSEURS = ["Raison sociale","Ville","E-mail de la structure","Directeur(trice)","Personne contact","Téléphone du contact","Élément de la rubrique"];
 
 function telechargerGabaritImportFournisseursCSV(){
-  const exemple = ["Nouveau Fournisseur SARL", "Fournitures de bureau"];
+  const exemple = ["Nouveau Fournisseur SARL", "Abidjan", "contact@fournisseur.ci", "N'Guessan Aya", "Koffi Marc", "0700000000", "Fournitures de bureau"];
   const lignes = [csvLigne(ENTETES_GABARIT_CSV_FOURNISSEURS), csvLigne(exemple)];
   telecharger("gabarit_import_fournisseurs_" + auj() + ".csv", lignes.join("\r\n"), "text/csv");
 }
 
 function construireLigneImportFournisseur(cols, numeroLigne, nomsDejaVus){
   const g = (i) => (cols[i]||"").trim();
-  const nom = g(0), secteur = g(1);
+  const nom = g(0), ville = g(1), email = g(2), directeur = g(3), personneContact = g(4), telephone = g(5), secteur = g(6);
   const erreurs = validerFournisseur(nom, secteur).map(e => e.message);
   if (nom) {
     const norm = normaliserTexte(nom);
     if (nomsDejaVus.has(norm)) erreurs.push("Doublon dans le fichier : « " + nom + " » apparaît plusieurs fois.");
     nomsDejaVus.add(norm);
   }
-  return {numeroLigne, nom, secteur, erreurs};
+  return {numeroLigne, nom, ville, email, directeur, personneContact, telephone, secteur, erreurs};
 }
 
 function chargerFichierImportFournisseursCSV(file){
@@ -2767,11 +2896,12 @@ function rendreApercuImportFournisseursCSV(lignes){
   const valides = lignes.filter(l => l.erreurs.length === 0);
   return '<hr style="margin:16px 0;border:none;border-top:1px solid var(--gris-200)">' +
     '<h3>Aperçu (' + lignes.length + ' ligne(s), ' + valides.length + ' valide(s))</h3>' +
-    '<div class="tableauScroll"><table><thead><tr><th>Ligne</th><th>Statut</th><th>Nom</th><th>Secteur</th><th>Détail</th></tr></thead><tbody>' +
+    '<div class="tableauScroll"><table><thead><tr><th>Ligne</th><th>Statut</th><th>Nom</th><th>Ville</th><th>Secteur</th><th>Détail</th></tr></thead><tbody>' +
     lignes.map(l => '<tr>' +
       '<td>' + l.numeroLigne + '</td>' +
       '<td>' + (l.erreurs.length ? '<span class="et rouge">Erreur</span>' : '<span class="et vert">OK</span>') + '</td>' +
       '<td>' + ech(l.nom||"—") + '</td>' +
+      '<td>' + ech(l.ville||"—") + '</td>' +
       '<td>' + ech(l.secteur||"—") + '</td>' +
       '<td style="font-size:12px">' + (l.erreurs.length ? l.erreurs.map(ech).join("<br>") : '<span class="muet">—</span>') + '</td>' +
     '</tr>').join("") +
@@ -2789,7 +2919,7 @@ function importerLotFournisseursCSV(){
   const valides = lignes.filter(l => l.erreurs.length === 0);
   if (!valides.length) { toast("Aucune ligne valide à importer.", "err"); return; }
   valides.forEach(l => {
-    DB.params.fournisseurs.push(construireFournisseur(l.nom, l.secteur));
+    DB.params.fournisseurs.push(construireFournisseur(l.nom, l.secteur, {ville:l.ville, email:l.email, directeur:l.directeur, personneContact:l.personneContact, telephone:l.telephone}));
   });
   sauver();
   toast(valides.length + " fournisseur(s) importé(s) avec succès.", "ok", 5000);
