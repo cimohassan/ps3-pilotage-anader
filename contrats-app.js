@@ -360,7 +360,7 @@ function mapActeurVersAgent(a){
 }
 function mapContratVersLigne(o){
   return {
-    id:o.id, numero:o.numero, objet:o.objet, fournisseur_id:o.fournisseurId||null, nature_id:o.natureId,
+    id:o.id, numero:o.numero, objet:o.objet, fournisseur_id:o.fournisseurId||null, nature_id:o.natureId||null,
     service_id:o.serviceId||null, proprietaire_id:o.proprietaireId||null, criticite:o.criticite||"NORMALE",
     regime_contractuel:o.regimeContractuel||"MARCHE_PUBLIC", motif_derogation:o.motifDerogation||"",
     etape_administrative:o.etapeAdministrative||"",
@@ -673,14 +673,12 @@ function validerContrat(o, ignorerId){
   function req(champ, val, libelle){
     if (val == null || val === "") erreurs.push({champ, message: libelle + " est obligatoire."});
   }
+  /* Saisie assouplie (arbitrage Hassan du 07/09/2026) : seuls le
+     fournisseur et l'objet sont exigés, le temps de constituer le
+     portefeuille. Les autres champs restent contrôlés dès qu'ils sont
+     renseignés, et pourront être reverrouillés ultérieurement. */
   req("objet", o.objet, "L'objet du contrat");
   req("fournisseurId", o.fournisseurId, "Le fournisseur");
-  req("natureId", o.natureId, "La nature du contrat");
-  req("serviceId", o.serviceId, "Le service porteur");
-  req("dateDebut", o.dateDebut, "La date de début");
-  req("dateFin", o.dateFin, "La date de fin");
-  req("montant", o.montant, "Le montant");
-  req("regimeContractuel", o.regimeContractuel, "Le régime contractuel");
   if (o.regimeContractuel === "DEROGATION" && !(o.motifDerogation||"").trim()) {
     erreurs.push({champ:"motifDerogation", message:"Le motif de la dérogation au Code des marchés publics est obligatoire."});
   }
@@ -1050,6 +1048,7 @@ const VueEnregistrer = {
     '<div class="carte"><div class="tete"><h2>✎ Enregistrer un contrat fournisseur</h2></div><div class="corps">' +
     '<form id="formEnregistrer" onsubmit="return soumettreEnregistrement(event)">' +
 
+    '<p class="msgInfo">Seuls le <b>fournisseur</b> et l\'<b>objet du contrat</b> sont obligatoires. Les autres champs peuvent être complétés plus tard depuis la fiche du contrat.</p>' +
     '<fieldset><legend>Identification</legend>' +
     '<div class="grille g2">' +
       champTexte("objet","Objet du contrat", val("objet"), champErreur("objet"), true) +
@@ -1060,12 +1059,12 @@ const VueEnregistrer = {
       '<div id="fEnr_alerteAgrement">' + alerteAgrementHtml(val("fournisseurId")) + '</div>' +
     '</div>' +
     '<div class="grille g3">' +
-      champSelect("natureId","Nature du contrat", listeNatures().map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), true, 'apercuEcheanceFormulaire()') +
-      champSelect("serviceId","Service porteur", DB.params.services.map(s=>[s.id,s.libelle]), val("serviceId"), champErreur("serviceId"), true) +
+      champSelect("natureId","Nature du contrat", listeNatures().map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), false, 'apercuEcheanceFormulaire()') +
+      champSelect("serviceId","Service porteur", DB.params.services.map(s=>[s.id,s.libelle]), val("serviceId"), champErreur("serviceId"), false) +
       champSelect("criticite","Criticité", Object.values(CRITICITES).map(c=>[c.code,c.libelle]), val("criticite","NORMALE"), null, false) +
     '</div>' +
     '<div class="grille g2">' +
-      champSelect("proprietaireId","Acheteur responsable", [["","— À affecter plus tard —"]].concat(DB.params.agents.slice().sort((a,b)=>a.nom.localeCompare(b.nom,"fr")).map(a=>[a.id,a.nom])), val("proprietaireId"), champErreur("proprietaireId"), true) +
+      champSelect("proprietaireId","Acheteur responsable", [["","— À affecter plus tard —"]].concat(DB.params.agents.slice().sort((a,b)=>a.nom.localeCompare(b.nom,"fr")).map(a=>[a.id,a.nom])), val("proprietaireId"), champErreur("proprietaireId"), false) +
       champSelect("modePaiement","Mode de paiement", modesPaiement().map(m=>[m.code,m.libelle]), val("modePaiement","VIREMENT"), null, false) +
       champSelect("delaiPaiement","Délai de paiement", delaisPaiement().map(x=>[x.code,x.libelle]), val("delaiPaiement","J30"), null, false) +
     '</div></fieldset>' +
@@ -1073,7 +1072,7 @@ const VueEnregistrer = {
     '<fieldset><legend>Cadre réglementaire</legend>' +
     '<p class="msgInfo">L\'ANADER est assujettie au Code des marchés publics pour la quasi-totalité de ses marchés, sauf dérogation motivée. Repères indicatifs (à vérifier avec la Cellule Juridique et Fiscale) : cumul des avenants ≤ ' + REFERENTIEL_MARCHES_PUBLICS.cumulAvenantsMaxPct + ' % du montant initial, garantie de bonne exécution ' + REFERENTIEL_MARCHES_PUBLICS.garantieBonneExecutionMinPct + '–' + REFERENTIEL_MARCHES_PUBLICS.garantieBonneExecutionMaxPct + ' %, cumul des pénalités : seuil de résiliation à ' + REFERENTIEL_MARCHES_PUBLICS.cumulPenalitesSeuilResiliationPct + ' %, délai de paiement plafonné à ' + REFERENTIEL_MARCHES_PUBLICS.delaiPaiementMaxJours + ' jours. Ces valeurs ne bloquent aucune saisie : vous restez libre d\'indiquer la situation réelle du contrat.</p>' +
     '<div class="grille g2">' +
-      champSelect("regimeContractuel","Régime contractuel", regimesContractuels().map(r=>[r.code,r.libelle]), val("regimeContractuel","MARCHE_PUBLIC"), champErreur("regimeContractuel"), true, 'basculerMotifDerogation()') +
+      champSelect("regimeContractuel","Régime contractuel", regimesContractuels().map(r=>[r.code,r.libelle]), val("regimeContractuel","MARCHE_PUBLIC"), champErreur("regimeContractuel"), false, 'basculerMotifDerogation()') +
       champTexte("numeroBcMarche","N° bon de commande / marché", val("numeroBcMarche"), null, false) +
     '</div>' +
     '<div class="grille g2">' +
@@ -1088,9 +1087,9 @@ const VueEnregistrer = {
 
     '<fieldset><legend>Durée et montant</legend>' +
     '<div class="grille g3">' +
-      champInput("dateDebut","Date de début","date", val("dateDebut"), champErreur("dateDebut"), true, 'apercuEcheanceFormulaire()') +
-      champInput("dateFin","Date de fin","date", val("dateFin"), champErreur("dateFin"), true, 'apercuEcheanceFormulaire()') +
-      champInput("montant","Montant (F CFA)","number", val("montant"), champErreur("montant"), true) +
+      champInput("dateDebut","Date de début","date", val("dateDebut"), champErreur("dateDebut"), false, 'apercuEcheanceFormulaire()') +
+      champInput("dateFin","Date de fin","date", val("dateFin"), champErreur("dateFin"), false, 'apercuEcheanceFormulaire()') +
+      champInput("montant","Montant (F CFA)","number", val("montant"), champErreur("montant"), false) +
     '</div>' +
     '<div class="champ"><label>Échéance de préavis calculée</label>' +
       '<div class="lexiquePop" id="fEnr_apercu">Choisissez la nature et la date de fin pour voir le préavis calculé.</div>' +
@@ -1348,11 +1347,11 @@ function rendreExtractionTexte(etat){
     champSelect("nccFournisseur","NCC du fournisseur", pairesNcc(), val("fournisseurId"), null, false, 'synchroniserNccFournisseur(\'ncc\')') +
     '<div id="fEnr_alerteAgrement">' + alerteAgrementHtml(val("fournisseurId")) + '</div>' +
   '</div><div class="grille g3">' +
-    champSelect("natureId", marque("natureId","Nature du contrat"), listeNatures().map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), true) +
-    champSelect("serviceId","Service porteur", DB.params.services.map(s=>[s.id,s.libelle]), val("serviceId"), champErreur("serviceId"), true) +
+    champSelect("natureId", marque("natureId","Nature du contrat"), listeNatures().map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), false) +
+    champSelect("serviceId","Service porteur", DB.params.services.map(s=>[s.id,s.libelle]), val("serviceId"), champErreur("serviceId"), false) +
     champSelect("criticite","Criticité", Object.values(CRITICITES).map(c=>[c.code,c.libelle]), val("criticite","NORMALE"), null, false) +
   '</div><div class="grille g2">' +
-    champSelect("proprietaireId","Acheteur responsable", [["","— À affecter plus tard —"]].concat(DB.params.agents.slice().sort((a,b)=>a.nom.localeCompare(b.nom,"fr")).map(a=>[a.id,a.nom])), val("proprietaireId"), champErreur("proprietaireId"), true) +
+    champSelect("proprietaireId","Acheteur responsable", [["","— À affecter plus tard —"]].concat(DB.params.agents.slice().sort((a,b)=>a.nom.localeCompare(b.nom,"fr")).map(a=>[a.id,a.nom])), val("proprietaireId"), champErreur("proprietaireId"), false) +
     champSelect("modePaiement","Mode de paiement", modesPaiement().map(m=>[m.code,m.libelle]), val("modePaiement","VIREMENT"), null, false) +
       champSelect("delaiPaiement","Délai de paiement", delaisPaiement().map(x=>[x.code,x.libelle]), val("delaiPaiement","J30"), null, false) +
   '</div></fieldset>' +
@@ -1360,7 +1359,7 @@ function rendreExtractionTexte(etat){
   '<fieldset><legend>Cadre réglementaire</legend>' +
   '<p class="aide">Repères Code des marchés publics (rappel, non bloquant) : cumul avenants ≤ ' + REFERENTIEL_MARCHES_PUBLICS.cumulAvenantsMaxPct + ' %, garantie de bonne exécution ' + REFERENTIEL_MARCHES_PUBLICS.garantieBonneExecutionMinPct + '–' + REFERENTIEL_MARCHES_PUBLICS.garantieBonneExecutionMaxPct + ' %, délai de paiement ≤ ' + REFERENTIEL_MARCHES_PUBLICS.delaiPaiementMaxJours + ' jours.</p>' +
   '<div class="grille g2">' +
-    champSelect("regimeContractuel", marque("regimeContractuel","Régime contractuel"), regimesContractuels().map(r=>[r.code,r.libelle]), val("regimeContractuel","MARCHE_PUBLIC"), champErreur("regimeContractuel"), true, 'basculerMotifDerogation()') +
+    champSelect("regimeContractuel", marque("regimeContractuel","Régime contractuel"), regimesContractuels().map(r=>[r.code,r.libelle]), val("regimeContractuel","MARCHE_PUBLIC"), champErreur("regimeContractuel"), false, 'basculerMotifDerogation()') +
     champTexte("numeroBcMarche", marque("numeroBcMarche","N° bon de commande / marché"), val("numeroBcMarche"), null, false) +
   '</div>' +
   '<div class="grille g2">' +
@@ -1373,9 +1372,9 @@ function rendreExtractionTexte(etat){
   '</fieldset>' +
 
   '<fieldset><legend>Durée et montant</legend><div class="grille g3">' +
-    champInput("dateDebut", marque("dateDebut","Date de début"), "date", val("dateDebut"), champErreur("dateDebut"), true) +
-    champInput("dateFin", marque("dateFin","Date de fin"), "date", val("dateFin"), champErreur("dateFin"), true) +
-    champInput("montant", marque("montant","Montant (F CFA)"), "number", val("montant"), champErreur("montant"), true) +
+    champInput("dateDebut", marque("dateDebut","Date de début"), "date", val("dateDebut"), champErreur("dateDebut"), false) +
+    champInput("dateFin", marque("dateFin","Date de fin"), "date", val("dateFin"), champErreur("dateFin"), false) +
+    champInput("montant", marque("montant","Montant (F CFA)"), "number", val("montant"), champErreur("montant"), false) +
   '</div></fieldset>' +
 
   '<fieldset><legend>Statut</legend><div class="grille g2">' +
@@ -3541,7 +3540,8 @@ function paramReferentiels(etat){
       '<button class="btn primaire" onclick="ouvrirModaleAjoutFournisseur()">+ Ajouter un fournisseur</button>' +
       '<button class="btn" onclick="telechargerGabaritImportFournisseursCSV()">⭳ Télécharger le gabarit CSV</button>' +
       '<label class="btn">⭱ Importer une liste (CSV)<input type="file" accept=".csv" style="display:none" onchange="chargerFichierImportFournisseursCSV(this.files[0])"></label>' +
-    '</div>' : '<p class="muet">Réservé aux profils ayant le droit d\'enregistrer un contrat ou de paramétrer le module.</p>') +
+    '</div>' +
+    '<p class="aide">Un fichier importé est d\'abord analysé et comparé au référentiel en base : les fournisseurs déjà présents sont écartés, les ressemblances fortes vous sont soumises avant intégration.</p>' : '<p class="muet">Réservé aux profils ayant le droit d\'enregistrer un contrat ou de paramétrer le module.</p>') +
     '<div class="tableauScroll"><table><thead><tr><th>NCC</th><th>Raison sociale</th><th>Secteur</th><th>Ville</th><th>Contact</th><th>Téléphone</th><th>E-mail</th><th>Agréé</th>' + (gere ? '<th></th>' : '') + '</tr></thead><tbody>' +
       DB.params.fournisseurs.map(f=>'<tr><td>'+ech(f.ncc||"—")+'</td><td>'+ech(f.nom)+'</td><td>'+ech(f.secteur||"—")+'</td><td>'+ech(f.ville||"—")+'</td><td>'+ech(f.personneContact||f.directeur||"—")+'</td><td>'+ech(f.telephone||"—")+'</td><td>'+ech(f.email||"—")+'</td>' +
         '<td>' + (gere
@@ -3722,26 +3722,145 @@ async function executerSuppressionFournisseur(id){
   App.aller("parametrage", {onglet:"referentiels"});
 }
 
+/* ============================================================
+   Rapprochement des fournisseurs — utilisé par l'analyse préalable
+   de l'import. Objectif : ne jamais créer en double un fournisseur
+   déjà présent dans le référentiel, et signaler les ressemblances
+   fortes (forme juridique, abréviation, faute de frappe) pour que
+   l'utilisateur tranche avant intégration.
+   ============================================================ */
+/* Mots qui ne distinguent pas une entreprise d'une autre : formes
+   juridiques et préfixes génériques. Retirés avant comparaison. */
+const FORMES_JURIDIQUES = ["sarl","sarlu","sa","sas","sasu","suarl","eurl","gie","sci","snc","ets",
+  "etablissement","etablissements","entreprise","entreprises","groupe","group","societe","ste",
+  "cie","compagnie","ci"];
+
+/* Suffixes géographiques, retirés en fin de raison sociale seulement
+   (« Investiv Côte d'Ivoire » et « Investiv » désignent la même structure). */
+const SUFFIXES_GEO = [/\s+cote\s+d\s*ivoire$/, /\s+cote\s+divoire$/, /\s+civ$/];
+
+/* Réduit une raison sociale à son noyau distinctif : sans accent, sans
+   ponctuation, sans forme juridique ni suffixe géographique courant. */
+function noyauRaisonSociale(nom){
+  let t = normaliserTexte(nom).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  SUFFIXES_GEO.forEach(re => { t = t.replace(re, ""); });
+  t = t.trim();
+  const mots = t.split(" ").filter(m => m && FORMES_JURIDIQUES.indexOf(m) === -1);
+  const noyau = mots.join(" ").trim();
+  /* Un noyau trop court ne distingue plus rien : on repart du nom complet. */
+  if (noyau.length < 3) return t;
+  return noyau;
+}
+
+/* Distance de Levenshtein, bornée aux chaînes courtes des raisons sociales. */
+function distanceLevenshtein(a, b){
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let precedente = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) precedente[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    const courante = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cout = a[i-1] === b[j-1] ? 0 : 1;
+      courante[j] = Math.min(courante[j-1] + 1, precedente[j] + 1, precedente[j-1] + cout);
+    }
+    precedente = courante;
+  }
+  return precedente[b.length];
+}
+
+/* Score de ressemblance entre deux raisons sociales, de 0 à 1. */
+function ressemblanceNoms(a, b){
+  const na = noyauRaisonSociale(a), nb = noyauRaisonSociale(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  if (na.length >= 4 && nb.length >= 4 && (na.indexOf(nb) === 0 || nb.indexOf(na) === 0)) return 0.95;
+  const max = Math.max(na.length, nb.length);
+  return 1 - (distanceLevenshtein(na, nb) / max);
+}
+const SEUIL_RESSEMBLANCE = 0.85;
+
+/* Compare une ligne du fichier au référentiel déjà en base.
+   - "identique" : même NCC, ou même raison sociale à l'accent et à la casse près
+   - "ressemblance" : noyau très proche (forme juridique, faute de frappe) */
+function rapprocherFournisseurExistant(nom, ncc){
+  const c = normaliserNcc(ncc);
+  if (c) {
+    const parNcc = DB.params.fournisseurs.find(f => normaliserNcc(f.ncc) === c);
+    if (parNcc) return {type:"identique", existant:parNcc, motif:"NCC déjà attribué", score:1};
+  }
+  const n = normaliserTexte(nom);
+  if (!n) return null;
+  const parNom = DB.params.fournisseurs.find(f => normaliserTexte(f.nom) === n);
+  if (parNom) return {type:"identique", existant:parNom, motif:"Raison sociale déjà présente", score:1};
+  let meilleur = null;
+  DB.params.fournisseurs.forEach(f => {
+    const s = ressemblanceNoms(nom, f.nom);
+    if (s >= SEUIL_RESSEMBLANCE && (!meilleur || s > meilleur.score)) {
+      const motif = s >= 0.999 ? "Même raison sociale à la forme juridique près"
+                  : s >= 0.94  ? "Raison sociale très proche (abréviation ou variante)"
+                               : "Ressemblance forte (faute de frappe probable)";
+      meilleur = {type:"ressemblance", existant:f, motif, score:s};
+    }
+  });
+  return meilleur;
+}
+
 /* ---- Import en masse depuis un gabarit CSV ---- */
-const ENTETES_GABARIT_CSV_FOURNISSEURS = ["NCC","Raison sociale","Ville","E-mail de la structure","Directeur(trice)","Personne contact","Téléphone du contact","Élément de la rubrique","Agréé (O/N)"];
+/* Gabarit du référentiel fournisseurs. Une colonne par information de
+   la fiche fournisseur, dans l'ordre de saisie : seule la raison
+   sociale est obligatoire. */
+const ENTETES_GABARIT_CSV_FOURNISSEURS = [
+  "NCC (n° de compte contribuable)",
+  "Raison sociale (obligatoire)",
+  "Ville",
+  "E-mail de la structure",
+  "Directeur(trice)",
+  "Personne contact",
+  "Téléphone du contact",
+  "Élément de la rubrique / Secteur",
+  "Agréé (O/N)"
+];
 
 function telechargerGabaritImportFournisseursCSV(){
-  const exemple = ["1234567 A", "Nouveau Fournisseur SARL", "Abidjan", "contact@fournisseur.ci", "N'Guessan Aya", "Koffi Marc", "0700000000", "Fournitures de bureau", "N"];
-  const lignes = [csvLigne(ENTETES_GABARIT_CSV_FOURNISSEURS), csvLigne(exemple)];
+  const exemples = [
+    ["1234567 A", "ATC COMAFRIQUE", "Port-Bouët", "atc@comafrique.com", "Armand Memel", "Tahirou", "0718211323", "Véhicule", "O"],
+    ["", "Entreprise Seck Aida Savane", "Bingerville", "esas1709845@gmail.com", "Aïda Seck", "Seydou", "0708581717", "Mobilier de bureau", "N"]
+  ];
+  const lignes = [csvLigne(ENTETES_GABARIT_CSV_FOURNISSEURS)].concat(exemples.map(csvLigne));
   telecharger("gabarit_import_fournisseurs_" + auj() + ".csv", lignes.join("\r\n"), "text/csv");
 }
 
-function construireLigneImportFournisseur(cols, numeroLigne, nomsDejaVus){
+/* Analyse préalable d'une ligne du fichier. Chaque ligne reçoit un
+   classement : nouveau (intégrable), ressemblance (à trancher),
+   doublon (déjà en base, jamais intégré), erreur (ligne inexploitable). */
+function construireLigneImportFournisseur(cols, numeroLigne, nomsDejaVus, nccDejaVus){
   const g = (i) => (cols[i]||"").trim();
   const ncc = g(0), nom = g(1), ville = g(2), email = g(3), directeur = g(4), personneContact = g(5), telephone = g(6), secteur = g(7);
   const agree = /^(o|oui|y|yes|1|vrai|true)$/i.test(g(8));
-  const erreurs = validerFournisseur(nom, secteur, ncc).map(e => e.message);
+  const erreurs = [];
+  if (!nom) erreurs.push("La raison sociale est obligatoire.");
+
   if (nom) {
     const norm = normaliserTexte(nom);
     if (nomsDejaVus.has(norm)) erreurs.push("Doublon dans le fichier : « " + nom + " » apparaît plusieurs fois.");
     nomsDejaVus.add(norm);
   }
-  return {numeroLigne, ncc, nom, ville, email, directeur, personneContact, telephone, secteur, agree, erreurs};
+  if (ncc) {
+    const nc = normaliserNcc(ncc);
+    if (nccDejaVus.has(nc)) erreurs.push("Doublon dans le fichier : le NCC " + ncc + " apparaît plusieurs fois.");
+    nccDejaVus.add(nc);
+  }
+
+  const rapprochement = nom ? rapprocherFournisseurExistant(nom, ncc) : null;
+  let classement = "nouveau";
+  if (erreurs.length) classement = "erreur";
+  else if (rapprochement && rapprochement.type === "identique") classement = "doublon";
+  else if (rapprochement && rapprochement.type === "ressemblance") classement = "ressemblance";
+
+  return {numeroLigne, ncc, nom, ville, email, directeur, personneContact, telephone, secteur, agree,
+          erreurs, classement, rapprochement, retenue: classement === "nouveau"};
 }
 
 function chargerFichierImportFournisseursCSV(file){
@@ -3752,48 +3871,106 @@ function chargerFichierImportFournisseursCSV(file){
     const texte = String(r.result||"").replace(/^\uFEFF/, "");
     const grille = parserCSV(texte);
     if (grille.length < 2) { toast("Le fichier CSV ne contient aucune ligne de données au-delà de l'en-tête.", "err"); return; }
-    const nomsDejaVus = new Set();
-    const lignes = grille.slice(1).map((cols, idx) => construireLigneImportFournisseur(cols, idx+2, nomsDejaVus));
+    const nomsDejaVus = new Set(), nccDejaVus = new Set();
+    const lignes = grille.slice(1).map((cols, idx) => construireLigneImportFournisseur(cols, idx+2, nomsDejaVus, nccDejaVus));
     App.aller("parametrage", {onglet:"referentiels", lignesImportFournisseurs:lignes});
-    toast(lignes.length + " ligne(s) lue(s) — vérifiez l'aperçu avant d'importer.", "info", 4500);
+    const doublons = lignes.filter(l => l.classement === "doublon").length;
+    const ressemblances = lignes.filter(l => l.classement === "ressemblance").length;
+    toast(lignes.length + " ligne(s) analysée(s) — " + doublons + " doublon(s), " + ressemblances + " ressemblance(s) à vérifier.", "info", 6000);
   };
   r.onerror = () => toast("Lecture du fichier impossible.", "err");
   r.readAsText(file, "utf-8");
 }
 
 function rendreApercuImportFournisseursCSV(lignes){
-  const valides = lignes.filter(l => l.erreurs.length === 0);
+  const parClassement = c => lignes.filter(l => l.classement === c);
+  const nouveaux = parClassement("nouveau"), ressemblances = parClassement("ressemblance");
+  const doublons = parClassement("doublon"), erreurs = parClassement("erreur");
+  const aIntegrer = lignes.filter(l => l.retenue && l.classement !== "doublon" && l.classement !== "erreur");
+
+  const etiquette = l => ({
+    nouveau:      '<span class="et vert">Nouveau</span>',
+    ressemblance: '<span class="et orange">Ressemblance</span>',
+    doublon:      '<span class="et rouge">Déjà en base</span>',
+    erreur:       '<span class="et rouge">Erreur</span>'
+  })[l.classement];
+
+  const detail = l => {
+    if (l.erreurs.length) return l.erreurs.map(ech).join("<br>");
+    if (l.rapprochement) {
+      const e = l.rapprochement.existant;
+      return ech(l.rapprochement.motif) + ' : <b>' + ech(e.nom) + '</b> (' + ech(e.id) +
+        (e.ncc ? ', NCC ' + ech(e.ncc) : '') + ')' +
+        (l.rapprochement.type === "ressemblance" ? ' <span class="muet">— ' + Math.round(l.rapprochement.score*100) + ' % de similitude</span>' : '');
+    }
+    return '<span class="muet">Aucun fournisseur approchant dans le référentiel.</span>';
+  };
+
   return '<hr style="margin:16px 0;border:none;border-top:1px solid var(--gris-200)">' +
-    '<h3>Aperçu (' + lignes.length + ' ligne(s), ' + valides.length + ' valide(s))</h3>' +
-    '<div class="tableauScroll"><table><thead><tr><th>Ligne</th><th>Statut</th><th>NCC</th><th>Nom</th><th>Ville</th><th>Secteur</th><th>Agréé</th><th>Détail</th></tr></thead><tbody>' +
-    lignes.map(l => '<tr>' +
+    '<h3>Analyse préalable du fichier</h3>' +
+    '<p class="msgInfo">Le fichier est comparé au référentiel déjà en base avant toute intégration. ' +
+    'Les fournisseurs déjà présents (même raison sociale ou même NCC) ne sont jamais réimportés. ' +
+    'Les ressemblances fortes vous sont soumises : cochez celles qui correspondent bien à un fournisseur distinct.</p>' +
+    '<div class="grille g4">' +
+      kpi(nouveaux.length, "Nouveaux fournisseurs", "vert") +
+      kpi(ressemblances.length, "Ressemblances à trancher", ressemblances.length?"orange":"gris") +
+      kpi(doublons.length, "Déjà en base (ignorés)", doublons.length?"rouge":"gris") +
+      kpi(erreurs.length, "Lignes en erreur", erreurs.length?"rouge":"gris") +
+    '</div>' +
+    '<div class="tableauScroll" style="margin-top:12px"><table><thead><tr>' +
+      '<th>Intégrer</th><th>Ligne</th><th>Analyse</th><th>NCC</th><th>Raison sociale</th><th>Ville</th><th>Secteur</th><th>Agréé</th><th>Rapprochement</th>' +
+    '</tr></thead><tbody>' +
+    lignes.map((l, i) => '<tr>' +
+      '<td>' + (l.classement === "doublon" || l.classement === "erreur"
+        ? '<span class="muet">—</span>'
+        : '<input type="checkbox" ' + (l.retenue ? "checked" : "") + ' onchange="basculerLigneImportFournisseur(' + i + ', this.checked)">') + '</td>' +
       '<td>' + l.numeroLigne + '</td>' +
-      '<td>' + (l.erreurs.length ? '<span class="et rouge">Erreur</span>' : '<span class="et vert">OK</span>') + '</td>' +
+      '<td>' + etiquette(l) + '</td>' +
       '<td>' + ech(l.ncc||"—") + '</td>' +
       '<td>' + ech(l.nom||"—") + '</td>' +
       '<td>' + ech(l.ville||"—") + '</td>' +
       '<td>' + ech(l.secteur||"—") + '</td>' +
       '<td>' + (l.agree ? 'Oui' : 'Non') + '</td>' +
-      '<td style="font-size:12px">' + (l.erreurs.length ? l.erreurs.map(ech).join("<br>") : '<span class="muet">—</span>') + '</td>' +
+      '<td style="font-size:12px">' + detail(l) + '</td>' +
     '</tr>').join("") +
     '</tbody></table></div>' +
     '<div class="barreActions" style="margin-top:10px">' +
-      (valides.length ? '<button class="btn primaire" onclick="importerLotFournisseursCSV()">Importer les ' + valides.length + ' fournisseur(s) valide(s)</button>' : '<span class="muet">Aucune ligne valide à importer.</span>') +
+      (aIntegrer.length
+        ? '<button class="btn primaire" onclick="importerLotFournisseursCSV()">Intégrer les ' + aIntegrer.length + ' fournisseur(s) cochés</button>'
+        : '<span class="muet">Aucune ligne retenue pour l\'intégration.</span>') +
       '<button class="btn" onclick="App.aller(\'parametrage\',{onglet:\'referentiels\',lignesImportFournisseurs:null})">Annuler cet import</button>' +
     '</div>';
+}
+
+/* Coche ou décoche une ligne de l'aperçu sans repasser par un rendu complet. */
+function basculerLigneImportFournisseur(index, coche){
+  const etat = App.etat.parametrage || {};
+  const lignes = etat.lignesImportFournisseurs || [];
+  if (!lignes[index]) return;
+  if (lignes[index].classement === "doublon" || lignes[index].classement === "erreur") return;
+  lignes[index].retenue = !!coche;
+  App.aller("parametrage", {onglet:"referentiels", lignesImportFournisseurs:lignes});
 }
 
 function importerLotFournisseursCSV(){
   if (!peutGererFournisseurs()) { toast("Vous n'avez pas les droits pour importer des fournisseurs.", "err"); return; }
   const etat = App.etat.parametrage || {};
   const lignes = etat.lignesImportFournisseurs || [];
-  const valides = lignes.filter(l => l.erreurs.length === 0);
-  if (!valides.length) { toast("Aucune ligne valide à importer.", "err"); return; }
-  valides.forEach(l => {
+  const retenues = lignes.filter(l => l.retenue && l.classement !== "doublon" && l.classement !== "erreur");
+  if (!retenues.length) { toast("Aucune ligne retenue pour l'intégration.", "err"); return; }
+
+  /* Dernier contrôle au moment de l'écriture : le référentiel a pu
+     changer depuis l'analyse (import concurrent, ajout manuel). */
+  let ignorees = 0, integres = 0;
+  retenues.forEach(l => {
+    const rap = rapprocherFournisseurExistant(l.nom, l.ncc);
+    if (rap && rap.type === "identique") { ignorees++; return; }
     DB.params.fournisseurs.push(construireFournisseur(l.nom, l.secteur, {ncc:l.ncc, agree:l.agree, ville:l.ville, email:l.email, directeur:l.directeur, personneContact:l.personneContact, telephone:l.telephone}));
+    integres++;
   });
   sauver();
-  toast(valides.length + " fournisseur(s) importé(s) avec succès.", "ok", 5000);
+  const doublonsIgnores = lignes.filter(l => l.classement === "doublon").length + ignorees;
+  toast(integres + " fournisseur(s) intégré(s)" + (doublonsIgnores ? " — " + doublonsIgnores + " doublon(s) écarté(s)." : "."), "ok", 6000);
   App.aller("parametrage", {onglet:"referentiels", lignesImportFournisseurs:null});
 }
 
@@ -3852,6 +4029,7 @@ const Aide = {
 
     '<h3>7. Le référentiel fournisseurs</h3>' +
     '<p>Depuis <b>Paramétrage → Services, acteurs, fournisseurs</b>, les acteurs disposant du droit d\'enregistrer un contrat ou de paramétrer le module peuvent ajouter un fournisseur au référentiel (<b>+ Ajouter un fournisseur</b>) ou en importer plusieurs d\'un coup (<b>⭱ Importer une liste (CSV)</b>, avec un gabarit à télécharger). Dans les deux cas, un nom déjà présent (à l\'accent et à la casse près) est bloqué pour éviter un doublon dans le référentiel.</p>' +
+    '<p>Tout fichier importé passe d\'abord par une <b>analyse préalable</b> : chaque ligne est comparée au référentiel déjà en base. Les fournisseurs déjà présents — même raison sociale ou même NCC — sont écartés d\'office ; les <b>ressemblances fortes</b> (forme juridique différente, abréviation, faute de frappe) sont signalées avec le fournisseur approchant et son taux de similitude, et vous décidez ligne par ligne de les intégrer ou non. Rien n\'est écrit tant que vous n\'avez pas validé.</p>' +
     '<p>Chaque fournisseur porte son <b>NCC</b> (numéro de compte contribuable) et son <b>agrément</b>. À la saisie d\'un contrat, la raison sociale et le NCC se répondent : renseigner l\'un affiche l\'autre. Un fournisseur non agréé est signalé à l\'écran et ressort dans le rapport <b>Contrats et BC par fournisseurs agréés / non agréés</b> ; un fournisseur retenu à l\'issue d\'un appel d\'offres ouvert (régime « Marché public ») est agréé d\'office à l\'enregistrement du contrat.</p>' +
 
     '<h3>8. Ce que vous pouvez régler vous-même</h3>' +
