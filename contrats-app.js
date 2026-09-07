@@ -58,7 +58,7 @@ const CRITICITES = {
   MINEURE:  {code:"MINEURE",  libelle:"Mineure",    facteur:0.8, couleur:"gris"}
 };
 
-const NATURES_CONTRAT = {
+const NATURES_CONTRAT_DEFAUT = {
   ACCORD_CADRE:  {code:"ACCORD_CADRE",  libelle:"Accord-cadre / marché à bons de commande", preavis:60, dureeTypeMois:36},
   TRAVAUX:       {code:"TRAVAUX",       libelle:"Marché de travaux",                        preavis:30, dureeTypeMois:12},
   MAINTENANCE:   {code:"MAINTENANCE",   libelle:"Maintenance / entretien technique",        preavis:30, dureeTypeMois:12},
@@ -97,7 +97,7 @@ const LEXIQUE = {
   "MAC":             "« Material Adverse Change » — clause qui permet de se retirer si la situation du fournisseur se dégrade gravement."
 };
 
-const CRITERES_EVALUATION = {
+const CRITERES_EVALUATION_DEFAUT = {
   qualite:    {libelle:"Qualité",     poids:0.25, methode:"Taux de non-conformités constatées à la réception (0 défaut = 100)."},
   livraison:  {libelle:"Livraison",   poids:0.20, methode:"Part des livraisons reçues dans le délai contractuel."},
   cout:       {libelle:"Coût",        poids:0.20, methode:"Écart entre le prix facturé et le prix contractuel / marché de référence."},
@@ -105,7 +105,85 @@ const CRITERES_EVALUATION = {
   conformite: {libelle:"Conformité",  poids:0.15, methode:"Pièces administratives et QHSE à jour (attestations, assurances, habilitations)."}
 };
 
-const REGIMES_CONTRACTUELS = [
+/* Modes et délais de paiement — dissociés depuis la V1.1 : le mode dit
+   COMMENT on paie, le délai dit SOUS QUEL DÉLAI. Les deux listes sont
+   modifiables depuis Paramétrage. Le champ `jours` du délai alimentera
+   le futur suivi des échéances de paiement. */
+const MODES_PAIEMENT_DEFAUT = [
+  {code:"VIREMENT",      libelle:"Virement bancaire"},
+  {code:"CHEQUE",        libelle:"Chèque"},
+  {code:"ESPECES",       libelle:"Espèces"},
+  {code:"MOBILE_MONEY",  libelle:"Mobile money"},
+  {code:"TRESOR",        libelle:"Paiement par le Trésor public"}
+];
+
+const DELAIS_PAIEMENT_DEFAUT = [
+  {code:"COMPTANT", libelle:"Comptant (à réception de facture)", jours:0},
+  {code:"J15",      libelle:"15 jours",  jours:15},
+  {code:"J30",      libelle:"30 jours",  jours:30},
+  {code:"J45",      libelle:"45 jours",  jours:45},
+  {code:"J60",      libelle:"60 jours",  jours:60},
+  {code:"J90",      libelle:"90 jours (plafond Code des marchés publics)", jours:90}
+];
+
+/* Bibliothèque de clauses SLA par nature de contrat. Chargée
+   automatiquement dans un contrat au moment de son enregistrement,
+   puis ajustable contrat par contrat. Modifiable depuis Paramétrage. */
+const SLA_PAR_NATURE_DEFAUT = {
+  ACCORD_CADRE: [
+    {typeCode:"DELAI_LIVRAISON", seuil:21},
+    {typeCode:"PENALITE_RETARD", seuil:0.1},
+    {typeCode:"GARANTIE", seuil:12},
+    {typeCode:"CONFORMITE_QHSE", seuil:90},
+    {typeCode:"PREAVIS_RESILIATION", seuil:60}
+  ],
+  TRAVAUX: [
+    {typeCode:"DELAI_LIVRAISON", seuil:90},
+    {typeCode:"PENALITE_RETARD", seuil:0.033},
+    {typeCode:"GARANTIE", seuil:12},
+    {typeCode:"CONFORMITE_QHSE", seuil:90}
+  ],
+  MAINTENANCE: [
+    {typeCode:"DELAI_INTERVENTION", seuil:24},
+    {typeCode:"DISPONIBILITE", seuil:95},
+    {typeCode:"PENALITE_RETARD", seuil:0.1},
+    {typeCode:"GARANTIE", seuil:6},
+    {typeCode:"CONFORMITE_QHSE", seuil:90}
+  ],
+  ASSURANCE: [
+    {typeCode:"DELAI_INTERVENTION", seuil:48},
+    {typeCode:"DISPONIBILITE", seuil:98},
+    {typeCode:"PENALITE_RETARD", seuil:0.05},
+    {typeCode:"PREAVIS_RESILIATION", seuil:60}
+  ],
+  LOCATION: [
+    {typeCode:"DELAI_INTERVENTION", seuil:24},
+    {typeCode:"DISPONIBILITE", seuil:95},
+    {typeCode:"PENALITE_RETARD", seuil:0.1},
+    {typeCode:"PREAVIS_RESILIATION", seuil:90}
+  ],
+  PRESTATION: [
+    {typeCode:"DELAI_INTERVENTION", seuil:24},
+    {typeCode:"DISPONIBILITE", seuil:98},
+    {typeCode:"PENALITE_RETARD", seuil:0.1},
+    {typeCode:"PREAVIS_RESILIATION", seuil:30},
+    {typeCode:"CONFORMITE_QHSE", seuil:90}
+  ],
+  ABONNEMENT: [
+    {typeCode:"DISPONIBILITE", seuil:98},
+    {typeCode:"DELAI_INTERVENTION", seuil:8},
+    {typeCode:"PREAVIS_RESILIATION", seuil:30},
+    {typeCode:"CONFORMITE_QHSE", seuil:90}
+  ],
+  FOURNITURE: [
+    {typeCode:"DELAI_LIVRAISON", seuil:15},
+    {typeCode:"PENALITE_RETARD", seuil:0.1},
+    {typeCode:"GARANTIE", seuil:12},
+    {typeCode:"CONFORMITE_QHSE", seuil:90}
+  ]
+};
+
+const REGIMES_CONTRACTUELS_DEFAUT = [
   {code:"MARCHE_PUBLIC",        libelle:"Marché public (Code des marchés publics)"},
   {code:"PROCEDURE_SIMPLIFIEE", libelle:"Procédure simplifiée / marché à seuil réduit"},
   {code:"CONVENTION_ENTITES",   libelle:"Convention entre entités assujetties"},
@@ -138,8 +216,11 @@ function seuilsParDefaut(){
     scoreAlerteFournisseur:70, periodesConsecutivesEscalade:2, wipMaxParAgent:12
   };
 }
+/* Copie profonde d'un référentiel par défaut : le paramétrage travaille
+   sur sa propre copie, jamais sur la constante de référence. */
+function copieDefaut(o){ return JSON.parse(JSON.stringify(o)); }
 function preavisParDefaut(){
-  return Object.fromEntries(Object.values(NATURES_CONTRAT).map(n => [n.code, n.preavis]));
+  return Object.fromEntries(Object.values(NATURES_CONTRAT_DEFAUT).map(n => [n.code, n.preavis]));
 }
 function numerotationParDefaut(){
   return { prefixe:"ANADER/D2MG", serie:"CTR", annee:new Date().getFullYear(), compteurs:{} };
@@ -184,7 +265,22 @@ function formaterDate(s){
   const MOIS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
   return j + " " + MOIS[parseInt(m,10)-1] + " " + a;
 }
-function nature(code){ return NATURES_CONTRAT[code]; }
+/* ---- Accès aux référentiels modifiables depuis Paramétrage ----
+   Chaque accesseur lit DB.params et retombe sur la valeur par défaut
+   tant que le paramétrage n'a pas été enregistré. */
+function naturesContrat(){ return (DB.params && DB.params.naturesContrat) || NATURES_CONTRAT_DEFAUT; }
+function listeNatures(){ return Object.values(naturesContrat()); }
+function regimesContractuels(){ return (DB.params && DB.params.regimesContractuels) || REGIMES_CONTRACTUELS_DEFAUT; }
+function criteresEvaluation(){ return (DB.params && DB.params.criteresEvaluation) || CRITERES_EVALUATION_DEFAUT; }
+function modesPaiement(){ return (DB.params && DB.params.modesPaiement) || MODES_PAIEMENT_DEFAUT; }
+function delaisPaiement(){ return (DB.params && DB.params.delaisPaiement) || DELAIS_PAIEMENT_DEFAUT; }
+function slaParNature(){ return (DB.params && DB.params.slaParNature) || SLA_PAR_NATURE_DEFAUT; }
+function slaDeNature(code){ return (slaParNature()[code] || []).slice(); }
+function libelleModePaiement(code){ const m = modesPaiement().find(x=>x.code===code); return m ? m.libelle : (code||"—"); }
+function delaiPaiement(code){ return delaisPaiement().find(x=>x.code===code) || null; }
+function libelleDelaiPaiement(code){ const dp = delaiPaiement(code); return dp ? dp.libelle : (code||"—"); }
+
+function nature(code){ return naturesContrat()[code]; }
 function preavisEffectif(natureCode){
   const p = DB.params.preavisParNature[natureCode];
   return (p != null) ? p : (nature(natureCode) ? nature(natureCode).preavis : 30);
@@ -251,7 +347,10 @@ function numeroCourt(numero){
    ============================================================ */
 let DB = {
   params:{ agents:[], services:[], fournisseurs:[], seuils:seuilsParDefaut(), preavisParNature:preavisParDefaut(),
-           joursFeries:[], numerotation:numerotationParDefaut(), directeurId:null, cjfId:null },
+           joursFeries:[], numerotation:numerotationParDefaut(), directeurId:null, cjfId:null,
+           modesPaiement:copieDefaut(MODES_PAIEMENT_DEFAUT), delaisPaiement:copieDefaut(DELAIS_PAIEMENT_DEFAUT),
+           criteresEvaluation:copieDefaut(CRITERES_EVALUATION_DEFAUT), naturesContrat:copieDefaut(NATURES_CONTRAT_DEFAUT),
+           regimesContractuels:copieDefaut(REGIMES_CONTRACTUELS_DEFAUT), slaParNature:copieDefaut(SLA_PAR_NATURE_DEFAUT) },
   contrats:[], evaluations:[], profilActif:null
 };
 let D = { droits:{} };
@@ -264,7 +363,9 @@ function mapContratVersLigne(o){
     id:o.id, numero:o.numero, objet:o.objet, fournisseur_id:o.fournisseurId||null, nature_id:o.natureId,
     service_id:o.serviceId||null, proprietaire_id:o.proprietaireId||null, criticite:o.criticite||"NORMALE",
     regime_contractuel:o.regimeContractuel||"MARCHE_PUBLIC", motif_derogation:o.motifDerogation||"",
-    etape_administrative:o.etapeAdministrative||"", reference_document_origine:o.referenceDocumentOrigine||"",
+    etape_administrative:o.etapeAdministrative||"",
+    numero_bc_marche:o.numeroBcMarche||"", numero_requisition:o.numeroRequisition||"",
+    delai_paiement:o.delaiPaiement||null,
     date_enregistrement:o.dateEnregistrement||null, date_signature:o.dateSignature||null,
     date_debut:o.dateDebut||null, date_fin:o.dateFin||null, date_cloture:o.dateCloture||null,
     montant: (o.montant===""||o.montant==null) ? null : Number(o.montant),
@@ -280,7 +381,9 @@ function mapLigneVersContrat(r){
     id:r.id, numero:r.numero, objet:r.objet, fournisseurId:r.fournisseur_id, natureId:r.nature_id,
     serviceId:r.service_id, proprietaireId:r.proprietaire_id, criticite:r.criticite,
     regimeContractuel:r.regime_contractuel, motifDerogation:r.motif_derogation||"",
-    etapeAdministrative:r.etape_administrative||"", referenceDocumentOrigine:r.reference_document_origine||"",
+    etapeAdministrative:r.etape_administrative||"",
+    numeroBcMarche:r.numero_bc_marche||r.reference_document_origine||"", numeroRequisition:r.numero_requisition||"",
+    delaiPaiement:r.delai_paiement||"",
     dateEnregistrement:r.date_enregistrement, dateSignature:r.date_signature,
     dateDebut:r.date_debut, dateFin:r.date_fin, dateCloture:r.date_cloture,
     montant:r.montant, devise:r.devise, modePaiement:r.mode_paiement,
@@ -300,11 +403,17 @@ async function chargerReferentiels(){
   ]);
   DB.params.agents = (ag.data||[]).map(mapActeurVersAgent);
   DB.params.services = (sv.data||[]).map(s => ({id:s.id, libelle:s.libelle, ordre:s.ordre, chefId:s.chef_id}));
-  DB.params.fournisseurs = (fo.data||[]).map(f => ({id:f.id, nom:f.nom, secteur:f.secteur||"", ville:f.ville||"", email:f.email||"", directeur:f.directeur||"", personneContact:f.personne_contact||"", telephone:f.telephone||""}));
+  DB.params.fournisseurs = (fo.data||[]).map(f => ({id:f.id, ncc:f.ncc||"", nom:f.nom, secteur:f.secteur||"", ville:f.ville||"", email:f.email||"", directeur:f.directeur||"", personneContact:f.personne_contact||"", telephone:f.telephone||"", agree:f.agree===true}));
   DB.params.joursFeries = (jf.data||[]).map(j => j.date_ferie);
   const p = pa.data;
   DB.params.seuils = Object.assign(seuilsParDefaut(), (p && p.seuils) || {});
   DB.params.preavisParNature = Object.assign(preavisParDefaut(), (p && p.preavis_par_nature) || {});
+  DB.params.modesPaiement       = (p && p.modes_paiement)       || copieDefaut(MODES_PAIEMENT_DEFAUT);
+  DB.params.delaisPaiement      = (p && p.delais_paiement)      || copieDefaut(DELAIS_PAIEMENT_DEFAUT);
+  DB.params.criteresEvaluation  = (p && p.criteres_evaluation)  || copieDefaut(CRITERES_EVALUATION_DEFAUT);
+  DB.params.naturesContrat      = (p && p.natures_contrat)      || copieDefaut(NATURES_CONTRAT_DEFAUT);
+  DB.params.regimesContractuels = (p && p.regimes_contractuels) || copieDefaut(REGIMES_CONTRACTUELS_DEFAUT);
+  DB.params.slaParNature        = (p && p.sla_par_nature)       || copieDefaut(SLA_PAR_NATURE_DEFAUT);
   DB.params.numerotation = (p && p.numerotation && p.numerotation.serie) ? p.numerotation : numerotationParDefaut();
   DB.params.directeurId = p ? p.directeur_id : null;
   DB.params.cjfId = p ? p.cjf_id : null;
@@ -325,12 +434,16 @@ async function sauver(){
       sb.from('contrats_parametres').upsert({
         id:1, seuils:DB.params.seuils, preavis_par_nature:DB.params.preavisParNature,
         numerotation:DB.params.numerotation, directeur_id:DB.params.directeurId||null,
-        cjf_id:DB.params.cjfId||null, updated_at:new Date().toISOString()
+        cjf_id:DB.params.cjfId||null,
+        modes_paiement:DB.params.modesPaiement, delais_paiement:DB.params.delaisPaiement,
+        criteres_evaluation:DB.params.criteresEvaluation, natures_contrat:DB.params.naturesContrat,
+        regimes_contractuels:DB.params.regimesContractuels, sla_par_nature:DB.params.slaParNature,
+        updated_at:new Date().toISOString()
       }, {onConflict:'id'})
     ];
     if (DB.contrats.length) ops.push(sb.from('contrats').upsert(DB.contrats.map(mapContratVersLigne), {onConflict:'id'}));
     if (DB.params.fournisseurs.length) ops.push(sb.from('contrats_fournisseurs').upsert(
-      DB.params.fournisseurs.map(f => ({id:f.id, nom:f.nom, secteur:f.secteur||null, ville:f.ville||null, email:f.email||null, directeur:f.directeur||null, personne_contact:f.personneContact||null, telephone:f.telephone||null, updated_at:new Date().toISOString()})), {onConflict:'id'}));
+      DB.params.fournisseurs.map(f => ({id:f.id, ncc:f.ncc||null, nom:f.nom, secteur:f.secteur||null, ville:f.ville||null, email:f.email||null, directeur:f.directeur||null, personne_contact:f.personneContact||null, telephone:f.telephone||null, agree:f.agree===true, updated_at:new Date().toISOString()})), {onConflict:'id'}));
     if (DB.params.services.length) ops.push(sb.from('contrats_services').upsert(
       DB.params.services.map(s => ({id:s.id, libelle:s.libelle, ordre:s.ordre||0, chef_id:s.chefId||null})), {onConflict:'id'}));
     if (DB.evaluations && DB.evaluations.length) ops.push(sb.from('contrats_evaluations').upsert(
@@ -390,7 +503,7 @@ function libelleAgent(id){ const a = agent(id); return a ? a.nom : "—"; }
 function libelleFournisseur(id){ const f = fournisseur(id); return f ? f.nom : "—"; }
 function libelleNature(code){ const n = nature(code); return n ? n.libelle : code; }
 function libelleStatut(code){ const s = STATUTS[code]; return s ? s.libelle : code; }
-function libelleRegime(code){ const r = REGIMES_CONTRACTUELS.find(x=>x.code===code); return r ? r.libelle : code; }
+function libelleRegime(code){ const r = regimesContractuels().find(x=>x.code===code); return r ? r.libelle : code; }
 
 function normaliserTexte(s){
   return String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
@@ -410,8 +523,8 @@ function serviceParLibelle(lib){
 function natureParLibelle(lib){
   const n = normaliserTexte(lib);
   if (!n) return null;
-  return Object.values(NATURES_CONTRAT).find(x => normaliserTexte(x.libelle) === n || x.code === lib) ||
-         Object.values(NATURES_CONTRAT).find(x => normaliserTexte(x.libelle).includes(n) || n.includes(normaliserTexte(x.libelle))) || null;
+  return listeNatures().find(x => normaliserTexte(x.libelle) === n || x.code === lib) ||
+         listeNatures().find(x => normaliserTexte(x.libelle).includes(n) || n.includes(normaliserTexte(x.libelle))) || null;
 }
 function statutParLibelle(lib){
   const n = normaliserTexte(lib);
@@ -421,8 +534,8 @@ function statutParLibelle(lib){
 function regimeParLibelle(lib){
   const n = normaliserTexte(lib);
   if (!n) return null;
-  return REGIMES_CONTRACTUELS.find(x => normaliserTexte(x.libelle) === n || x.code === lib) ||
-         REGIMES_CONTRACTUELS.find(x => normaliserTexte(x.libelle).includes(n) || n.includes(normaliserTexte(x.libelle))) || null;
+  return regimesContractuels().find(x => normaliserTexte(x.libelle) === n || x.code === lib) ||
+         regimesContractuels().find(x => normaliserTexte(x.libelle).includes(n) || n.includes(normaliserTexte(x.libelle))) || null;
 }
 function agentParNom(nom){
   const n = normaliserTexte(nom);
@@ -473,15 +586,25 @@ function serviceParLibelleExact(libelle){
   if (!n) return null;
   return DB.params.services.find(s => normaliserTexte(s.libelle) === n) || null;
 }
-function validerFournisseur(nom, secteur){
+function validerFournisseur(nom, secteur, ncc){
   const erreurs = [];
-  const n = (nom||"").trim();
+  const n = (nom||"").trim(), c = (ncc||"").trim();
   if (!n) erreurs.push({champ:"nom", message:"La raison sociale du fournisseur est obligatoire."});
   if (n) {
     const doublon = fournisseurParNomExact(n);
     if (doublon) erreurs.push({champ:"nom", message:"Un fournisseur « " + doublon.nom + " » existe déjà dans le référentiel (" + doublon.id + ")."});
   }
+  if (c) {
+    const doublonNcc = fournisseurParNcc(c);
+    if (doublonNcc) erreurs.push({champ:"ncc", message:"Le NCC " + c + " est déjà attribué à « " + doublonNcc.nom + " » (" + doublonNcc.id + ")."});
+  }
   return erreurs;
+}
+function normaliserNcc(v){ return String(v||"").replace(/\s+/g,"").toUpperCase(); }
+function fournisseurParNcc(ncc){
+  const c = normaliserNcc(ncc);
+  if (!c) return null;
+  return DB.params.fournisseurs.find(f => normaliserNcc(f.ncc) === c) || null;
 }
 function fournisseurParNomExact(nom){
   const n = normaliserTexte(nom);
@@ -491,11 +614,15 @@ function fournisseurParNomExact(nom){
 function construireFournisseur(nom, secteur, extra){
   extra = extra || {};
   return {
-    id: nouvelIdFournisseur(), nom: (nom||"").trim(), secteur: (secteur||"").trim(),
+    id: nouvelIdFournisseur(), ncc: (extra.ncc||"").trim(), nom: (nom||"").trim(), secteur: (secteur||"").trim(),
     ville: (extra.ville||"").trim(), email: (extra.email||"").trim(),
     directeur: (extra.directeur||"").trim(), personneContact: (extra.personneContact||"").trim(),
-    telephone: (extra.telephone||"").trim()
+    telephone: (extra.telephone||"").trim(), agree: extra.agree === true
   };
+}
+function estAgree(fournisseurId){
+  const f = fournisseur(fournisseurId);
+  return !!(f && f.agree === true);
 }
 
 function avecLexique(texte){
@@ -642,9 +769,10 @@ function verifierClausesEtDeclencherAvis(o){
 }
 function calculerScoreEvaluation(scores){
   let total = 0;
-  Object.keys(CRITERES_EVALUATION).forEach(k => {
+  const crit = criteresEvaluation();
+  Object.keys(crit).forEach(k => {
     const v = Number(scores[k]);
-    total += (isNaN(v) ? 0 : v) * CRITERES_EVALUATION[k].poids;
+    total += (isNaN(v) ? 0 : v) * crit[k].poids;
   });
   return Math.round(total * 10) / 10;
 }
@@ -701,7 +829,7 @@ const App = {
   vue:"dashboard",
   etat:{
     registre:{recherche:"", natureFiltre:"", statutFiltre:"", serviceFiltre:""},
-    suivi:{}, rapports:{periode:"moisEnCours"}, parametrage:{onglet:"delais"},
+    suivi:{}, rapports:{periode:"moisEnCours"}, parametrage:{onglet:"natures"},
     enregistrer:{}, importer:{}, fiche:{}
   },
   aller(vue, params){
@@ -791,7 +919,7 @@ const Stats = {
     return Object.keys(carte).map(k => [libelleFn ? libelleFn(k) : k, carte[k]]).sort((a,b) => b[1]-a[1]);
   },
   performanceParNature(lot){
-    return Object.keys(NATURES_CONTRAT).map(code => {
+    return Object.keys(naturesContrat()).map(code => {
       const sousLot = lot.filter(o => o.natureId === code);
       const s = Stats.synthese(sousLot);
       return {nature:libelleNature(code), total:sousLot.length, retard:s.enRetard, taux:s.tauxRespect};
@@ -925,23 +1053,31 @@ const VueEnregistrer = {
     '<fieldset><legend>Identification</legend>' +
     '<div class="grille g2">' +
       champTexte("objet","Objet du contrat", val("objet"), champErreur("objet"), true) +
-      champSelect("fournisseurId","Fournisseur", DB.params.fournisseurs.map(f=>[f.id, f.nom + (f.secteur ? " — " + f.secteur : "")]), val("fournisseurId"), champErreur("fournisseurId"), true) +
+      champSelect("fournisseurId","Fournisseur", pairesFournisseurs(), val("fournisseurId"), champErreur("fournisseurId"), true, 'synchroniserNccFournisseur(\'fournisseur\')') +
+    '</div>' +
+    '<div class="grille g2">' +
+      champSelect("nccFournisseur","NCC du fournisseur", pairesNcc(), val("fournisseurId"), null, false, 'synchroniserNccFournisseur(\'ncc\')') +
+      '<div id="fEnr_alerteAgrement">' + alerteAgrementHtml(val("fournisseurId")) + '</div>' +
     '</div>' +
     '<div class="grille g3">' +
-      champSelect("natureId","Nature du contrat", Object.values(NATURES_CONTRAT).map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), true, 'apercuEcheanceFormulaire()') +
+      champSelect("natureId","Nature du contrat", listeNatures().map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), true, 'apercuEcheanceFormulaire()') +
       champSelect("serviceId","Service porteur", DB.params.services.map(s=>[s.id,s.libelle]), val("serviceId"), champErreur("serviceId"), true) +
       champSelect("criticite","Criticité", Object.values(CRITICITES).map(c=>[c.code,c.libelle]), val("criticite","NORMALE"), null, false) +
     '</div>' +
     '<div class="grille g2">' +
       champSelect("proprietaireId","Acheteur responsable", [["","— À affecter plus tard —"]].concat(DB.params.agents.slice().sort((a,b)=>a.nom.localeCompare(b.nom,"fr")).map(a=>[a.id,a.nom])), val("proprietaireId"), champErreur("proprietaireId"), true) +
-      champSelect("modePaiement","Mode de paiement", [["Virement à 30 jours","Virement à 30 jours"],["Virement à 45 jours","Virement à 45 jours"],["Paiement à réception facture","Paiement à réception facture"]], val("modePaiement"), null, false) +
+      champSelect("modePaiement","Mode de paiement", modesPaiement().map(m=>[m.code,m.libelle]), val("modePaiement","VIREMENT"), null, false) +
+      champSelect("delaiPaiement","Délai de paiement", delaisPaiement().map(x=>[x.code,x.libelle]), val("delaiPaiement","J30"), null, false) +
     '</div></fieldset>' +
 
     '<fieldset><legend>Cadre réglementaire</legend>' +
     '<p class="msgInfo">L\'ANADER est assujettie au Code des marchés publics pour la quasi-totalité de ses marchés, sauf dérogation motivée. Repères indicatifs (à vérifier avec la Cellule Juridique et Fiscale) : cumul des avenants ≤ ' + REFERENTIEL_MARCHES_PUBLICS.cumulAvenantsMaxPct + ' % du montant initial, garantie de bonne exécution ' + REFERENTIEL_MARCHES_PUBLICS.garantieBonneExecutionMinPct + '–' + REFERENTIEL_MARCHES_PUBLICS.garantieBonneExecutionMaxPct + ' %, cumul des pénalités : seuil de résiliation à ' + REFERENTIEL_MARCHES_PUBLICS.cumulPenalitesSeuilResiliationPct + ' %, délai de paiement plafonné à ' + REFERENTIEL_MARCHES_PUBLICS.delaiPaiementMaxJours + ' jours. Ces valeurs ne bloquent aucune saisie : vous restez libre d\'indiquer la situation réelle du contrat.</p>' +
     '<div class="grille g2">' +
-      champSelect("regimeContractuel","Régime contractuel", REGIMES_CONTRACTUELS.map(r=>[r.code,r.libelle]), val("regimeContractuel","MARCHE_PUBLIC"), champErreur("regimeContractuel"), true, 'basculerMotifDerogation()') +
-      champTexte("referenceDocumentOrigine","Référence document d\'origine (optionnel)", val("referenceDocumentOrigine"), null, false) +
+      champSelect("regimeContractuel","Régime contractuel", regimesContractuels().map(r=>[r.code,r.libelle]), val("regimeContractuel","MARCHE_PUBLIC"), champErreur("regimeContractuel"), true, 'basculerMotifDerogation()') +
+      champTexte("numeroBcMarche","N° bon de commande / marché", val("numeroBcMarche"), null, false) +
+    '</div>' +
+    '<div class="grille g2">' +
+      champTexte("numeroRequisition","N° bon de réquisition", val("numeroRequisition"), null, false) +
     '</div>' +
     '<div id="fEnr_blocMotif" style="display:' + (val("regimeContractuel","MARCHE_PUBLIC")==="DEROGATION"?"block":"none") + '">' +
       '<div class="champ' + (champErreur("motifDerogation")?" erreur":"") + '"><label>Motif de la dérogation <span class="oblig">*</span></label>' +
@@ -958,7 +1094,7 @@ const VueEnregistrer = {
     '</div>' +
     '<div class="champ"><label>Échéance de préavis calculée</label>' +
       '<div class="lexiquePop" id="fEnr_apercu">Choisissez la nature et la date de fin pour voir le préavis calculé.</div>' +
-      '<div class="aide">Le préavis par défaut dépend de la nature du contrat (paramétrable dans <i>Paramétrage → Délais</i>).</div>' +
+      '<div class="aide">Le préavis par défaut dépend de la nature du contrat (paramétrable dans <i>Paramétrage → Natures &amp; préavis</i>).</div>' +
     '</div></fieldset>' +
 
     '<fieldset><legend>Statut au moment de l\'enregistrement</legend>' +
@@ -1004,6 +1140,38 @@ function champSelect(id, label, paires, valeurSel, erreur, oblig, oninput){
     '</select>' + (erreur ? '<div class="erreurChamp">' + ech(erreur.message) + '</div>' : '') + '</div>';
 }
 
+/* Le fournisseur et son NCC sont deux entrées d'une même donnée : les deux
+   listes portent l'identifiant du fournisseur, et se synchronisent l'une
+   l'autre. Choisir la raison sociale renseigne le NCC, et inversement. */
+function pairesFournisseurs(){
+  return DB.params.fournisseurs.map(f => [f.id, f.nom + (f.secteur ? " — " + f.secteur : "")]);
+}
+function pairesNcc(){
+  return [["", "— Choisir —"]].concat(
+    DB.params.fournisseurs.map(f => [f.id, f.ncc ? f.ncc : "— NCC non renseigné (" + f.nom + ") —"]));
+}
+function synchroniserNccFournisseur(source){
+  const elF = document.getElementById("fEnr_fournisseurId");
+  const elN = document.getElementById("fEnr_nccFournisseur");
+  if (!elF || !elN) return;
+  if (source === "ncc") elF.value = elN.value; else elN.value = elF.value;
+  rafraichirAlerteAgrement();
+}
+function rafraichirAlerteAgrement(){
+  const elF = document.getElementById("fEnr_fournisseurId");
+  const cible = document.getElementById("fEnr_alerteAgrement");
+  if (!elF || !cible) return;
+  const f = fournisseur(elF.value);
+  if (!f) { cible.innerHTML = ""; return; }
+  if (f.agree === true) {
+    cible.innerHTML = '<div class="msgOk">Fournisseur agréé — référencé dans la grille fournisseur de la D2MG.</div>';
+  } else {
+    cible.innerHTML = '<div class="msgErreur"><b>Fournisseur non agréé.</b> « ' + ech(f.nom) + ' » ne figure pas parmi les fournisseurs agréés. ' +
+      'Ce contrat apparaîtra dans le rapport mensuel des fournisseurs non agréés. ' +
+      'Un fournisseur retenu à l\'issue d\'un appel d\'offres ouvert (régime « Marché public ») est agréé d\'office à l\'enregistrement.</div>';
+  }
+}
+
 function apercuEcheanceFormulaire(){
   const elN = document.getElementById("fEnr_natureId"), elF = document.getElementById("fEnr_dateFin"), cible = document.getElementById("fEnr_apercu");
   if (!elN || !elF || !cible) return;
@@ -1022,11 +1190,35 @@ function lireFormulaireEnregistrement(){
   return {
     objet:g("objet").trim(), fournisseurId:g("fournisseurId"), natureId:g("natureId"),
     serviceId:g("serviceId"), criticite:g("criticite")||"NORMALE", proprietaireId:g("proprietaireId")||null,
-    modePaiement:g("modePaiement"), dateDebut:g("dateDebut"), dateFin:g("dateFin"),
+    modePaiement:g("modePaiement"), delaiPaiement:g("delaiPaiement"), dateDebut:g("dateDebut"), dateFin:g("dateFin"),
     montant: g("montant")===""?"":Number(g("montant")), statut:g("statut")||"BROUILLON",
     regimeContractuel:g("regimeContractuel")||"MARCHE_PUBLIC", motifDerogation:g("motifDerogation").trim(),
-    etapeAdministrative:g("etapeAdministrative")||"", referenceDocumentOrigine:g("referenceDocumentOrigine").trim()
+    etapeAdministrative:g("etapeAdministrative")||"",
+    numeroBcMarche:g("numeroBcMarche").trim(), numeroRequisition:g("numeroRequisition").trim()
   };
+}
+
+function alerteAgrementHtml(fournisseurId){
+  const f = fournisseur(fournisseurId);
+  if (!f) return "";
+  if (f.agree === true) return '<div class="msgOk">Fournisseur agréé — référencé dans la grille fournisseur de la D2MG.</div>';
+  return '<div class="msgErreur"><b>Fournisseur non agréé.</b> « ' + ech(f.nom) + ' » ne figure pas parmi les fournisseurs agréés. ' +
+    'Ce contrat apparaîtra dans le rapport mensuel des fournisseurs non agréés. ' +
+    'Un fournisseur retenu à l\'issue d\'un appel d\'offres ouvert (régime « Marché public ») est agréé d\'office à l\'enregistrement.</div>';
+}
+
+/* ---- Clauses SLA chargées d'office selon la nature du contrat ----
+   Elles sont marquées `origine:"auto"` : tant qu'aucune valeur constatée
+   n'a été saisie, l'acheteur peut retirer celles que la rédaction du
+   contrat n'a finalement pas retenues. */
+function construireClausesSLAParNature(natureCode, contratId){
+  return slaDeNature(natureCode).map((modele, i) => {
+    const t = TYPES_CLAUSE[modele.typeCode];
+    if (!t) return null;
+    return { id: contratId + "-CL" + (i+1), typeCode: t.code, libelle: t.libelle, unite: t.unite,
+             sens: t.sens, seuil: Number(modele.seuil), valeurConstatee: null, niveauManuel: null,
+             origine: "auto", derniereMaj: auj() };
+  }).filter(Boolean);
 }
 
 /* ---- Construction du contrat — mutualisée entre la saisie manuelle,
@@ -1034,24 +1226,50 @@ function lireFormulaireEnregistrement(){
    trois voies produisent exactement le même schéma. ---- */
 function construireContrat(valeurs){
   const regime = valeurs.regimeContractuel || "MARCHE_PUBLIC";
+  const idContrat = nouvelIdContrat();
   return {
-    id:nouvelIdContrat(), numero:numeroter(),
+    id:idContrat, numero:numeroter(),
     objet:valeurs.objet, fournisseurId:valeurs.fournisseurId, natureId:valeurs.natureId,
     serviceId:valeurs.serviceId, proprietaireId:valeurs.proprietaireId||null, criticite:valeurs.criticite||"NORMALE",
     regimeContractuel:regime, motifDerogation: regime==="DEROGATION" ? (valeurs.motifDerogation||"") : "",
-    etapeAdministrative:valeurs.etapeAdministrative||"", referenceDocumentOrigine:valeurs.referenceDocumentOrigine||"",
+    etapeAdministrative:valeurs.etapeAdministrative||"",
+    numeroBcMarche:valeurs.numeroBcMarche||"", numeroRequisition:valeurs.numeroRequisition||"",
     dateEnregistrement:auj(), dateSignature: valeurs.statut==="ACTIF" ? valeurs.dateDebut : null,
     dateDebut:valeurs.dateDebut, dateFin:valeurs.dateFin, dateCloture:null,
-    montant:valeurs.montant, devise:"XOF", modePaiement:valeurs.modePaiement||"Virement à 30 jours",
+    montant:valeurs.montant, devise:"XOF",
+    modePaiement:valeurs.modePaiement||"VIREMENT", delaiPaiement:valeurs.delaiPaiement||"J30",
     statut:valeurs.statut||"BROUILLON", motifCloture:null, motifAbandon:null,
-    clausesSLA:[], avenants:[], revues:[], demandesAvis:[], pieces:[],
+    clausesSLA:construireClausesSLAParNature(valeurs.natureId, idContrat),
+    avenants:[], revues:[], demandesAvis:[], pieces:[],
     historique:[]
   };
 }
 function finaliserAjoutContrat(o, origine){
   tracer(o, "Enregistrement du contrat", "Statut initial : " + libelleStatut(o.statut) + (origine ? " — " + origine : ""));
+  if (o.clausesSLA && o.clausesSLA.length) {
+    tracer(o, "Clauses SLA chargées", o.clausesSLA.length + " clause(s) type de la nature « " + libelleNature(o.natureId) + " »");
+  }
   DB.contrats.push(o);
   sauver();
+  appliquerAgrementDOffice(o);
+}
+
+/* Un fournisseur retenu à l'issue d'un appel d'offres ouvert (régime
+   « Marché public ») est agréé d'office : l'agrément est posé à
+   l'enregistrement du contrat, et tracé dans son historique. */
+async function appliquerAgrementDOffice(o){
+  const f = fournisseur(o.fournisseurId);
+  if (!f || f.agree === true) return;
+  if (o.regimeContractuel !== "MARCHE_PUBLIC") {
+    toast("Fournisseur non agréé : ce contrat figurera dans le rapport des fournisseurs non agréés.", "err", 6500);
+    return;
+  }
+  const { error } = await sb.from('contrats_fournisseurs').update({agree:true, updated_at:new Date().toISOString()}).eq('id', f.id);
+  if (error) { console.error(error); return; }
+  f.agree = true;
+  tracer(o, "Agrément d'office", "« " + f.nom + " » agréé d'office (marché public attribué)");
+  sauver();
+  toast("« " + f.nom + " » a été agréé d'office (marché public attribué).", "ok", 6000);
 }
 
 function soumettreEnregistrement(evt){
@@ -1125,21 +1343,28 @@ function rendreExtractionTexte(etat){
 
   '<fieldset><legend>Identification</legend><div class="grille g2">' +
     champTexte("objet", marque("objet","Objet du contrat"), val("objet"), champErreur("objet"), true) +
-    champSelect("fournisseurId", marque("fournisseurId","Fournisseur"), DB.params.fournisseurs.map(f=>[f.id, f.nom + (f.secteur ? " — " + f.secteur : "")]), val("fournisseurId"), champErreur("fournisseurId"), true) +
+    champSelect("fournisseurId", marque("fournisseurId","Fournisseur"), pairesFournisseurs(), val("fournisseurId"), champErreur("fournisseurId"), true, 'synchroniserNccFournisseur(\'fournisseur\')') +
+  '</div><div class="grille g2">' +
+    champSelect("nccFournisseur","NCC du fournisseur", pairesNcc(), val("fournisseurId"), null, false, 'synchroniserNccFournisseur(\'ncc\')') +
+    '<div id="fEnr_alerteAgrement">' + alerteAgrementHtml(val("fournisseurId")) + '</div>' +
   '</div><div class="grille g3">' +
-    champSelect("natureId", marque("natureId","Nature du contrat"), Object.values(NATURES_CONTRAT).map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), true) +
+    champSelect("natureId", marque("natureId","Nature du contrat"), listeNatures().map(n=>[n.code,n.libelle]), val("natureId"), champErreur("natureId"), true) +
     champSelect("serviceId","Service porteur", DB.params.services.map(s=>[s.id,s.libelle]), val("serviceId"), champErreur("serviceId"), true) +
     champSelect("criticite","Criticité", Object.values(CRITICITES).map(c=>[c.code,c.libelle]), val("criticite","NORMALE"), null, false) +
   '</div><div class="grille g2">' +
     champSelect("proprietaireId","Acheteur responsable", [["","— À affecter plus tard —"]].concat(DB.params.agents.slice().sort((a,b)=>a.nom.localeCompare(b.nom,"fr")).map(a=>[a.id,a.nom])), val("proprietaireId"), champErreur("proprietaireId"), true) +
-    champSelect("modePaiement","Mode de paiement", [["Virement à 30 jours","Virement à 30 jours"],["Virement à 45 jours","Virement à 45 jours"],["Paiement à réception facture","Paiement à réception facture"]], val("modePaiement"), null, false) +
+    champSelect("modePaiement","Mode de paiement", modesPaiement().map(m=>[m.code,m.libelle]), val("modePaiement","VIREMENT"), null, false) +
+      champSelect("delaiPaiement","Délai de paiement", delaisPaiement().map(x=>[x.code,x.libelle]), val("delaiPaiement","J30"), null, false) +
   '</div></fieldset>' +
 
   '<fieldset><legend>Cadre réglementaire</legend>' +
   '<p class="aide">Repères Code des marchés publics (rappel, non bloquant) : cumul avenants ≤ ' + REFERENTIEL_MARCHES_PUBLICS.cumulAvenantsMaxPct + ' %, garantie de bonne exécution ' + REFERENTIEL_MARCHES_PUBLICS.garantieBonneExecutionMinPct + '–' + REFERENTIEL_MARCHES_PUBLICS.garantieBonneExecutionMaxPct + ' %, délai de paiement ≤ ' + REFERENTIEL_MARCHES_PUBLICS.delaiPaiementMaxJours + ' jours.</p>' +
   '<div class="grille g2">' +
-    champSelect("regimeContractuel", marque("regimeContractuel","Régime contractuel"), REGIMES_CONTRACTUELS.map(r=>[r.code,r.libelle]), val("regimeContractuel","MARCHE_PUBLIC"), champErreur("regimeContractuel"), true, 'basculerMotifDerogation()') +
-    champTexte("referenceDocumentOrigine", marque("referenceDocumentOrigine","Référence document d\'origine"), val("referenceDocumentOrigine"), null, false) +
+    champSelect("regimeContractuel", marque("regimeContractuel","Régime contractuel"), regimesContractuels().map(r=>[r.code,r.libelle]), val("regimeContractuel","MARCHE_PUBLIC"), champErreur("regimeContractuel"), true, 'basculerMotifDerogation()') +
+    champTexte("numeroBcMarche", marque("numeroBcMarche","N° bon de commande / marché"), val("numeroBcMarche"), null, false) +
+  '</div>' +
+  '<div class="grille g2">' +
+    champTexte("numeroRequisition","N° bon de réquisition", val("numeroRequisition"), null, false) +
   '</div>' +
   '<div id="fEnr_blocMotif" style="display:'+(val("regimeContractuel","MARCHE_PUBLIC")==="DEROGATION"?"block":"none")+'">' +
     '<div class="champ'+(champErreur("motifDerogation")?" erreur":"")+'"><label>Motif de la dérogation <span class="oblig">*</span></label>' +
@@ -1450,7 +1675,7 @@ function extraireFournisseur(texte){
 function extraireNature(texte){
   const t = normaliserTexte(texte);
   for (const code of Object.keys(MOTS_CLES_NATURE)) {
-    if (MOTS_CLES_NATURE[code].some(mot => t.includes(normaliserTexte(mot)))) return NATURES_CONTRAT[code];
+    if (MOTS_CLES_NATURE[code].some(mot => t.includes(normaliserTexte(mot)))) return naturesContrat()[code];
   }
   return null;
 }
@@ -1473,7 +1698,7 @@ function extraireObjet(texte){
   return ligne || "";
 }
 function extraireContratDepuisTexte(texte){
-  const valeurs = {criticite:"NORMALE", statut:"BROUILLON", regimeContractuel:"", motifDerogation:"", etapeAdministrative:"", referenceDocumentOrigine:"", proprietaireId:""};
+  const valeurs = {criticite:"NORMALE", statut:"BROUILLON", regimeContractuel:"", motifDerogation:"", etapeAdministrative:"", numeroBcMarche:"", numeroRequisition:"", proprietaireId:""};
   const detectes = {};
 
   const f = extraireFournisseur(texte);
@@ -1506,7 +1731,7 @@ function extraireContratDepuisTexte(texte){
   if (regime) detectes.regimeContractuel = true;
 
   const ref = extraireReference(texte);
-  if (ref) { valeurs.referenceDocumentOrigine = ref; detectes.referenceDocumentOrigine = true; }
+  if (ref) { valeurs.numeroBcMarche = ref; detectes.numeroBcMarche = true; }
 
   const objet = extraireObjet(texte);
   if (objet) { valeurs.objet = objet; detectes.objet = true; }
@@ -1514,12 +1739,28 @@ function extraireContratDepuisTexte(texte){
   return {valeurs, detectes};
 }
 
+/* Le gabarit reprend, dans l'ordre, les champs de l'écran « Enregistrer un
+   contrat ». Le fournisseur peut être désigné par sa raison sociale OU par
+   son NCC : l'un des deux suffit. */
 const ENTETES_GABARIT_CSV = [
-  "Objet","Fournisseur (nom exact du référentiel)","Nature","Service porteur",
-  "Régime contractuel","Motif dérogation (si régime = Dérogation)","Criticité",
-  "Acheteur responsable (nom, optionnel)","Date début (AAAA-MM-JJ)","Date fin (AAAA-MM-JJ)",
-  "Montant (F CFA)","Mode de paiement","Statut initial",
-  "Étape administrative (optionnel)","Référence document d'origine (optionnel)"
+  "Objet du contrat",
+  "Fournisseur (raison sociale du référentiel)",
+  "NCC du fournisseur (si raison sociale non renseignée)",
+  "Nature du contrat",
+  "Service porteur",
+  "Criticité (Critique / Normale / Mineure)",
+  "Acheteur responsable (nom, optionnel)",
+  "Mode de paiement",
+  "Délai de paiement",
+  "Régime contractuel",
+  "N° bon de commande / marché",
+  "N° bon de réquisition",
+  "Motif de dérogation (si régime = Dérogation)",
+  "Étape administrative (optionnel)",
+  "Date de début (AAAA-MM-JJ)",
+  "Date de fin (AAAA-MM-JJ)",
+  "Montant (F CFA)",
+  "Statut initial"
 ];
 
 function rendreImportCSV(etat){
@@ -1536,9 +1777,12 @@ function rendreImportCSV(etat){
 
 function telechargerGabaritImportCSV(){
   const exemple = [
-    "Maintenance des groupes électrogènes du siège", "Générale de Froid et Climatisation",
-    "Maintenance / entretien technique", "Division Marchés", "Marché public", "", "Normale", "",
-    "2026-09-01", "2027-08-31", "4500000", "Virement à 30 jours", "Actif", "Actif", "BC-1234/D2MG/2026"
+    "Maintenance des groupes électrogènes du siège",
+    "Générale de Froid et Climatisation", "1234567 A",
+    "Maintenance / entretien technique", "Division Marchés", "Normale", "",
+    "Virement bancaire", "30 jours",
+    "Marché public", "BC-1234/D2MG/2026", "REQ-0087/D2MG/2026", "", "",
+    "2026-09-01", "2027-08-31", "4500000", "Actif"
   ];
   const lignes = [csvLigne(ENTETES_GABARIT_CSV), csvLigne(exemple)];
   telecharger("gabarit_import_contrats_" + auj() + ".csv", lignes.join("\r\n"), "text/csv");
@@ -1564,40 +1808,54 @@ function parserCSV(texte){
   return lignes.filter(l => l.some(c => c.trim() !== ""));
 }
 
+function elementParLibelleOuCode(liste, saisie){
+  const t = normaliserTexte(saisie);
+  if (!t) return null;
+  return liste.find(x => normaliserTexte(x.libelle) === t || normaliserTexte(x.code) === t) ||
+         liste.find(x => normaliserTexte(x.libelle).includes(t) || t.includes(normaliserTexte(x.libelle))) || null;
+}
+
 function construireLigneImportCSV(cols, numeroLigne){
   const g = (i) => (cols[i]||"").trim();
-  const f = fournisseurParNom(g(1));
-  const n = natureParLibelle(g(2));
-  const s = serviceParLibelle(g(3));
-  const regime = regimeParLibelle(g(4));
-  const critere = Object.values(CRITICITES).find(c => normaliserTexte(c.libelle)===normaliserTexte(g(6)));
-  const ag = agentParNom(g(7));
-  const statutObj = statutParLibelle(g(12));
-  const montantBrut = g(10).replace(/[^\d,.\-]/g,"").replace(",", ".");
+  const f = g(1) ? fournisseurParNom(g(1)) : (g(2) ? fournisseurParNcc(g(2)) : null);
+  const n = natureParLibelle(g(3));
+  const s = serviceParLibelle(g(4));
+  const critere = Object.values(CRITICITES).find(c => normaliserTexte(c.libelle)===normaliserTexte(g(5)));
+  const ag = agentParNom(g(6));
+  const mode = elementParLibelleOuCode(modesPaiement(), g(7));
+  const delai = elementParLibelleOuCode(delaisPaiement(), g(8));
+  const regime = regimeParLibelle(g(9));
+  const statutObj = statutParLibelle(g(17));
+  const montantBrut = g(16).replace(/[^\d,.\-]/g,"").replace(",", ".");
 
   const valeurs = {
     objet: g(0),
     fournisseurId: f ? f.id : "",
     natureId: n ? n.code : "",
     serviceId: s ? s.id : "",
-    regimeContractuel: regime ? regime.code : (g(4) ? "" : "MARCHE_PUBLIC"),
-    motifDerogation: g(5),
     criticite: critere ? critere.code : "NORMALE",
     proprietaireId: ag ? ag.id : "",
-    dateDebut: g(8), dateFin: g(9),
-    montant: montantBrut === "" ? "" : Number(montantBrut),
-    modePaiement: g(11) || "Virement à 30 jours",
-    statut: statutObj ? statutObj.code : (g(12) ? "BROUILLON" : "BROUILLON"),
+    modePaiement: mode ? mode.code : "VIREMENT",
+    delaiPaiement: delai ? delai.code : "J30",
+    regimeContractuel: regime ? regime.code : (g(9) ? "" : "MARCHE_PUBLIC"),
+    numeroBcMarche: g(10),
+    numeroRequisition: g(11),
+    motifDerogation: g(12),
     etapeAdministrative: ETAPES_ADMINISTRATIVES.includes(g(13)) ? g(13) : "",
-    referenceDocumentOrigine: g(14)
+    dateDebut: g(14), dateFin: g(15),
+    montant: montantBrut === "" ? "" : Number(montantBrut),
+    statut: statutObj ? statutObj.code : "BROUILLON"
   };
 
   const erreursColonnes = [];
-  if (g(1) && !f) erreursColonnes.push({champ:"fournisseurId", message:"Fournisseur « " + g(1) + " » introuvable dans le référentiel (Paramétrage → Référentiels)."});
-  if (g(2) && !n) erreursColonnes.push({champ:"natureId", message:"Nature « " + g(2) + " » non reconnue."});
-  if (g(3) && !s) erreursColonnes.push({champ:"serviceId", message:"Service « " + g(3) + " » non reconnu."});
-  if (g(4) && !regime) erreursColonnes.push({champ:"regimeContractuel", message:"Régime contractuel « " + g(4) + " » non reconnu."});
-  if (g(12) && !statutObj) erreursColonnes.push({champ:"statut", message:"Statut « " + g(12) + " » non reconnu — ligne traitée en Brouillon si les autres champs sont valides."});
+  if (g(1) && !f) erreursColonnes.push({champ:"fournisseurId", message:"Fournisseur « " + g(1) + " » introuvable dans le référentiel (Paramétrage → Services, acteurs, fournisseurs)."});
+  if (!g(1) && g(2) && !f) erreursColonnes.push({champ:"fournisseurId", message:"Aucun fournisseur ne porte le NCC « " + g(2) + " »."});
+  if (g(3) && !n) erreursColonnes.push({champ:"natureId", message:"Nature « " + g(3) + " » non reconnue."});
+  if (g(4) && !s) erreursColonnes.push({champ:"serviceId", message:"Service « " + g(4) + " » non reconnu."});
+  if (g(7) && !mode) erreursColonnes.push({champ:"modePaiement", message:"Mode de paiement « " + g(7) + " » non reconnu — Virement bancaire appliqué par défaut."});
+  if (g(8) && !delai) erreursColonnes.push({champ:"delaiPaiement", message:"Délai de paiement « " + g(8) + " » non reconnu — 30 jours appliqué par défaut."});
+  if (g(9) && !regime) erreursColonnes.push({champ:"regimeContractuel", message:"Régime contractuel « " + g(9) + " » non reconnu."});
+  if (g(17) && !statutObj) erreursColonnes.push({champ:"statut", message:"Statut « " + g(17) + " » non reconnu — ligne traitée en Brouillon si les autres champs sont valides."});
 
   const erreurs = validerContrat(valeurs).concat(erreursColonnes);
   return {numeroLigne, valeurs, erreurs};
@@ -1674,7 +1932,7 @@ const VueRegistre = {
     '<div class="grille g4">' +
       '<div class="champ"><label>Recherche</label><input type="text" value="' + ech(etat.recherche||"") + '" placeholder="N°, objet, fournisseur…" oninput="App.aller(\'registre\',{recherche:this.value})"></div>' +
       '<div class="champ"><label>Nature</label><select onchange="App.aller(\'registre\',{natureFiltre:this.value})">' +
-        '<option value="">Toutes</option>' + Object.values(NATURES_CONTRAT).map(n=>'<option value="'+n.code+'"'+(etat.natureFiltre===n.code?" selected":"")+'>'+ech(n.libelle)+'</option>').join("") + '</select></div>' +
+        '<option value="">Toutes</option>' + listeNatures().map(n=>'<option value="'+n.code+'"'+(etat.natureFiltre===n.code?" selected":"")+'>'+ech(n.libelle)+'</option>').join("") + '</select></div>' +
       '<div class="champ"><label>Statut</label><select onchange="App.aller(\'registre\',{statutFiltre:this.value})">' +
         '<option value="">Tous</option>' + STATUTS_ORDRE.concat(["ABANDONNE"]).map(c=>'<option value="'+c+'"'+(etat.statutFiltre===c?" selected":"")+'>'+ech(STATUTS[c].libelle)+'</option>').join("") + '</select></div>' +
       '<div class="champ"><label>Service</label><select onchange="App.aller(\'registre\',{serviceFiltre:this.value})">' +
@@ -1803,12 +2061,15 @@ function ongletVue(o){
   const score = dernierScoreFournisseur(o.fournisseurId);
   return '<div class="grille g2">' +
     '<div class="carte"><div class="tete"><h3>Informations générales</h3></div><div class="corps">' +
-      ligneInfo("Fournisseur", ech(f?f.nom:"—") + (f?' <span class="muet">('+ech(f.secteur)+')</span>':'')) +
+      ligneInfo("Fournisseur", ech(f?f.nom:"—") + (f&&f.secteur?' <span class="muet">('+ech(f.secteur)+')</span>':'') +
+        (f ? ' <span class="et ' + (f.agree?"vert":"rouge") + '">' + (f.agree?"Agréé":"Non agréé") + '</span>' : '')) +
+      ligneInfo("NCC du fournisseur", f && f.ncc ? ech(f.ncc) : '<span class="muet">Non renseigné</span>') +
       ligneInfo("Nature", libelleNature(o.natureId)) +
       ligneInfo("Service porteur", libelleService(o.serviceId)) +
       ligneInfo("Acheteur responsable", o.proprietaireId ? libelleAgent(o.proprietaireId) : '<span class="muet">Non affecté</span>') +
       ligneInfo("Criticité", CRITICITES[o.criticite] ? CRITICITES[o.criticite].libelle : o.criticite) +
-      ligneInfo("Mode de paiement", o.modePaiement||"—") +
+      ligneInfo("Mode de paiement", ech(libelleModePaiement(o.modePaiement))) +
+      ligneInfo("Délai de paiement", ech(libelleDelaiPaiement(o.delaiPaiement))) +
       (score!=null ? ligneInfo("Score fournisseur (dernière période)", score + " / 100" + (fournisseurEnEscalade(o.fournisseurId)?' <span class="et rouge">Escalade</span>':'')) : "") +
     '</div></div>' +
     '<div class="carte"><div class="tete"><h3>Dates et montant</h3></div><div class="corps">' +
@@ -1825,7 +2086,8 @@ function ongletVue(o){
     '<div class="carte"><div class="tete"><h3>Cadre réglementaire</h3></div><div class="corps">' +
       ligneInfo("Régime contractuel", regimeContractuelAffichage(o)) +
       ligneInfo("Étape administrative détaillée (information)", etapeAdministrativeSelect(o)) +
-      (o.referenceDocumentOrigine ? ligneInfo("Référence document d\'origine", ech(o.referenceDocumentOrigine)) : "") +
+      ligneInfo("N° bon de commande / marché", o.numeroBcMarche ? ech(o.numeroBcMarche) : '<span class="muet">—</span>') +
+      ligneInfo("N° bon de réquisition", o.numeroRequisition ? ech(o.numeroRequisition) : '<span class="muet">—</span>') +
     '</div></div>' +
     '<div class="carte"><div class="tete"><h3>Repères réglementaires (rappel, non bloquant)</h3></div><div class="corps" style="font-size:12.5px">' +
       '<p class="muet">Code des marchés publics — à faire vérifier par la Cellule Juridique et Fiscale avant tout déploiement.</p>' +
@@ -1871,6 +2133,10 @@ function ongletClauses(o){
   return '<div class="carte"><div class="tete"><h3>Clauses suivies</h3>' +
     (peutModifier ? '<button class="btn mini" onclick="ouvrirModaleAjoutClause(\''+o.id+'\')">+ Ajouter une clause</button>' : '') + '</div>' +
     '<div class="corps">' +
+    (o.clausesSLA.some(cl => cl.origine === "auto")
+      ? '<p class="msgInfo">Les clauses marquées « type » ont été chargées automatiquement à partir de la nature du contrat (Paramétrage → Bibliothèque SLA). ' +
+        'Retirez celles que la rédaction du contrat n\'a pas retenues : la suppression reste possible tant qu\'aucune valeur constatée n\'a été enregistrée.</p>'
+      : '') +
     (o.clausesSLA.length ? o.clausesSLA.map(cl => renderClause(o, cl, peutModifier)).join("") : '<p class="muet">Aucune clause suivie sur ce contrat.</p>') +
     '</div></div>';
 }
@@ -1879,8 +2145,15 @@ function renderClause(o, cl, peutModifier){
   const phrase = phraseClause(cl, c);
   return '<div class="carte compact" style="border-left:4px solid var(--'+({vert:"vert",orange:"orange",rouge:"rouge",bleu:"bleu",gris:"gris-300"}[c])+')"><div class="corps">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
-      '<div><b>' + avecLexique(cl.libelle) + '</b><div class="muet" style="font-size:12px">' + phrase + '</div></div>' +
-      '<span class="et ' + c + '">' + ({vert:"Conforme",orange:"À surveiller",rouge:"Non conforme",bleu:"Information",gris:"À renseigner"})[c] + '</span>' +
+      '<div><b>' + avecLexique(cl.libelle) + '</b>' +
+        (cl.origine === "auto" ? ' <span class="et gris" title="Clause type chargée depuis la nature du contrat">type</span>' : '') +
+        '<div class="muet" style="font-size:12px">' + phrase + '</div></div>' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+        '<span class="et ' + c + '">' + ({vert:"Conforme",orange:"À surveiller",rouge:"Non conforme",bleu:"Information",gris:"À renseigner"})[c] + '</span>' +
+        (peutModifier ? (clauseSupprimable(cl)
+          ? '<button class="btn mini" title="Retirer cette clause du contrat" onclick="confirmerSuppressionClause(\''+o.id+'\',\''+cl.id+'\')">🗑</button>'
+          : '<span class="muet" style="font-size:11px" title="Une valeur constatée a été enregistrée : la clause ne peut plus être retirée">verrouillée</span>') : '') +
+      '</div>' +
     '</div>' +
     (peutModifier ? '<div class="grille g3" style="margin-top:10px">' +
       '<div class="champ" style="margin-bottom:0"><label>Valeur constatée (' + ech(cl.unite) + ')</label>' +
@@ -1890,6 +2163,39 @@ function renderClause(o, cl, peutModifier){
     '</div>' : '') +
     '</div></div>';
 }
+/* Une clause reste retirable tant qu'aucune valeur constatée n'a été
+   enregistrée : dès qu'un constat existe, la clause est verrouillée pour
+   préserver la traçabilité du suivi. */
+function clauseSupprimable(cl){
+  return cl.valeurConstatee == null || cl.valeurConstatee === "";
+}
+function confirmerSuppressionClause(contratId, clauseId){
+  const o = contrat(contratId); if (!o) return;
+  const cl = o.clausesSLA.find(c => c.id === clauseId); if (!cl) return;
+  if (!clauseSupprimable(cl)) {
+    toast("Cette clause a déjà une valeur constatée enregistrée : elle ne peut plus être retirée.", "err", 6000);
+    return;
+  }
+  const corps = '<p>Retirer la clause <b>' + ech(cl.libelle) + '</b> (seuil ' + ech(String(cl.seuil)) + ' ' + ech(cl.unite) + ') de ce contrat ?</p>' +
+    '<p class="muet">' + (cl.origine === "auto"
+      ? "Cette clause type a été chargée automatiquement d'après la nature du contrat. La retirer ne modifie pas la bibliothèque SLA."
+      : "Cette clause a été ajoutée manuellement sur ce contrat.") + '</p>';
+  const pied = '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn danger" onclick="executerSuppressionClause(\''+contratId+'\',\''+clauseId+'\')">Retirer la clause</button>';
+  ouvrirModale("Retirer une clause SLA", corps, pied);
+}
+function executerSuppressionClause(contratId, clauseId){
+  const o = contrat(contratId); if (!o) { fermerModale(); return; }
+  const cl = o.clausesSLA.find(c => c.id === clauseId); if (!cl) { fermerModale(); return; }
+  if (!clauseSupprimable(cl)) { fermerModale(); toast("Clause verrouillée : une valeur constatée a été enregistrée.", "err", 6000); return; }
+  o.clausesSLA = o.clausesSLA.filter(c => c.id !== clauseId);
+  tracer(o, "Clause retirée", cl.libelle + " (" + (cl.origine === "auto" ? "clause type" : "clause manuelle") + ")");
+  sauver();
+  fermerModale();
+  toast("Clause « " + cl.libelle + " » retirée du contrat.", "ok");
+  App.aller("fiche", {id:contratId, onglet:"clauses"});
+}
+
 function phraseClause(cl, couleur){
   if (cl.sens === "info") return "Clause d\'information (" + cl.seuil + " " + cl.unite + ") — pas de seuil de conformité automatique.";
   if (cl.valeurConstatee == null || cl.valeurConstatee === "") return "Aucune valeur constatée renseignée pour l\'instant.";
@@ -2027,7 +2333,7 @@ function ouvrirModaleRegime(id){
   ouvrirModale("Régime contractuel",
     '<p class="msgInfo">L\'ANADER est assujettie au Code des marchés publics pour la quasi-totalité de ses marchés, sauf dérogation motivée.</p>' +
     '<div class="champ"><label>Régime contractuel</label><select id="mReg_regimeContractuel" onchange="basculerMotifDerogation(\'mReg_\')">' +
-      REGIMES_CONTRACTUELS.map(r=>'<option value="'+r.code+'"'+(o.regimeContractuel===r.code?" selected":"")+'>'+ech(r.libelle)+'</option>').join("") +
+      regimesContractuels().map(r=>'<option value="'+r.code+'"'+(o.regimeContractuel===r.code?" selected":"")+'>'+ech(r.libelle)+'</option>').join("") +
     '</select></div>' +
     '<div id="mReg_blocMotif" style="display:'+(o.regimeContractuel==="DEROGATION"?"block":"none")+'">' +
       '<div class="champ"><label>Motif de la dérogation <span class="oblig">*</span></label>' +
@@ -2112,7 +2418,7 @@ function ajouterClauseManuelle(id){
   const typeCode = document.getElementById("mCl_type").value;
   const seuil = Number(document.getElementById("mCl_seuil").value);
   const t = TYPES_CLAUSE[typeCode];
-  const cl = { id:o.id+"-CL"+(o.clausesSLA.length+1), typeCode, libelle:t.libelle, unite:t.unite, sens:t.sens, seuil, valeurConstatee:null, niveauManuel:null, derniereMaj:auj() };
+  const cl = { id:o.id+"-CLM"+Date.now(), typeCode, libelle:t.libelle, unite:t.unite, sens:t.sens, seuil, valeurConstatee:null, niveauManuel:null, origine:"manuelle", derniereMaj:auj() };
   o.clausesSLA.push(cl);
   tracer(o, "Clause ajoutée", t.libelle + " (seuil " + seuil + " " + t.unite + ")");
   sauver(); fermerModale();
@@ -2251,7 +2557,7 @@ const VueFournisseurs = {
     '</div></div>' +
 
     '<div class="carte"><div class="tete"><h3>Méthode de notation</h3></div><div class="corps">' +
-    Object.values(CRITERES_EVALUATION).map(c =>
+    Object.values(criteresEvaluation()).map(c =>
       '<div style="margin-bottom:8px"><b>' + ech(c.libelle) + '</b> — pondération ' + Math.round(c.poids*100) + ' % <br><span class="muet">' + ech(c.methode) + '</span></div>').join("") +
     '</div></div>';
   }
@@ -2272,7 +2578,7 @@ function exporterGrilleFournisseurExcel(){
   (DB.params.fournisseurs || []).forEach(f => {
     evaluationsFournisseur(f.id).forEach(e => {
       const ligne = {"Fournisseur": f.nom, "Période": e.periode, "Date": e.date};
-      Object.keys(CRITERES_EVALUATION).forEach(k => { ligne[CRITERES_EVALUATION[k].libelle] = e.scores[k]; });
+      Object.keys(criteresEvaluation()).forEach(k => { ligne[criteresEvaluation()[k].libelle] = e.scores[k]; });
       ligne["Total"] = e.total;
       ligne["Commentaire"] = e.commentaire || "";
       evalLignes.push(ligne);
@@ -2290,14 +2596,14 @@ function ouvrirModaleFournisseur(fid){
   const peutEvaluer = aDroit("evaluerFournisseur");
   const corps =
     '<h4>' + ech(f?f.nom:fid) + '</h4>' +
-    (evals.length ? '<table><thead><tr><th>Période</th>' + Object.values(CRITERES_EVALUATION).map(c=>'<th class="num">'+ech(c.libelle)+'</th>').join("") + '<th class="num">Total</th></tr></thead><tbody>' +
-      evals.map(e => '<tr><td>' + ech(e.periode) + '</td>' + Object.keys(CRITERES_EVALUATION).map(k=>'<td class="num">'+e.scores[k]+'</td>').join("") + '<td class="num"><b>' + e.total + '</b></td></tr>').join("") +
+    (evals.length ? '<table><thead><tr><th>Période</th>' + Object.values(criteresEvaluation()).map(c=>'<th class="num">'+ech(c.libelle)+'</th>').join("") + '<th class="num">Total</th></tr></thead><tbody>' +
+      evals.map(e => '<tr><td>' + ech(e.periode) + '</td>' + Object.keys(criteresEvaluation()).map(k=>'<td class="num">'+(e.scores[k]??"—")+'</td>').join("") + '<td class="num"><b>' + e.total + '</b></td></tr>').join("") +
       '</tbody></table>' : '<p class="muet">Aucune évaluation enregistrée.</p>') +
     (peutEvaluer ? '<hr style="margin:14px 0;border:none;border-top:1px solid var(--gris-200)">' +
       '<h4>Nouvelle évaluation</h4>' +
       '<div class="champ"><label>Période</label><input type="text" id="mFo_periode" value="' + prochainePeriode() + '"></div>' +
-      '<div class="grille g3">' + Object.keys(CRITERES_EVALUATION).map(k =>
-        '<div class="champ"><label>' + ech(CRITERES_EVALUATION[k].libelle) + ' (0-100)</label><input type="number" min="0" max="100" id="mFo_'+k+'" value="80"></div>').join("") + '</div>' +
+      '<div class="grille g3">' + Object.keys(criteresEvaluation()).map(k =>
+        '<div class="champ"><label>' + ech(criteresEvaluation()[k].libelle) + ' (0-100)</label><input type="number" min="0" max="100" id="mFo_'+k+'" value="80"></div>').join("") + '</div>' +
       '<div class="champ"><label>Commentaire</label><textarea id="mFo_commentaire" rows="2"></textarea></div>'
       : '');
   const pied = '<button class="btn" onclick="fermerModale()">Fermer</button>' +
@@ -2313,7 +2619,7 @@ function ajouterEvaluationFournisseur(fid){
   const periode = (document.getElementById("mFo_periode").value || prochainePeriode()).trim();
   const scores = {};
   let invalide = false;
-  Object.keys(CRITERES_EVALUATION).forEach(k => {
+  Object.keys(criteresEvaluation()).forEach(k => {
     const v = Number(document.getElementById("mFo_"+k).value);
     if (isNaN(v) || v<0 || v>100) invalide = true;
     scores[k] = v;
@@ -2436,6 +2742,130 @@ function jMoinsGlobal(n){ const d = new Date(); d.setDate(d.getDate()-n); return
 /* ============================================================
    SECTION 19 — Vue : Rapports
    ============================================================ */
+/* ============================================================
+   Rapport mensuel : situation des contrats et bons de commande
+   par fournisseurs agréés et non agréés. Un fournisseur retenu à
+   l'issue d'un appel d'offres ouvert étant agréé d'office, tout
+   contrat restant sur un fournisseur non agréé appelle un examen.
+   ============================================================ */
+function rapportAgrementFournisseurs(etat){
+  etat = etat || {};
+  const periode = etat.periode || "moisEnCours";
+  const p = calculerPeriode(periode, etat.debutPerso, etat.finPerso);
+  const lot = contratsVisibles();
+  const dansPeriode = lot.filter(o => o.dateEnregistrement >= p.debut && o.dateEnregistrement <= p.fin);
+
+  const agrees = o => estAgree(o.fournisseurId);
+  const lotAgrees = lot.filter(agrees), lotNonAgrees = lot.filter(o => !agrees(o));
+  const perAgrees = dansPeriode.filter(agrees), perNonAgrees = dansPeriode.filter(o => !agrees(o));
+  const montant = liste => liste.reduce((s,o) => s + (Number(o.montant)||0), 0);
+
+  const fournisseursNonAgrees = DB.params.fournisseurs.filter(f => f.agree !== true)
+    .map(f => ({f, contrats: lot.filter(o => o.fournisseurId === f.id)}))
+    .filter(x => x.contrats.length)
+    .sort((a,b) => montant(b.contrats) - montant(a.contrats));
+
+  const partNonAgrees = lot.length ? Math.round((lotNonAgrees.length / lot.length) * 1000) / 10 : 0;
+  const appreciation =
+    !lotNonAgrees.length ? "Aucun contrat en cours n'est porté par un fournisseur non agréé : la situation est conforme." :
+    partNonAgrees <= 10 ? "Situation maîtrisée : la part des contrats portés par des fournisseurs non agréés reste marginale. Régulariser les cas listés ci-dessous." :
+    partNonAgrees <= 25 ? "Vigilance : une part significative du portefeuille repose sur des fournisseurs non agréés. Engager leur agrément ou justifier chaque cas en revue." :
+    "Situation critique : la majorité relative du portefeuille repose sur des fournisseurs non agréés. Un plan de régularisation formalisé est requis.";
+
+  return '' +
+  '<div class="carte compact noPrint"><div class="corps">' +
+    '<div class="grille g3">' +
+      '<div class="champ" style="margin-bottom:0"><label>Rapport</label><select onchange="App.aller(\'rapports\',{typeRapport:this.value})">' +
+        '<option value="portefeuille">Suivi du portefeuille de contrats</option>' +
+        '<option value="agrement" selected>Contrats et BC par fournisseurs agréés / non agréés</option>' +
+      '</select></div>' +
+      '<div class="champ" style="margin-bottom:0"><label>Période</label><select onchange="App.aller(\'rapports\',{typeRapport:\'agrement\',periode:this.value})">' +
+        PERIODES_RAPPORT.map(pp=>'<option value="'+pp[0]+'"'+(periode===pp[0]?" selected":"")+'>'+ech(pp[1])+'</option>').join("") + '</select></div>' +
+    '</div>' +
+    '<div class="barreActions" style="margin-top:10px">' +
+      '<button class="btn primaire" onclick="window.print()">🖶 Imprimer / Enregistrer en PDF</button>' +
+      '<button class="btn" onclick="exporterAgrementCSV()">⭳ Exporter les fournisseurs non agréés (CSV)</button>' +
+      '<button class="btn" onclick="enregistrerRapportHTML()">💾 Enregistrer le rapport (HTML autonome)</button>' +
+    '</div>' +
+  '</div></div>' +
+
+  '<div id="rapportImprimable">' +
+  '<div class="enteteOff">' +
+    '<div class="rep">République de Côte d\'Ivoire — Ministère d\'État, Ministère de l\'Agriculture, du Développement Rural et des Productions Vivrières</div>' +
+    '<div class="org">ANADER — Direction des Marchés et Moyens Généraux (D2MG)</div>' +
+  '</div>' +
+  '<div class="titreRapport">Situation des contrats et bons de commande par agrément fournisseur</div>' +
+  '<div class="sousTitreRapport">' + ech(p.libelle) + ' (' + formaterDate(p.debut) + ' — ' + formaterDate(p.fin) + ') · édité le ' + formaterDate(auj()) + ' par ' + ech(moi().nom) + '</div>' +
+
+  '<div class="carte"><div class="tete"><h3>1. Vue d\'ensemble du portefeuille</h3></div><div class="corps">' +
+    '<div class="grille g4">' +
+      kpi(lotAgrees.length, "Contrats — fournisseurs agréés", "vert") +
+      kpi(lotNonAgrees.length, "Contrats — fournisseurs non agréés", lotNonAgrees.length?"rouge":"vert") +
+      kpi(partNonAgrees + " %", "Part des contrats non agréés", partNonAgrees>25?"rouge":(partNonAgrees>10?"orange":"vert")) +
+      kpi(fournisseursNonAgrees.length, "Fournisseurs non agréés sous contrat", fournisseursNonAgrees.length?"orange":"vert") +
+    '</div>' +
+    '<table style="margin-top:12px"><thead><tr><th>Catégorie</th><th class="num">Contrats / BC</th><th class="num">Montant engagé</th><th class="num">Enregistrés sur la période</th></tr></thead><tbody>' +
+      '<tr><td><span class="et vert">Fournisseurs agréés</span></td><td class="num">' + lotAgrees.length + '</td><td class="num">' + formaterMontant(montant(lotAgrees)) + '</td><td class="num">' + perAgrees.length + '</td></tr>' +
+      '<tr><td><span class="et rouge">Fournisseurs non agréés</span></td><td class="num">' + lotNonAgrees.length + '</td><td class="num">' + formaterMontant(montant(lotNonAgrees)) + '</td><td class="num">' + perNonAgrees.length + '</td></tr>' +
+      '<tr><td><b>Total</b></td><td class="num"><b>' + lot.length + '</b></td><td class="num"><b>' + formaterMontant(montant(lot)) + '</b></td><td class="num"><b>' + dansPeriode.length + '</b></td></tr>' +
+    '</tbody></table>' +
+  '</div></div>' +
+
+  '<div class="carte"><div class="tete"><h3>2. Fournisseurs non agréés sous contrat</h3></div><div class="corps">' +
+    (fournisseursNonAgrees.length
+      ? '<p class="muet">Chaque ligne appelle une décision : engager l\'agrément du fournisseur, ou justifier le maintien du contrat en revue périodique.</p>' +
+        '<div class="tableauScroll"><table><thead><tr><th>NCC</th><th>Raison sociale</th><th>Ville</th><th class="num">Contrats / BC</th><th class="num">Montant engagé</th><th>Régimes concernés</th></tr></thead><tbody>' +
+        fournisseursNonAgrees.map(x =>
+          '<tr><td>' + ech(x.f.ncc||"—") + '</td><td>' + ech(x.f.nom) + '</td><td>' + ech(x.f.ville||"—") + '</td>' +
+          '<td class="num">' + x.contrats.length + '</td><td class="num">' + formaterMontant(montant(x.contrats)) + '</td>' +
+          '<td>' + ech([...new Set(x.contrats.map(o => libelleRegime(o.regimeContractuel)))].join(", ")) + '</td></tr>').join("") +
+        '</tbody></table></div>'
+      : '<p class="msgOk">Aucun contrat en cours n\'est porté par un fournisseur non agréé.</p>') +
+  '</div></div>' +
+
+  '<div class="carte"><div class="tete"><h3>3. Détail des contrats portés par des fournisseurs non agréés</h3></div><div class="corps">' +
+    (lotNonAgrees.length
+      ? '<div class="tableauScroll"><table><thead><tr><th>N°</th><th>Objet</th><th>Fournisseur</th><th>Nature</th><th>Régime</th><th>N° BC / marché</th><th class="num">Montant</th><th>Statut</th></tr></thead><tbody>' +
+        lotNonAgrees.sort((a,b)=>(Number(b.montant)||0)-(Number(a.montant)||0)).map(o =>
+          '<tr><td>' + ech(numeroCourt(o.numero)) + '</td><td>' + ech(o.objet) + '</td>' +
+          '<td>' + ech(libelleFournisseur(o.fournisseurId)) + '</td><td>' + ech(libelleNature(o.natureId)) + '</td>' +
+          '<td>' + ech(libelleRegime(o.regimeContractuel)) + '</td><td>' + ech(o.numeroBcMarche||"—") + '</td>' +
+          '<td class="num">' + formaterMontant(o.montant) + '</td><td>' + ech(libelleStatut(o.statut)) + '</td></tr>').join("") +
+        '</tbody></table></div>'
+      : '<p class="muet">Aucun contrat concerné.</p>') +
+  '</div></div>' +
+
+  '<div class="carte"><div class="tete"><h3>4. Appréciation et suite à donner</h3></div><div class="corps">' +
+    '<p>' + ech(appreciation) + '</p>' +
+    '<p class="muet">Rappel de règle : un fournisseur retenu à l\'issue d\'un appel d\'offres ouvert (régime « Marché public ») est agréé d\'office ; ' +
+    'son agrément est posé automatiquement à l\'enregistrement du contrat. Les cas listés ci-dessus relèvent donc d\'autres régimes contractuels.</p>' +
+  '</div></div>' +
+
+  '<div class="blocSignature">' +
+    '<div><b>Rédaction</b>' + ech(moi().nom) + '</div>' +
+    '<div><b>Vérification</b>' + ech(DB.params.directeurId ? libelleAgent(DB.params.directeurId) : "Directeur D2MG") + '</div>' +
+    '<div><b>Approbation</b>Directeur D2MG</div>' +
+  '</div>' +
+  '<div class="piedOff">ANADER — Société Anonyme au capital de 500 000 000 F CFA — Siège social : Abidjan — www.anader.ci</div>' +
+  '</div>';
+}
+
+function exporterAgrementCSV(){
+  const lot = contratsVisibles();
+  const lignes = [csvLigne(["NCC","Raison sociale","Ville","Agréé","Contrats / BC","Montant engagé (F CFA)","Régimes concernés"])];
+  DB.params.fournisseurs.forEach(f => {
+    const cs = lot.filter(o => o.fournisseurId === f.id);
+    if (!cs.length) return;
+    lignes.push(csvLigne([
+      f.ncc||"", f.nom, f.ville||"", f.agree ? "Oui" : "Non", String(cs.length),
+      String(cs.reduce((s,o)=>s+(Number(o.montant)||0),0)),
+      [...new Set(cs.map(o => libelleRegime(o.regimeContractuel)))].join(" / ")
+    ]));
+  });
+  telecharger("contrats_par_agrement_fournisseur_" + auj() + ".csv", lignes.join("\r\n"), "text/csv");
+  toast("Export réalisé.", "ok");
+}
+
 const PERIODES_RAPPORT = [
   ["semaineEnCours","Semaine en cours"], ["moisEnCours","Mois en cours"], ["moisPrecedent","Mois précédent"],
   ["trimestreEnCours","Trimestre en cours"], ["trimestrePrecedent","Trimestre précédent"],
@@ -2462,6 +2892,8 @@ function calculerPeriode(code, debutPerso, finPerso){
 
 const VueRapports = {
   rendre(etat){
+    const type = etat.typeRapport || "portefeuille";
+    if (type === "agrement") return rapportAgrementFournisseurs(etat);
     const periode = etat.periode || "moisEnCours";
     const p = calculerPeriode(periode, etat.debutPerso, etat.finPerso);
     const lot = contratsVisibles();
@@ -2486,6 +2918,10 @@ const VueRapports = {
     return '' +
     '<div class="carte compact noPrint"><div class="corps">' +
       '<div class="grille g3">' +
+        '<div class="champ" style="margin-bottom:0"><label>Rapport</label><select onchange="App.aller(\'rapports\',{typeRapport:this.value})">' +
+          '<option value="portefeuille" selected>Suivi du portefeuille de contrats</option>' +
+          '<option value="agrement">Contrats et BC par fournisseurs agréés / non agréés</option>' +
+        '</select></div>' +
         '<div class="champ" style="margin-bottom:0"><label>Période</label><select onchange="App.aller(\'rapports\',{periode:this.value})">' +
           PERIODES_RAPPORT.map(pp=>'<option value="'+pp[0]+'"'+(periode===pp[0]?" selected":"")+'>'+ech(pp[1])+'</option>').join("") + '</select></div>' +
         (periode==="personnalisee" ? '<div class="champ" style="margin-bottom:0"><label>Du</label><input type="date" value="'+(etat.debutPerso||"")+'" onchange="App.aller(\'rapports\',{debutPerso:this.value})"></div>' +
@@ -2572,34 +3008,443 @@ const VueParametrage = {
   rendre(etat){
     etat = etat || {};
     const complet = aDroit("parametrer");
-    const tousOnglets = [["delais","Délais / préavis"],["seuils","Seuils d'alerte"],["feries","Jours fériés"],["referentiels","Services, acteurs, fournisseurs"],["sauvegarde","Sauvegarde"]];
+    const tousOnglets = [
+      ["natures","Natures & préavis"],
+      ["regimes","Régimes contractuels"],
+      ["paiement","Modes & délais de paiement"],
+      ["sla","Bibliothèque SLA"],
+      ["evaluation","Notation fournisseur"],
+      ["seuils","Seuils d'alerte"],
+      ["feries","Jours fériés"],
+      ["referentiels","Services, acteurs, fournisseurs"],
+      ["sauvegarde","Sauvegarde"]
+    ];
     const onglets = complet ? tousOnglets : tousOnglets.filter(o => o[0]==="referentiels");
-    const demande = etat.onglet || "delais";
+    const demande = etat.onglet || "natures";
     const onglet = onglets.some(o => o[0]===demande) ? demande : "referentiels";
     return '<div class="onglets noPrint">' +
       onglets.map(o => '<a class="'+(onglet===o[0]?"actif":"")+'" onclick="App.aller(\'parametrage\',{onglet:\''+o[0]+'\'})">'+ech(o[1])+'</a>').join("") +
     '</div>' +
-    ({delais:paramDelais, seuils:paramSeuils, feries:paramFeries, referentiels:paramReferentiels, sauvegarde:paramSauvegarde}[onglet] || paramReferentiels)(etat);
+    ({natures:paramNatures, regimes:paramRegimes, paiement:paramPaiement, sla:paramSLA, evaluation:paramEvaluation,
+       seuils:paramSeuils, feries:paramFeries, referentiels:paramReferentiels, sauvegarde:paramSauvegarde}[onglet] || paramReferentiels)(etat);
   }
 };
 
-function paramDelais(){
-  return '<div class="carte"><div class="tete"><h3>Grille de préavis par nature de contrat</h3></div><div class="corps">' +
-    '<p class="msgInfo">Cette grille est une proposition de départ. Elle doit être arbitrée par le Directeur D2MG avant tout déploiement au-delà de l\'essai.</p>' +
-    Object.values(NATURES_CONTRAT).map(n =>
-      '<div class="champ"><label>' + ech(n.libelle) + '</label>' +
-      '<input type="number" min="1" id="par_'+n.code+'" value="' + DB.params.preavisParNature[n.code] + '"> <span class="muet">jours ouvrés</span></div>').join("") +
-    '<button class="btn primaire" onclick="enregistrerDelais()">Enregistrer la grille</button>' +
+/* ============================================================
+   Référentiels modifiables : natures, régimes, paiement, SLA,
+   critères de notation. Chaque écran travaille sur DB.params et
+   enregistre via sauver(). Toute suppression est refusée si un
+   contrat existant s'appuie encore sur l'élément visé.
+   ============================================================ */
+function codeDepuisLibelle(libelle, codesExistants){
+  let base = normaliserTexte(libelle).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").toUpperCase().slice(0,24);
+  if (!base) base = "ELEMENT";
+  let code = base, i = 2;
+  while (codesExistants.includes(code)) { code = base + "_" + i; i++; }
+  return code;
+}
+function nbContratsAvecNature(code){ return DB.contrats.filter(o => o.natureId === code).length; }
+function nbContratsAvecRegime(code){ return DB.contrats.filter(o => o.regimeContractuel === code).length; }
+function nbContratsAvecMode(code){ return DB.contrats.filter(o => o.modePaiement === code).length; }
+function nbContratsAvecDelai(code){ return DB.contrats.filter(o => o.delaiPaiement === code).length; }
+
+/* ---- Natures de contrat (libellé, préavis, durée type) ---- */
+function paramNatures(){
+  const nat = listeNatures();
+  return '<div class="carte"><div class="tete"><h3>Natures de contrat et grille de préavis</h3>' +
+    '<button class="btn mini" onclick="ouvrirModaleAjoutNature()">+ Ajouter une nature</button></div><div class="corps">' +
+    '<p class="msgInfo">La nature détermine le délai de préavis appliqué au contrat et la liste de clauses SLA chargée à son enregistrement. ' +
+    'Une nature utilisée par un contrat existant ne peut pas être supprimée.</p>' +
+    '<div class="tableauScroll"><table><thead><tr><th>Nature</th><th>Préavis (jours ouvrés)</th><th>Durée type (mois)</th><th>Contrats</th><th></th></tr></thead><tbody>' +
+    nat.map(n => '<tr>' +
+      '<td><input type="text" id="nat_lib_'+n.code+'" value="'+ech(n.libelle)+'"></td>' +
+      '<td><input type="number" min="1" style="width:90px" id="nat_pre_'+n.code+'" value="'+(DB.params.preavisParNature[n.code] != null ? DB.params.preavisParNature[n.code] : n.preavis)+'"></td>' +
+      '<td><input type="number" min="1" style="width:90px" id="nat_dur_'+n.code+'" value="'+(n.dureeTypeMois||12)+'"></td>' +
+      '<td>' + nbContratsAvecNature(n.code) + '</td>' +
+      '<td><button class="btn mini" title="Supprimer cette nature" onclick="confirmerSuppressionNature(\''+n.code+'\')">🗑</button></td>' +
+    '</tr>').join("") +
+    '</tbody></table></div>' +
+    '<button class="btn primaire" style="margin-top:10px" onclick="enregistrerNatures()">Enregistrer les natures</button>' +
     '</div></div>';
 }
-function enregistrerDelais(){
-  Object.keys(NATURES_CONTRAT).forEach(code => {
-    const v = Number(document.getElementById("par_"+code).value);
-    if (!isNaN(v) && v>0) DB.params.preavisParNature[code] = Math.round(v);
+function enregistrerNatures(){
+  const nat = naturesContrat();
+  Object.keys(nat).forEach(code => {
+    const lib = (document.getElementById("nat_lib_"+code).value||"").trim();
+    const pre = Number(document.getElementById("nat_pre_"+code).value);
+    const dur = Number(document.getElementById("nat_dur_"+code).value);
+    if (lib) nat[code].libelle = lib;
+    if (!isNaN(pre) && pre > 0) { nat[code].preavis = Math.round(pre); DB.params.preavisParNature[code] = Math.round(pre); }
+    if (!isNaN(dur) && dur > 0) nat[code].dureeTypeMois = Math.round(dur);
   });
   sauver();
-  toast("Grille de préavis enregistrée.", "ok");
-  App.aller("parametrage", {onglet:"delais"});
+  toast("Natures de contrat enregistrées.", "ok");
+  App.aller("parametrage", {onglet:"natures"});
+}
+function ouvrirModaleAjoutNature(){
+  ouvrirModale("Ajouter une nature de contrat",
+    '<div class="champ"><label>Libellé <span class="oblig">*</span></label><input type="text" id="mNat_lib" placeholder="Ex. Prestation intellectuelle"></div>' +
+    '<div class="grille g2">' +
+      '<div class="champ"><label>Préavis (jours ouvrés)</label><input type="number" min="1" id="mNat_pre" value="30"></div>' +
+      '<div class="champ"><label>Durée type (mois)</label><input type="number" min="1" id="mNat_dur" value="12"></div>' +
+    '</div>' +
+    '<p class="aide">La bibliothèque SLA de cette nature se compose ensuite depuis l\'onglet « Bibliothèque SLA ».</p>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn primaire" onclick="soumettreAjoutNature()">Enregistrer la nature</button>');
+}
+function soumettreAjoutNature(){
+  const lib = (document.getElementById("mNat_lib").value||"").trim();
+  if (!lib) { toast("Le libellé de la nature est obligatoire.", "err"); return; }
+  const nat = naturesContrat();
+  if (Object.values(nat).some(n => normaliserTexte(n.libelle) === normaliserTexte(lib))) {
+    toast("Une nature « " + lib + " » existe déjà.", "err", 5000); return;
+  }
+  const pre = Math.max(1, Math.round(Number(document.getElementById("mNat_pre").value) || 30));
+  const dur = Math.max(1, Math.round(Number(document.getElementById("mNat_dur").value) || 12));
+  const code = codeDepuisLibelle(lib, Object.keys(nat));
+  nat[code] = {code, libelle:lib, preavis:pre, dureeTypeMois:dur};
+  DB.params.preavisParNature[code] = pre;
+  if (!DB.params.slaParNature[code]) DB.params.slaParNature[code] = [];
+  sauver(); fermerModale();
+  toast("Nature « " + lib + " » ajoutée.", "ok");
+  App.aller("parametrage", {onglet:"natures"});
+}
+function confirmerSuppressionNature(code){
+  const n = nature(code); if (!n) return;
+  const nb = nbContratsAvecNature(code);
+  if (nb) { toast("Impossible de supprimer « " + n.libelle + " » : " + nb + " contrat(s) utilisent encore cette nature.", "err", 7000); return; }
+  ouvrirModale("Supprimer une nature de contrat",
+    '<p>Supprimer la nature <b>' + ech(n.libelle) + '</b> ? Sa bibliothèque de clauses SLA sera également retirée.</p>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn danger" onclick="executerSuppressionNature(\''+code+'\')">Supprimer</button>');
+}
+function executerSuppressionNature(code){
+  const n = nature(code); if (!n) { fermerModale(); return; }
+  delete DB.params.naturesContrat[code];
+  delete DB.params.preavisParNature[code];
+  delete DB.params.slaParNature[code];
+  sauver(); fermerModale();
+  toast("Nature « " + n.libelle + " » supprimée.", "ok");
+  App.aller("parametrage", {onglet:"natures"});
+}
+
+/* ---- Régimes contractuels ---- */
+function paramRegimes(){
+  return '<div class="carte"><div class="tete"><h3>Régimes contractuels</h3>' +
+    '<button class="btn mini" onclick="ouvrirModaleAjoutRegime()">+ Ajouter un régime</button></div><div class="corps">' +
+    '<p class="msgInfo">Le régime conditionne les règles de gestion rappelées à la saisie (plafond des avenants, garanties, délai de paiement). ' +
+    'Le régime « Marché public » vaut agrément d\'office du fournisseur retenu.</p>' +
+    '<div class="tableauScroll"><table><thead><tr><th>Régime</th><th>Contrats</th><th></th></tr></thead><tbody>' +
+    regimesContractuels().map(r => '<tr>' +
+      '<td><input type="text" id="reg_lib_'+r.code+'" value="'+ech(r.libelle)+'"></td>' +
+      '<td>' + nbContratsAvecRegime(r.code) + '</td>' +
+      '<td><button class="btn mini" title="Supprimer ce régime" onclick="confirmerSuppressionRegime(\''+r.code+'\')">🗑</button></td>' +
+    '</tr>').join("") +
+    '</tbody></table></div>' +
+    '<button class="btn primaire" style="margin-top:10px" onclick="enregistrerRegimes()">Enregistrer les régimes</button>' +
+    '</div></div>';
+}
+function enregistrerRegimes(){
+  regimesContractuels().forEach(r => {
+    const lib = (document.getElementById("reg_lib_"+r.code).value||"").trim();
+    if (lib) r.libelle = lib;
+  });
+  sauver();
+  toast("Régimes contractuels enregistrés.", "ok");
+  App.aller("parametrage", {onglet:"regimes"});
+}
+function ouvrirModaleAjoutRegime(){
+  ouvrirModale("Ajouter un régime contractuel",
+    '<div class="champ"><label>Libellé <span class="oblig">*</span></label><input type="text" id="mReg_lib" placeholder="Ex. Marché de gré à gré encadré"></div>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn primaire" onclick="soumettreAjoutRegime()">Enregistrer le régime</button>');
+}
+function soumettreAjoutRegime(){
+  const lib = (document.getElementById("mReg_lib").value||"").trim();
+  if (!lib) { toast("Le libellé du régime est obligatoire.", "err"); return; }
+  const liste = regimesContractuels();
+  if (liste.some(r => normaliserTexte(r.libelle) === normaliserTexte(lib))) { toast("Ce régime existe déjà.", "err", 5000); return; }
+  liste.push({code: codeDepuisLibelle(lib, liste.map(r=>r.code)), libelle: lib});
+  sauver(); fermerModale();
+  toast("Régime « " + lib + " » ajouté.", "ok");
+  App.aller("parametrage", {onglet:"regimes"});
+}
+function confirmerSuppressionRegime(code){
+  const r = regimesContractuels().find(x=>x.code===code); if (!r) return;
+  const nb = nbContratsAvecRegime(code);
+  if (nb) { toast("Impossible de supprimer « " + r.libelle + " » : " + nb + " contrat(s) utilisent encore ce régime.", "err", 7000); return; }
+  ouvrirModale("Supprimer un régime contractuel",
+    '<p>Supprimer le régime <b>' + ech(r.libelle) + '</b> ?</p>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn danger" onclick="executerSuppressionRegime(\''+code+'\')">Supprimer</button>');
+}
+function executerSuppressionRegime(code){
+  DB.params.regimesContractuels = regimesContractuels().filter(r => r.code !== code);
+  sauver(); fermerModale();
+  toast("Régime supprimé.", "ok");
+  App.aller("parametrage", {onglet:"regimes"});
+}
+
+/* ---- Modes et délais de paiement ---- */
+function paramPaiement(){
+  return '<div class="grille g2">' +
+    '<div class="carte"><div class="tete"><h3>Modes de paiement</h3>' +
+      '<button class="btn mini" onclick="ouvrirModaleAjoutModePaiement()">+ Ajouter</button></div><div class="corps">' +
+      '<p class="muet">Comment le fournisseur est payé.</p>' +
+      '<table><thead><tr><th>Mode</th><th>Contrats</th><th></th></tr></thead><tbody>' +
+      modesPaiement().map(m => '<tr>' +
+        '<td><input type="text" id="mop_lib_'+m.code+'" value="'+ech(m.libelle)+'"></td>' +
+        '<td>' + nbContratsAvecMode(m.code) + '</td>' +
+        '<td><button class="btn mini" onclick="confirmerSuppressionModePaiement(\''+m.code+'\')">🗑</button></td>' +
+      '</tr>').join("") +
+      '</tbody></table>' +
+      '<button class="btn primaire" style="margin-top:10px" onclick="enregistrerModesPaiement()">Enregistrer les modes</button>' +
+    '</div></div>' +
+    '<div class="carte"><div class="tete"><h3>Délais de paiement</h3>' +
+      '<button class="btn mini" onclick="ouvrirModaleAjoutDelaiPaiement()">+ Ajouter</button></div><div class="corps">' +
+      '<p class="muet">Sous quel délai le fournisseur est payé. Le nombre de jours alimentera le suivi des échéances de paiement.</p>' +
+      '<table><thead><tr><th>Délai</th><th>Jours</th><th>Contrats</th><th></th></tr></thead><tbody>' +
+      delaisPaiement().map(x => '<tr>' +
+        '<td><input type="text" id="dlp_lib_'+x.code+'" value="'+ech(x.libelle)+'"></td>' +
+        '<td><input type="number" min="0" style="width:80px" id="dlp_j_'+x.code+'" value="'+(x.jours!=null?x.jours:0)+'"></td>' +
+        '<td>' + nbContratsAvecDelai(x.code) + '</td>' +
+        '<td><button class="btn mini" onclick="confirmerSuppressionDelaiPaiement(\''+x.code+'\')">🗑</button></td>' +
+      '</tr>').join("") +
+      '</tbody></table>' +
+      '<p class="aide">Rappel Code des marchés publics : le délai de paiement ne doit pas dépasser ' + REFERENTIEL_MARCHES_PUBLICS.delaiPaiementMaxJours + ' jours.</p>' +
+      '<button class="btn primaire" onclick="enregistrerDelaisPaiement()">Enregistrer les délais</button>' +
+    '</div></div>' +
+  '</div>';
+}
+function enregistrerModesPaiement(){
+  modesPaiement().forEach(m => {
+    const lib = (document.getElementById("mop_lib_"+m.code).value||"").trim();
+    if (lib) m.libelle = lib;
+  });
+  sauver(); toast("Modes de paiement enregistrés.", "ok");
+  App.aller("parametrage", {onglet:"paiement"});
+}
+function enregistrerDelaisPaiement(){
+  delaisPaiement().forEach(x => {
+    const lib = (document.getElementById("dlp_lib_"+x.code).value||"").trim();
+    const j = Number(document.getElementById("dlp_j_"+x.code).value);
+    if (lib) x.libelle = lib;
+    if (!isNaN(j) && j >= 0) x.jours = Math.round(j);
+  });
+  sauver(); toast("Délais de paiement enregistrés.", "ok");
+  App.aller("parametrage", {onglet:"paiement"});
+}
+function ouvrirModaleAjoutModePaiement(){
+  ouvrirModale("Ajouter un mode de paiement",
+    '<div class="champ"><label>Libellé <span class="oblig">*</span></label><input type="text" id="mMop_lib" placeholder="Ex. Lettre de crédit"></div>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn primaire" onclick="soumettreAjoutModePaiement()">Enregistrer</button>');
+}
+function soumettreAjoutModePaiement(){
+  const lib = (document.getElementById("mMop_lib").value||"").trim();
+  if (!lib) { toast("Le libellé est obligatoire.", "err"); return; }
+  const liste = modesPaiement();
+  if (liste.some(m => normaliserTexte(m.libelle) === normaliserTexte(lib))) { toast("Ce mode de paiement existe déjà.", "err", 5000); return; }
+  liste.push({code: codeDepuisLibelle(lib, liste.map(m=>m.code)), libelle: lib});
+  sauver(); fermerModale(); toast("Mode de paiement ajouté.", "ok");
+  App.aller("parametrage", {onglet:"paiement"});
+}
+function ouvrirModaleAjoutDelaiPaiement(){
+  ouvrirModale("Ajouter un délai de paiement",
+    '<div class="champ"><label>Libellé <span class="oblig">*</span></label><input type="text" id="mDlp_lib" placeholder="Ex. 75 jours"></div>' +
+    '<div class="champ"><label>Nombre de jours</label><input type="number" min="0" id="mDlp_j" value="30"></div>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn primaire" onclick="soumettreAjoutDelaiPaiement()">Enregistrer</button>');
+}
+function soumettreAjoutDelaiPaiement(){
+  const lib = (document.getElementById("mDlp_lib").value||"").trim();
+  if (!lib) { toast("Le libellé est obligatoire.", "err"); return; }
+  const j = Math.max(0, Math.round(Number(document.getElementById("mDlp_j").value) || 0));
+  const liste = delaisPaiement();
+  if (liste.some(x => normaliserTexte(x.libelle) === normaliserTexte(lib))) { toast("Ce délai existe déjà.", "err", 5000); return; }
+  liste.push({code: codeDepuisLibelle(lib, liste.map(x=>x.code)), libelle: lib, jours: j});
+  if (j > REFERENTIEL_MARCHES_PUBLICS.delaiPaiementMaxJours) {
+    toast("Délai ajouté — au-delà du plafond de " + REFERENTIEL_MARCHES_PUBLICS.delaiPaiementMaxJours + " jours du Code des marchés publics.", "err", 6500);
+  } else { toast("Délai de paiement ajouté.", "ok"); }
+  sauver(); fermerModale();
+  App.aller("parametrage", {onglet:"paiement"});
+}
+function confirmerSuppressionModePaiement(code){
+  const m = modesPaiement().find(x=>x.code===code); if (!m) return;
+  const nb = nbContratsAvecMode(code);
+  if (nb) { toast("Impossible de supprimer « " + m.libelle + " » : " + nb + " contrat(s) l'utilisent encore.", "err", 7000); return; }
+  ouvrirModale("Supprimer un mode de paiement", '<p>Supprimer le mode <b>' + ech(m.libelle) + '</b> ?</p>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn danger" onclick="executerSuppressionModePaiement(\''+code+'\')">Supprimer</button>');
+}
+function executerSuppressionModePaiement(code){
+  DB.params.modesPaiement = modesPaiement().filter(m => m.code !== code);
+  sauver(); fermerModale(); toast("Mode de paiement supprimé.", "ok");
+  App.aller("parametrage", {onglet:"paiement"});
+}
+function confirmerSuppressionDelaiPaiement(code){
+  const x = delaisPaiement().find(y=>y.code===code); if (!x) return;
+  const nb = nbContratsAvecDelai(code);
+  if (nb) { toast("Impossible de supprimer « " + x.libelle + " » : " + nb + " contrat(s) l'utilisent encore.", "err", 7000); return; }
+  ouvrirModale("Supprimer un délai de paiement", '<p>Supprimer le délai <b>' + ech(x.libelle) + '</b> ?</p>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn danger" onclick="executerSuppressionDelaiPaiement(\''+code+'\')">Supprimer</button>');
+}
+function executerSuppressionDelaiPaiement(code){
+  DB.params.delaisPaiement = delaisPaiement().filter(x => x.code !== code);
+  sauver(); fermerModale(); toast("Délai de paiement supprimé.", "ok");
+  App.aller("parametrage", {onglet:"paiement"});
+}
+
+/* ---- Bibliothèque de clauses SLA par nature ---- */
+function paramSLA(){
+  const bib = slaParNature();
+  return '<div class="carte"><div class="tete"><h3>Bibliothèque de clauses SLA par nature de contrat</h3></div><div class="corps">' +
+    '<p class="msgInfo">Ces clauses types sont chargées automatiquement dans un contrat au moment de son enregistrement, selon sa nature. ' +
+    'Sur le contrat, l\'acheteur peut retirer celles que la rédaction n\'a pas retenues, tant qu\'aucune valeur constatée n\'a été saisie.</p>' +
+    listeNatures().map(n => {
+      const clauses = bib[n.code] || [];
+      return '<div class="carte compact" style="margin-bottom:12px"><div class="tete"><h4>' + ech(n.libelle) + '</h4>' +
+        '<button class="btn mini" onclick="ouvrirModaleAjoutClauseType(\''+n.code+'\')">+ Ajouter une clause type</button></div><div class="corps">' +
+        (clauses.length
+          ? '<table><thead><tr><th>Clause</th><th>Seuil</th><th>Unité</th><th></th></tr></thead><tbody>' +
+            clauses.map((c, i) => {
+              const t = TYPES_CLAUSE[c.typeCode];
+              return '<tr><td>' + ech(t ? t.libelle : c.typeCode) + '</td>' +
+                '<td><input type="number" step="0.001" style="width:100px" id="sla_'+n.code+'_'+i+'" value="'+c.seuil+'"></td>' +
+                '<td class="muet">' + ech(t ? t.unite : "") + '</td>' +
+                '<td><button class="btn mini" onclick="supprimerClauseType(\''+n.code+'\','+i+')">🗑</button></td></tr>';
+            }).join("") + '</tbody></table>'
+          : '<p class="muet">Aucune clause type pour cette nature — les contrats de cette nature seront créés sans clause SLA.</p>') +
+      '</div></div>';
+    }).join("") +
+    '<button class="btn primaire" onclick="enregistrerBibliothequeSLA()">Enregistrer les seuils</button>' +
+    '</div></div>';
+}
+function enregistrerBibliothequeSLA(){
+  const bib = slaParNature();
+  Object.keys(bib).forEach(code => {
+    (bib[code] || []).forEach((c, i) => {
+      const el = document.getElementById("sla_"+code+"_"+i);
+      if (!el) return;
+      const v = Number(el.value);
+      if (!isNaN(v)) c.seuil = v;
+    });
+  });
+  sauver(); toast("Bibliothèque SLA enregistrée.", "ok");
+  App.aller("parametrage", {onglet:"sla"});
+}
+function ouvrirModaleAjoutClauseType(natureCode){
+  const n = nature(natureCode); if (!n) return;
+  ouvrirModale("Ajouter une clause type — " + n.libelle,
+    '<div class="champ"><label>Type de clause</label><select id="mSlaT_type" onchange="document.getElementById(\'mSlaT_seuil\').value = ({' +
+      Object.keys(SEUILS_CLAUSE_DEFAUT).map(k=>"'"+k+"':"+SEUILS_CLAUSE_DEFAUT[k]).join(",") + '})[this.value]">' +
+      Object.values(TYPES_CLAUSE).map(t=>'<option value="'+t.code+'">'+ech(t.libelle)+' ('+ech(t.unite)+')</option>').join("") + '</select></div>' +
+    '<div class="champ"><label>Seuil contractuel type</label><input type="number" step="0.001" id="mSlaT_seuil" value="' + SEUILS_CLAUSE_DEFAUT.DELAI_LIVRAISON + '"></div>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn primaire" onclick="soumettreAjoutClauseType(\''+natureCode+'\')">Ajouter</button>');
+}
+function soumettreAjoutClauseType(natureCode){
+  const typeCode = document.getElementById("mSlaT_type").value;
+  const seuil = Number(document.getElementById("mSlaT_seuil").value);
+  if (isNaN(seuil)) { toast("Le seuil doit être un nombre.", "err"); return; }
+  const bib = slaParNature();
+  if (!bib[natureCode]) bib[natureCode] = [];
+  if (bib[natureCode].some(c => c.typeCode === typeCode)) {
+    toast("Cette nature comporte déjà une clause « " + TYPES_CLAUSE[typeCode].libelle + " ».", "err", 5500); return;
+  }
+  bib[natureCode].push({typeCode, seuil});
+  sauver(); fermerModale(); toast("Clause type ajoutée.", "ok");
+  App.aller("parametrage", {onglet:"sla"});
+}
+function supprimerClauseType(natureCode, index){
+  const bib = slaParNature();
+  if (!bib[natureCode] || !bib[natureCode][index]) return;
+  const t = TYPES_CLAUSE[bib[natureCode][index].typeCode];
+  bib[natureCode].splice(index, 1);
+  sauver();
+  toast("Clause type « " + (t?t.libelle:"") + " » retirée de la bibliothèque. Les contrats déjà enregistrés ne sont pas modifiés.", "ok", 5500);
+  App.aller("parametrage", {onglet:"sla"});
+}
+
+/* ---- Critères de notation fournisseur ---- */
+function paramEvaluation(){
+  const crit = criteresEvaluation();
+  const cles = Object.keys(crit);
+  const total = cles.reduce((s,k) => s + (Number(crit[k].poids)||0), 0);
+  const pctTotal = Math.round(total * 1000) / 10;
+  return '<div class="carte"><div class="tete"><h3>Méthode de notation des fournisseurs</h3>' +
+    '<button class="btn mini" onclick="ouvrirModaleAjoutCritere()">+ Ajouter un critère</button></div><div class="corps">' +
+    '<p class="msgInfo">Le score global d\'un fournisseur est la moyenne de ses notes pondérée par ces coefficients. ' +
+    'Le total des pondérations doit faire 100 %. Les évaluations déjà enregistrées conservent les notes saisies à l\'époque.</p>' +
+    '<div class="tableauScroll"><table><thead><tr><th>Critère</th><th>Pondération (%)</th><th>Méthode de calcul</th><th></th></tr></thead><tbody>' +
+    cles.map(k => '<tr>' +
+      '<td><input type="text" id="crt_lib_'+k+'" value="'+ech(crit[k].libelle)+'"></td>' +
+      '<td><input type="number" min="0" max="100" step="1" style="width:90px" id="crt_p_'+k+'" value="'+Math.round((Number(crit[k].poids)||0)*100)+'"></td>' +
+      '<td><input type="text" id="crt_m_'+k+'" value="'+ech(crit[k].methode||"")+'"></td>' +
+      '<td><button class="btn mini" onclick="confirmerSuppressionCritere(\''+k+'\')">🗑</button></td>' +
+    '</tr>').join("") +
+    '</tbody></table></div>' +
+    '<p class="' + (Math.abs(pctTotal - 100) < 0.05 ? "msgOk" : "msgErreur") + '" style="margin-top:10px">Total des pondérations : ' + pctTotal + ' %' +
+      (Math.abs(pctTotal - 100) < 0.05 ? "" : " — le total doit faire 100 % pour que les scores soient comparables.") + '</p>' +
+    '<button class="btn primaire" onclick="enregistrerCriteres()">Enregistrer les critères</button>' +
+    '</div></div>';
+}
+function enregistrerCriteres(){
+  const crit = criteresEvaluation();
+  const cles = Object.keys(crit);
+  let total = 0;
+  const lus = {};
+  for (const k of cles) {
+    const lib = (document.getElementById("crt_lib_"+k).value||"").trim();
+    const p = Number(document.getElementById("crt_p_"+k).value);
+    if (!lib) { toast("Chaque critère doit avoir un libellé.", "err"); return; }
+    if (isNaN(p) || p < 0 || p > 100) { toast("Chaque pondération doit être comprise entre 0 et 100.", "err"); return; }
+    lus[k] = {libelle: lib, poids: p/100, methode: (document.getElementById("crt_m_"+k).value||"").trim()};
+    total += p;
+  }
+  if (Math.round(total) !== 100) { toast("Le total des pondérations fait " + total + " % : il doit faire exactement 100 %.", "err", 6500); return; }
+  cles.forEach(k => { crit[k].libelle = lus[k].libelle; crit[k].poids = lus[k].poids; crit[k].methode = lus[k].methode; });
+  sauver(); toast("Critères de notation enregistrés.", "ok");
+  App.aller("parametrage", {onglet:"evaluation"});
+}
+function ouvrirModaleAjoutCritere(){
+  ouvrirModale("Ajouter un critère de notation",
+    '<div class="champ"><label>Libellé <span class="oblig">*</span></label><input type="text" id="mCrt_lib" placeholder="Ex. Réactivité commerciale"></div>' +
+    '<div class="champ"><label>Pondération (%)</label><input type="number" min="0" max="100" id="mCrt_p" value="10"></div>' +
+    '<div class="champ"><label>Méthode de calcul</label><input type="text" id="mCrt_m" placeholder="Comment la note est établie"></div>' +
+    '<p class="aide">Pensez à réajuster les autres pondérations : le total doit revenir à 100 %.</p>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn primaire" onclick="soumettreAjoutCritere()">Ajouter le critère</button>');
+}
+function soumettreAjoutCritere(){
+  const lib = (document.getElementById("mCrt_lib").value||"").trim();
+  if (!lib) { toast("Le libellé est obligatoire.", "err"); return; }
+  const p = Number(document.getElementById("mCrt_p").value);
+  if (isNaN(p) || p < 0 || p > 100) { toast("La pondération doit être comprise entre 0 et 100.", "err"); return; }
+  const crit = criteresEvaluation();
+  const cle = codeDepuisLibelle(lib, Object.keys(crit)).toLowerCase();
+  crit[cle] = {libelle: lib, poids: p/100, methode: (document.getElementById("mCrt_m").value||"").trim()};
+  sauver(); fermerModale();
+  toast("Critère ajouté — vérifiez que le total des pondérations fait bien 100 %.", "ok", 6000);
+  App.aller("parametrage", {onglet:"evaluation"});
+}
+function confirmerSuppressionCritere(cle){
+  const crit = criteresEvaluation();
+  const c = crit[cle]; if (!c) return;
+  if (Object.keys(crit).length <= 1) { toast("Au moins un critère de notation doit rester actif.", "err"); return; }
+  ouvrirModale("Supprimer un critère de notation",
+    '<p>Supprimer le critère <b>' + ech(c.libelle) + '</b> ?</p>' +
+    '<p class="muet">Les évaluations déjà enregistrées gardent la note saisie pour ce critère, mais il ne sera plus proposé aux prochaines évaluations. ' +
+    'Pensez à réajuster les pondérations restantes pour revenir à 100 %.</p>',
+    '<button class="btn" onclick="fermerModale()">Annuler</button>' +
+    '<button class="btn danger" onclick="executerSuppressionCritere(\''+cle+'\')">Supprimer</button>');
+}
+function executerSuppressionCritere(cle){
+  delete DB.params.criteresEvaluation[cle];
+  sauver(); fermerModale();
+  toast("Critère supprimé — réajustez les pondérations pour revenir à 100 %.", "ok", 6000);
+  App.aller("parametrage", {onglet:"evaluation"});
 }
 
 function paramSeuils(){
@@ -2697,8 +3542,11 @@ function paramReferentiels(etat){
       '<button class="btn" onclick="telechargerGabaritImportFournisseursCSV()">⭳ Télécharger le gabarit CSV</button>' +
       '<label class="btn">⭱ Importer une liste (CSV)<input type="file" accept=".csv" style="display:none" onchange="chargerFichierImportFournisseursCSV(this.files[0])"></label>' +
     '</div>' : '<p class="muet">Réservé aux profils ayant le droit d\'enregistrer un contrat ou de paramétrer le module.</p>') +
-    '<div class="tableauScroll"><table><thead><tr><th>Nom</th><th>Secteur</th><th>Ville</th><th>Contact</th><th>Téléphone</th><th>E-mail</th>' + (gere ? '<th></th>' : '') + '</tr></thead><tbody>' +
-      DB.params.fournisseurs.map(f=>'<tr><td>'+ech(f.nom)+'</td><td>'+ech(f.secteur||"—")+'</td><td>'+ech(f.ville||"—")+'</td><td>'+ech(f.personneContact||f.directeur||"—")+'</td><td>'+ech(f.telephone||"—")+'</td><td>'+ech(f.email||"—")+'</td>' +
+    '<div class="tableauScroll"><table><thead><tr><th>NCC</th><th>Raison sociale</th><th>Secteur</th><th>Ville</th><th>Contact</th><th>Téléphone</th><th>E-mail</th><th>Agréé</th>' + (gere ? '<th></th>' : '') + '</tr></thead><tbody>' +
+      DB.params.fournisseurs.map(f=>'<tr><td>'+ech(f.ncc||"—")+'</td><td>'+ech(f.nom)+'</td><td>'+ech(f.secteur||"—")+'</td><td>'+ech(f.ville||"—")+'</td><td>'+ech(f.personneContact||f.directeur||"—")+'</td><td>'+ech(f.telephone||"—")+'</td><td>'+ech(f.email||"—")+'</td>' +
+        '<td>' + (gere
+          ? '<select onchange="changerAgrementFournisseur(\''+f.id+'\',this.value)"><option value="N"'+(f.agree?"":" selected")+'>Non</option><option value="O"'+(f.agree?" selected":"")+'>Oui</option></select>'
+          : '<span class="et ' + (f.agree?"vert":"gris") + '">' + (f.agree?"Oui":"Non") + '</span>') + '</td>' +
         (gere ? '<td><button class="btn mini" title="Supprimer ce fournisseur" onclick="confirmerSuppressionFournisseur(\''+f.id+'\')">🗑</button></td>' : '') +
         '</tr>').join("") + '</tbody></table></div>' +
     (lignesImport ? rendreApercuImportFournisseursCSV(lignesImport) : '') +
@@ -2728,13 +3576,27 @@ function enregistrerDestinataires(){
   App.aller("parametrage", {onglet:"referentiels"});
 }
 
+async function changerAgrementFournisseur(id, valeur){
+  if (!peutGererFournisseurs()) { toast("Vous n'avez pas les droits pour modifier l'agrément.", "err"); return; }
+  const f = fournisseur(id); if (!f) return;
+  const agree = (valeur === "O");
+  const { error } = await sb.from('contrats_fournisseurs').update({agree, updated_at:new Date().toISOString()}).eq('id', id);
+  if (error) { toast("Erreur d'enregistrement : " + error.message, "err", 6000); return; }
+  f.agree = agree;
+  toast("« " + f.nom + " » : " + (agree ? "agréé." : "agrément retiré."), "ok");
+  App.aller("parametrage", {onglet:"referentiels"});
+}
+
 /* ---- Ajout unitaire d'un fournisseur ---- */
 function ouvrirModaleAjoutFournisseur(){
   if (!peutGererFournisseurs()) { toast("Vous n'avez pas les droits pour ajouter un fournisseur.", "err"); return; }
   const secteurs = [...new Set(DB.params.fournisseurs.map(f=>f.secteur).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"fr"));
   const corps =
-    '<div class="champ"><label>Raison sociale <span class="oblig">*</span></label>' +
-    '<input type="text" id="mFrn_nom" placeholder="Raison sociale exacte"></div>' +
+    '<div class="grille g2">' +
+      '<div class="champ"><label>NCC (n° de compte contribuable)</label><input type="text" id="mFrn_ncc" placeholder="Ex. 1234567 A"></div>' +
+      '<div class="champ"><label>Raison sociale <span class="oblig">*</span></label>' +
+      '<input type="text" id="mFrn_nom" placeholder="Raison sociale exacte"></div>' +
+    '</div>' +
     '<div class="grille g2">' +
       '<div class="champ"><label>Ville</label><input type="text" id="mFrn_ville" placeholder="Ex. Abidjan"></div>' +
       '<div class="champ"><label>Élément de la rubrique / Secteur</label>' +
@@ -2749,6 +3611,9 @@ function ouvrirModaleAjoutFournisseur(){
       '<div class="champ"><label>Personne contact</label><input type="text" id="mFrn_contact" placeholder="Nom du contact opérationnel"></div>' +
       '<div class="champ"><label>Téléphone du contact</label><input type="text" id="mFrn_telephone" placeholder="Ex. 07 00 00 00 00"></div>' +
     '</div>' +
+    '<div class="champ"><label>Fournisseur agréé</label>' +
+      '<select id="mFrn_agree"><option value="N">Non</option><option value="O">Oui</option></select>' +
+      '<div class="aide">Un fournisseur retenu à l\'issue d\'un appel d\'offres ouvert est agréé d\'office.</div></div>' +
     '<p class="aide">Seule la raison sociale est obligatoire. Le référentiel bloque les doublons : un nom déjà présent (à l\'accent et à la casse près) ne peut pas être ajouté deux fois.</p>';
   const pied = '<button class="btn" onclick="fermerModale()">Annuler</button>' +
     '<button class="btn primaire" onclick="soumettreAjoutFournisseur()">Enregistrer le fournisseur</button>';
@@ -2758,9 +3623,12 @@ function soumettreAjoutFournisseur(){
   if (!peutGererFournisseurs()) { toast("Vous n'avez pas les droits pour ajouter un fournisseur.", "err"); return; }
   const nom = (document.getElementById("mFrn_nom").value||"").trim();
   const secteur = (document.getElementById("mFrn_secteur").value||"").trim();
-  const erreurs = validerFournisseur(nom, secteur);
+  const ncc = (document.getElementById("mFrn_ncc").value||"").trim();
+  const erreurs = validerFournisseur(nom, secteur, ncc);
   if (erreurs.length) { toast(erreurs.map(e=>e.message).join(" "), "err", 6000); return; }
   const extra = {
+    ncc: ncc,
+    agree: (document.getElementById("mFrn_agree").value === "O"),
     ville: (document.getElementById("mFrn_ville").value||"").trim(),
     email: (document.getElementById("mFrn_email").value||"").trim(),
     directeur: (document.getElementById("mFrn_directeur").value||"").trim(),
@@ -2855,24 +3723,25 @@ async function executerSuppressionFournisseur(id){
 }
 
 /* ---- Import en masse depuis un gabarit CSV ---- */
-const ENTETES_GABARIT_CSV_FOURNISSEURS = ["Raison sociale","Ville","E-mail de la structure","Directeur(trice)","Personne contact","Téléphone du contact","Élément de la rubrique"];
+const ENTETES_GABARIT_CSV_FOURNISSEURS = ["NCC","Raison sociale","Ville","E-mail de la structure","Directeur(trice)","Personne contact","Téléphone du contact","Élément de la rubrique","Agréé (O/N)"];
 
 function telechargerGabaritImportFournisseursCSV(){
-  const exemple = ["Nouveau Fournisseur SARL", "Abidjan", "contact@fournisseur.ci", "N'Guessan Aya", "Koffi Marc", "0700000000", "Fournitures de bureau"];
+  const exemple = ["1234567 A", "Nouveau Fournisseur SARL", "Abidjan", "contact@fournisseur.ci", "N'Guessan Aya", "Koffi Marc", "0700000000", "Fournitures de bureau", "N"];
   const lignes = [csvLigne(ENTETES_GABARIT_CSV_FOURNISSEURS), csvLigne(exemple)];
   telecharger("gabarit_import_fournisseurs_" + auj() + ".csv", lignes.join("\r\n"), "text/csv");
 }
 
 function construireLigneImportFournisseur(cols, numeroLigne, nomsDejaVus){
   const g = (i) => (cols[i]||"").trim();
-  const nom = g(0), ville = g(1), email = g(2), directeur = g(3), personneContact = g(4), telephone = g(5), secteur = g(6);
-  const erreurs = validerFournisseur(nom, secteur).map(e => e.message);
+  const ncc = g(0), nom = g(1), ville = g(2), email = g(3), directeur = g(4), personneContact = g(5), telephone = g(6), secteur = g(7);
+  const agree = /^(o|oui|y|yes|1|vrai|true)$/i.test(g(8));
+  const erreurs = validerFournisseur(nom, secteur, ncc).map(e => e.message);
   if (nom) {
     const norm = normaliserTexte(nom);
     if (nomsDejaVus.has(norm)) erreurs.push("Doublon dans le fichier : « " + nom + " » apparaît plusieurs fois.");
     nomsDejaVus.add(norm);
   }
-  return {numeroLigne, nom, ville, email, directeur, personneContact, telephone, secteur, erreurs};
+  return {numeroLigne, ncc, nom, ville, email, directeur, personneContact, telephone, secteur, agree, erreurs};
 }
 
 function chargerFichierImportFournisseursCSV(file){
@@ -2896,13 +3765,15 @@ function rendreApercuImportFournisseursCSV(lignes){
   const valides = lignes.filter(l => l.erreurs.length === 0);
   return '<hr style="margin:16px 0;border:none;border-top:1px solid var(--gris-200)">' +
     '<h3>Aperçu (' + lignes.length + ' ligne(s), ' + valides.length + ' valide(s))</h3>' +
-    '<div class="tableauScroll"><table><thead><tr><th>Ligne</th><th>Statut</th><th>Nom</th><th>Ville</th><th>Secteur</th><th>Détail</th></tr></thead><tbody>' +
+    '<div class="tableauScroll"><table><thead><tr><th>Ligne</th><th>Statut</th><th>NCC</th><th>Nom</th><th>Ville</th><th>Secteur</th><th>Agréé</th><th>Détail</th></tr></thead><tbody>' +
     lignes.map(l => '<tr>' +
       '<td>' + l.numeroLigne + '</td>' +
       '<td>' + (l.erreurs.length ? '<span class="et rouge">Erreur</span>' : '<span class="et vert">OK</span>') + '</td>' +
+      '<td>' + ech(l.ncc||"—") + '</td>' +
       '<td>' + ech(l.nom||"—") + '</td>' +
       '<td>' + ech(l.ville||"—") + '</td>' +
       '<td>' + ech(l.secteur||"—") + '</td>' +
+      '<td>' + (l.agree ? 'Oui' : 'Non') + '</td>' +
       '<td style="font-size:12px">' + (l.erreurs.length ? l.erreurs.map(ech).join("<br>") : '<span class="muet">—</span>') + '</td>' +
     '</tr>').join("") +
     '</tbody></table></div>' +
@@ -2919,7 +3790,7 @@ function importerLotFournisseursCSV(){
   const valides = lignes.filter(l => l.erreurs.length === 0);
   if (!valides.length) { toast("Aucune ligne valide à importer.", "err"); return; }
   valides.forEach(l => {
-    DB.params.fournisseurs.push(construireFournisseur(l.nom, l.secteur, {ville:l.ville, email:l.email, directeur:l.directeur, personneContact:l.personneContact, telephone:l.telephone}));
+    DB.params.fournisseurs.push(construireFournisseur(l.nom, l.secteur, {ncc:l.ncc, agree:l.agree, ville:l.ville, email:l.email, directeur:l.directeur, personneContact:l.personneContact, telephone:l.telephone}));
   });
   sauver();
   toast(valides.length + " fournisseur(s) importé(s) avec succès.", "ok", 5000);
@@ -2981,6 +3852,21 @@ const Aide = {
 
     '<h3>7. Le référentiel fournisseurs</h3>' +
     '<p>Depuis <b>Paramétrage → Services, acteurs, fournisseurs</b>, les acteurs disposant du droit d\'enregistrer un contrat ou de paramétrer le module peuvent ajouter un fournisseur au référentiel (<b>+ Ajouter un fournisseur</b>) ou en importer plusieurs d\'un coup (<b>⭱ Importer une liste (CSV)</b>, avec un gabarit à télécharger). Dans les deux cas, un nom déjà présent (à l\'accent et à la casse près) est bloqué pour éviter un doublon dans le référentiel.</p>' +
+    '<p>Chaque fournisseur porte son <b>NCC</b> (numéro de compte contribuable) et son <b>agrément</b>. À la saisie d\'un contrat, la raison sociale et le NCC se répondent : renseigner l\'un affiche l\'autre. Un fournisseur non agréé est signalé à l\'écran et ressort dans le rapport <b>Contrats et BC par fournisseurs agréés / non agréés</b> ; un fournisseur retenu à l\'issue d\'un appel d\'offres ouvert (régime « Marché public ») est agréé d\'office à l\'enregistrement du contrat.</p>' +
+
+    '<h3>8. Ce que vous pouvez régler vous-même</h3>' +
+    '<p><b>Paramétrage</b> ne contient plus seulement des seuils. Vous y modifiez aussi, sans intervention technique :</p>' +
+    '<ul>' +
+      '<li><b>Natures &amp; préavis</b> — la liste des natures de contrat, leur délai de préavis et leur durée type.</li>' +
+      '<li><b>Régimes contractuels</b> — la liste proposée à la saisie.</li>' +
+      '<li><b>Modes &amp; délais de paiement</b> — deux listes distinctes : le mode dit <i>comment</i> on paie, le délai dit <i>sous quel délai</i>.</li>' +
+      '<li><b>Bibliothèque SLA</b> — les clauses types par nature de contrat, avec leurs seuils.</li>' +
+      '<li><b>Notation fournisseur</b> — les critères d\'évaluation et leurs pondérations (total à 100 %).</li>' +
+    '</ul>' +
+    '<p>Un élément encore utilisé par un contrat enregistré ne peut pas être supprimé : l\'écran indique combien de contrats s\'y rattachent.</p>' +
+
+    '<h3>9. Les clauses SLA d\'un contrat</h3>' +
+    '<p>À l\'enregistrement, les clauses types de la nature choisie sont chargées d\'office dans l\'onglet <b>Clauses SLA</b> du contrat, marquées « type ». Retirez celles que la rédaction du contrat n\'a finalement pas retenues : la suppression reste possible tant qu\'aucune valeur constatée n\'a été enregistrée. Dès qu\'un constat est saisi, la clause est verrouillée, pour préserver la traçabilité du suivi.</p>' +
 
     '</div></div>';
   }
