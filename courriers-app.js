@@ -417,8 +417,8 @@ function refus() {
     <div class="carte"><p class="gris">Ce droit d'usage ne vous a pas été attribué. Le Pilote peut l'activer depuis l'accueil D2MG Pilotage, onglet de votre profil.</p></div>`;
 }
 
-async function mouvement(id, type, com) {
-  await sb.from('courrier_mouvements').insert({ id_courrier: id, type_action: type, commentaire: com || null, acteur_id: D.moi.id_acteur });
+async function mouvement(id, type, com, destinataire) {
+  await sb.from('courrier_mouvements').insert({ id_courrier: id, type_action: type, commentaire: com || null, acteur_id: D.moi.id_acteur, destinataire_id: destinataire || null });
 }
 
 /* ============================================================= IMPUTATION */
@@ -440,7 +440,7 @@ function vueImputation() {
       date_imputation: auj(), updated_at: new Date().toISOString()
     }).eq('id_courrier', b.dataset.imp);
     if (error) { toast('Erreur : ' + error.message, 'err'); return; }
-    await mouvement(b.dataset.imp, 'IMPUTATION', `Affecté à ${nomAgent(ag)}${svc ? ' — ' + nomService(svc) : ''}`);
+    await mouvement(b.dataset.imp, 'IMPUTATION', `Affecté à ${nomAgent(ag)}${svc ? ' — ' + nomService(svc) : ''}`, ag);
     toast('Courrier imputé.', 'ok'); await rafraichir();
   }));
   $$('[data-fiche]').forEach(b => b.addEventListener('click', () => ouvrirFiche(b.dataset.fiche)));
@@ -631,7 +631,7 @@ async function ouvrirFiche(id) {
     </tbody></table></div>
     <div id="actionsFiche" style="margin-bottom:14px"></div>
     <h3 style="color:var(--vert-fonce);font-size:13px;margin-bottom:8px">Historique du traitement</h3>
-    <ul class="chrono">${(mvt || []).map(m => `<li><div class="q">${new Date(m.created_at).toLocaleString('fr-FR')} — ${ech(nomAgent(m.acteur_id))}</div>
+    <ul class="chrono">${(mvt || []).map(m => `<li><div class="q">${new Date(m.created_at).toLocaleString('fr-FR')} — ${ech(nomAgent(m.acteur_id))}${m.destinataire_id ? ' → ' + ech(nomAgent(m.destinataire_id)) : ''}</div>
       <strong>${ech(libAction(m.type_action))}</strong>${m.commentaire ? '<br>' + nl2br(m.commentaire) : ''}</li>`).join('')
       || '<li class="gris">Aucun mouvement enregistré.</li>'}</ul>
     ${(rel || []).length ? `<h3 style="color:var(--vert-fonce);font-size:13px;margin:16px 0 8px">Relances (${rel.length})</h3>
@@ -654,7 +654,7 @@ function construireActionsFiche(c) {
   const estMien = c.agent_id === D.moi.id_acteur;
   const acts = [];
   if (c.statut === 'ENREGISTRE' && aDroit('cou.qualifier')) acts.push({ id: 'qualifier', lib: 'Qualifier (nature & délai)', cl: 'primaire' });
-  if ((c.statut === 'ENREGISTRE' || c.statut === 'QUALIFIE') && aDroit('cou.imputer')) acts.push({ id: 'imputer', lib: 'Imputer', cl: 'primaire' });
+  if (!estClos(c) && aDroit('cou.imputer')) acts.push({ id: 'imputer', lib: c.agent_id ? 'Transmettre à un autre agent' : 'Imputer', cl: 'primaire' });
   if (c.statut === 'IMPUTE' && (estMien || aDroit('cou.imputer')) && aDroit('cou.traiter')) acts.push({ id: 'prendre', lib: 'Prendre en main', cl: 'primaire' });
   if (c.statut === 'EN_TRAITEMENT' && (estMien || aDroit('cou.repondre')) && aDroit('cou.repondre')) acts.push({ id: 'reponse', lib: 'Réponse rédigée', cl: '' });
   if (['EN_TRAITEMENT', 'REPONSE'].includes(c.statut) && aDroit('cou.cloturer')) acts.push({ id: 'cloturer', lib: 'Clôturer', cl: 'primaire' });
@@ -670,11 +670,11 @@ function construireActionsFiche(c) {
   $$('[data-act]', z).forEach(b => b.addEventListener('click', () => actionFiche(c, b.dataset.act)));
 }
 
-async function majCourrier(c, patch, typeMvt, com) {
+async function majCourrier(c, patch, typeMvt, com, destinataire) {
   patch.updated_at = new Date().toISOString();
   const { error } = await sb.from('courriers').update(patch).eq('id_courrier', c.id_courrier);
   if (error) { toast('Erreur : ' + error.message, 'err'); return false; }
-  if (typeMvt) await mouvement(c.id_courrier, typeMvt, com);
+  if (typeMvt) await mouvement(c.id_courrier, typeMvt, com, destinataire);
   return true;
 }
 
@@ -688,9 +688,10 @@ function actionFiche(c, act) {
     { toast('Réponse enregistrée.', 'ok'); fermerModale(); fermerFiche(); await rafraichir(); }
   });
   if (act === 'cloturer') return void modaleTexte('Clôturer le courrier', 'Suite donnée / preuve de traitement', async t => {
+    if (!t) { toast('La suite donnée est obligatoire pour clôturer un courrier.', 'err'); return; }
     if (await majCourrier(c, { statut: 'CLOTURE', date_cloture: auj() }, 'CLOTURE', t))
     { toast('Courrier clôturé.', 'ok'); fermerModale(); fermerFiche(); await rafraichir(); }
-  });
+  }, 1);
   if (act === 'sansSuite') return void modaleTexte('Classer sans suite', 'Motif du classement (obligatoire)', async t => {
     if (!t) { toast('Le motif est obligatoire.', 'err'); return; }
     if (await majCourrier(c, { statut: 'SANS_SUITE', motif: t, date_cloture: auj() }, 'SANS_SUITE', t))
@@ -747,19 +748,21 @@ function modaleQualifier(c) {
   $('#q_del').addEventListener('input', maj); maj();
 }
 function modaleImputer(c) {
-  ouvrirModale('Imputer le courrier', `<div class="champs">
+  const dejaImpute = !!c.agent_id;
+  ouvrirModale(dejaImpute ? 'Transmettre le courrier' : 'Imputer le courrier', `<div class="champs">
     <div><label>Service destinataire</label><select id="i_svc"><option value="">—</option>
       ${D.services.filter(s => s.actif).map(s => `<option value="${s.id}" ${String(c.service_affecte_id) === String(s.id) ? 'selected' : ''}>${ech(s.libelle)}</option>`).join('')}</select></div>
-    <div><label>Agent traitant</label><select id="i_ag"><option value="">—</option>
+    <div><label>${dejaImpute ? 'Nouvel agent traitant' : 'Agent traitant'}</label><select id="i_ag"><option value="">—</option>
       ${D.agents.map(a => { const n = D.courriers.filter(x => x.agent_id === a.id_acteur && !estClos(x)).length;
         return `<option value="${ech(a.id_acteur)}" ${c.agent_id === a.id_acteur ? 'selected' : ''}>${ech(a.nom_prenoms)} (${n} en cours${n > seuilDe(a.id_acteur) ? ' — surcharge' : ''})</option>`; }).join('')}</select></div>
-    <div class="full"><label>Instruction d'imputation</label><textarea id="i_com" rows="3"></textarea></div></div>`,
+    <div class="full"><label>${dejaImpute ? 'Instruction de transmission' : 'Instruction d\'imputation'}</label><textarea id="i_com" rows="3"></textarea></div></div>`,
     [{ lib: 'Annuler', cl: '', act: fermerModale },
-     { lib: 'Imputer', cl: 'primaire', act: async () => {
+     { lib: dejaImpute ? 'Transmettre' : 'Imputer', cl: 'primaire', act: async () => {
         const ag = $('#i_ag').value; if (!ag) { toast('Choisissez un agent traitant.', 'err'); return; }
         const p = { service_affecte_id: $('#i_svc').value || null, agent_id: ag, statut: 'IMPUTE', date_imputation: auj() };
-        if (await majCourrier(c, p, 'IMPUTATION', `Affecté à ${nomAgent(ag)}` + ($('#i_com').value.trim() ? ' — ' + $('#i_com').value.trim() : '')))
-        { toast('Courrier imputé.', 'ok'); fermerModale(); fermerFiche(); await rafraichir(); }
+        const verbe = dejaImpute ? 'Transmis' : 'Affecté';
+        if (await majCourrier(c, p, 'IMPUTATION', `${verbe} à ${nomAgent(ag)}` + ($('#i_com').value.trim() ? ' — ' + $('#i_com').value.trim() : ''), ag))
+        { toast(dejaImpute ? 'Courrier transmis.' : 'Courrier imputé.', 'ok'); fermerModale(); fermerFiche(); await rafraichir(); }
       } }]);
 }
 
