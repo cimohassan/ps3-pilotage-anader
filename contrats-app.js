@@ -202,7 +202,7 @@ const REFERENTIEL_MARCHES_PUBLICS = {
 
 const ETAPES_ADMINISTRATIVES = [
   "Brouillon","En revue","À corriger","À approuver","À signer","Approuvé","Notifié",
-  "En attente de démarrage","Actif","Suspendu","En modification","À renouveler",
+  "En attente de démarrage","En cours","Actif","Suspendu","En modification","À renouveler",
   "Arrivé à échéance","Résilié","Clôturé","Archivé"
 ];
 
@@ -1741,53 +1741,173 @@ function extraireContratDepuisTexte(texte){
 /* Le gabarit reprend, dans l'ordre, les champs de l'écran « Enregistrer un
    contrat ». Le fournisseur peut être désigné par sa raison sociale OU par
    son NCC : l'un des deux suffit. */
-const ENTETES_GABARIT_CSV = [
-  "Objet du contrat",
-  "Fournisseur (raison sociale du référentiel)",
-  "NCC du fournisseur (si raison sociale non renseignée)",
-  "Nature du contrat",
-  "Service porteur",
-  "Criticité (Critique / Normale / Mineure)",
-  "Acheteur responsable (nom, optionnel)",
-  "Mode de paiement",
-  "Délai de paiement",
-  "Régime contractuel",
-  "N° bon de commande / marché",
-  "N° bon de réquisition",
-  "Motif de dérogation (si régime = Dérogation)",
-  "Étape administrative (optionnel)",
-  "Date de début (AAAA-MM-JJ)",
-  "Date de fin (AAAA-MM-JJ)",
-  "Montant (F CFA)",
-  "Statut initial"
+/* ============================================================
+   Import de contrats et bons de commande — refonte du 09/09/2026
+
+   Trois principes, après le constat d'un fichier de 332 lignes
+   entièrement rejeté pour des raisons secondaires :
+
+   1. Le fichier est lu par EN-TÊTE, jamais par position. L'ordre
+      des colonnes n'a plus d'importance, une colonne en trop est
+      ignorée, une colonne manquante laisse simplement le champ vide.
+   2. Les valeurs sont rapprochées du paramétrage avec tolérance :
+      accents, casse, forme juridique, abréviation, faute de frappe.
+   3. Deux seules conditions bloquent une ligne — l'objet et le
+      fournisseur. Tout le reste est signalé sans empêcher
+      l'intégration, conformément à la règle de saisie du module.
+   ============================================================ */
+
+/* Colonnes reconnues. `cle` désigne le champ du contrat, `libelle`
+   l'en-tête écrit dans le gabarit, `synonymes` les autres écritures
+   acceptées dans un fichier préparé hors de l'application. */
+const COLONNES_IMPORT_CONTRAT = [
+  {cle:"objet", libelle:"Objet du contrat", oblig:true,
+   synonymes:["objet","intitule","designation","libelle du contrat","description","objet du bon de commande"]},
+  {cle:"fournisseur", libelle:"Fournisseur (raison sociale)", oblig:true,
+   synonymes:["fournisseur","raison sociale","prestataire","titulaire","beneficiaire","fournisseur raison sociale du referentiel"]},
+  {cle:"ncc", libelle:"NCC du fournisseur",
+   synonymes:["ncc","numero de compte contribuable","compte contribuable","ncc du fournisseur si raison sociale non renseignee"]},
+  {cle:"nature", libelle:"Nature du contrat",
+   synonymes:["nature","type de contrat","type","nature du bon de commande"]},
+  {cle:"service", libelle:"Service porteur",
+   synonymes:["service","division","entite","service demandeur","service porteur"]},
+  {cle:"criticite", libelle:"Criticité (Critique / Normale / Mineure)",
+   synonymes:["criticite","priorite","niveau de criticite"]},
+  {cle:"acheteur", libelle:"Acheteur responsable (nom, optionnel)",
+   synonymes:["acheteur","acheteur responsable","proprietaire","responsable","gestionnaire","charge du dossier"]},
+  {cle:"modePaiement", libelle:"Mode de paiement",
+   synonymes:["mode de paiement","mode de reglement","moyen de paiement"]},
+  {cle:"delaiPaiement", libelle:"Délai de paiement",
+   synonymes:["delai de paiement","delai de reglement","echeance de paiement"]},
+  {cle:"regime", libelle:"Régime contractuel",
+   synonymes:["regime","regime contractuel","procedure","procedure de passation"]},
+  {cle:"numeroBcMarche", libelle:"N° bon de commande / marché",
+   synonymes:["n bon de commande marche","numero bon de commande","bon de commande","n marche","numero de marche","reference du marche","n bc"]},
+  {cle:"numeroRequisition", libelle:"N° bon de réquisition",
+   synonymes:["n bon de requisition","numero de requisition","requisition","n requisition"]},
+  {cle:"motifDerogation", libelle:"Motif de dérogation (si régime = Dérogation)",
+   synonymes:["motif de derogation","motif","justification de la derogation"]},
+  {cle:"dateDebut", libelle:"Date de début (AAAA-MM-JJ)",
+   synonymes:["date de debut","debut","date debut","date de signature","date d effet"]},
+  {cle:"dateFin", libelle:"Date de fin (AAAA-MM-JJ)",
+   synonymes:["date de fin","fin","date fin","echeance","date d echeance"]},
+  {cle:"montant", libelle:"Montant (F CFA)",
+   synonymes:["montant","montant f cfa","montant ttc","montant ht","valeur","montant du contrat"]},
+  {cle:"statut", libelle:"Statut initial",
+   synonymes:["statut","statut initial","etat","etat du contrat"]},
+  {cle:"etapeAdministrative", libelle:"Étape administrative (optionnel)",
+   synonymes:["etape administrative","etape","situation administrative"]}
 ];
 
-function rendreImportCSV(etat){
-  const lignes = etat.lignesCSV || null;
-  return '<div class="carte"><div class="tete"><h2>⭱ Import en masse depuis un gabarit CSV</h2></div><div class="corps">' +
-    '<p class="msgInfo">Téléchargez le gabarit conçu à partir du schéma de contrat, complétez-le (Excel, LibreOffice Calc…) avec un contrat ou bon de commande par ligne, puis importez-le. Chaque ligne est contrôlée avant intégration : rien n\'est enregistré tant que vous n\'avez pas validé l\'aperçu.</p>' +
-    '<div class="barreActions">' +
-      '<button class="btn" onclick="telechargerGabaritImportCSV()">⭳ Télécharger le gabarit CSV</button>' +
-      '<label class="btn primaire">⭱ Choisir un fichier CSV rempli<input type="file" accept=".csv" style="display:none" onchange="chargerFichierImportCSV(this.files[0])"></label>' +
-    '</div>' +
-    (lignes ? rendreApercuImportCSV(lignes) : '') +
-  '</div></div>';
+const ENTETES_GABARIT_CSV = COLONNES_IMPORT_CONTRAT.map(c => c.libelle);
+
+/* ---- Lecture tolérante : en-têtes, séparateur, dates, montants ---- */
+
+/* Réduit un en-tête à une clé comparable : sans accent, sans
+   ponctuation, sans parenthèses ni précisions de format. */
+function clefEntete(s){
+  return normaliserTexte(s)
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function telechargerGabaritImportCSV(){
-  const exemple = [
-    "Maintenance des groupes électrogènes du siège",
-    "Générale de Froid et Climatisation", "1234567 A",
-    "Maintenance / entretien technique", "Division Marchés", "Normale", "",
-    "Virement bancaire", "30 jours",
-    "Marché public", "BC-1234/D2MG/2026", "REQ-0087/D2MG/2026", "", "",
-    "2026-09-01", "2027-08-31", "4500000", "Actif"
-  ];
-  const lignes = [csvLigne(ENTETES_GABARIT_CSV), csvLigne(exemple)];
-  telecharger("gabarit_import_contrats_" + auj() + ".csv", lignes.join("\r\n"), "text/csv");
+/* Associe chaque colonne du fichier à un champ du contrat.
+   Renvoie l'index de colonne par champ, et la liste des colonnes
+   du fichier qui n'ont été rattachées à rien. */
+function associerColonnesImport(entetes){
+  const clefs = entetes.map(clefEntete);
+  const index = {}, prises = new Set();
+
+  const chercher = (predicat) => {
+    for (let i = 0; i < clefs.length; i++) {
+      if (prises.has(i) || !clefs[i]) continue;
+      if (predicat(clefs[i])) return i;
+    }
+    return -1;
+  };
+
+  COLONNES_IMPORT_CONTRAT.forEach(col => {
+    const candidats = [clefEntete(col.libelle)].concat(col.synonymes || []);
+    let i = chercher(k => candidats.indexOf(k) !== -1);                       // égalité stricte
+    if (i === -1) i = chercher(k => candidats.some(c => k === c || k.indexOf(c) === 0 || c.indexOf(k) === 0)); // début commun
+    if (i === -1) i = chercher(k => candidats.some(c => c.length > 5 && ressemblanceNoms(k, c) >= 0.88));      // faute de frappe
+    if (i !== -1) { index[col.cle] = i; prises.add(i); }
+  });
+
+  const ignorees = entetes.map((e, i) => ({entete:e, i}))
+    .filter(x => !prises.has(x.i) && x.entete.trim())
+    .map(x => x.entete);
+  const manquantes = COLONNES_IMPORT_CONTRAT.filter(c => index[c.cle] === undefined).map(c => c.libelle);
+  return {index, ignorees, manquantes};
 }
 
-function parserCSV(texte){
+/* Le séparateur est déduit de la première ligne : point-virgule,
+   virgule ou tabulation, selon celui qui structure le mieux. */
+function detecterSeparateur(texte){
+  const premiere = texte.split(/\r?\n/)[0] || "";
+  const compte = s => (premiere.split(s).length - 1);
+  const candidats = [[";", compte(";")], [",", compte(",")], ["\t", compte("\t")]];
+  candidats.sort((a,b) => b[1] - a[1]);
+  return candidats[0][1] > 0 ? candidats[0][0] : ";";
+}
+
+/* Accepte AAAA-MM-JJ, JJ/MM/AAAA, JJ-MM-AAAA, JJ.MM.AAAA et le
+   numéro de série des dates Excel. Renvoie "" si illisible. */
+function lireDateImport(v){
+  const t = String(v || "").trim();
+  if (!t) return "";
+  let m = t.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/);
+  if (m) return m[1] + "-" + ("0"+m[2]).slice(-2) + "-" + ("0"+m[3]).slice(-2);
+  m = t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);
+  if (m) return m[3] + "-" + ("0"+m[2]).slice(-2) + "-" + ("0"+m[1]).slice(-2);
+  if (/^\d{5}$/.test(t)) {                       // série Excel (jours depuis le 30/12/1899)
+    const d = new Date(Date.UTC(1899, 11, 30) + Number(t) * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+  return "";
+}
+
+/* Accepte « 1 234 567 », « 1.234.567 », « 1,234,567 », « 873000 F CFA ». */
+function lireMontantImport(v){
+  let t = String(v || "").replace(/ /g, " ").trim();
+  if (!t) return "";
+  t = t.replace(/[^\d,.\-]/g, "");
+  if (!t) return "";
+  const virgule = t.lastIndexOf(","), point = t.lastIndexOf(".");
+  const dernier = Math.max(virgule, point);
+  if (dernier !== -1 && t.length - dernier - 1 <= 2 && (virgule === -1 || point === -1 || true)) {
+    const decimales = t.slice(dernier + 1);
+    const entier = t.slice(0, dernier).replace(/[.,]/g, "");
+    if (/^\d{1,2}$/.test(decimales)) t = entier + "." + decimales; else t = t.replace(/[.,]/g, "");
+  } else {
+    t = t.replace(/[.,]/g, "");
+  }
+  const n = Number(t);
+  return isNaN(n) ? "" : n;
+}
+
+/* Rapproche une valeur saisie d'un référentiel : code ou libellé
+   exact, puis inclusion, puis ressemblance. `liste` est un tableau
+   d'objets {code, libelle}. */
+function rapprocherValeurReferentiel(liste, saisie){
+  const t = normaliserTexte(saisie);
+  if (!t) return null;
+  let e = liste.find(x => normaliserTexte(x.code) === t || normaliserTexte(x.libelle) === t);
+  if (e) return {element:e, exact:true};
+  e = liste.find(x => normaliserTexte(x.libelle).indexOf(t) === 0 || t.indexOf(normaliserTexte(x.libelle)) === 0);
+  if (e) return {element:e, exact:true};
+  let meilleur = null, score = 0;
+  liste.forEach(x => {
+    const s = ressemblanceNoms(saisie, x.libelle);
+    if (s >= 0.82 && s > score) { meilleur = x; score = s; }
+  });
+  return meilleur ? {element:meilleur, exact:false, score} : null;
+}
+
+function parserCSV(texte, separateur){
+  const sep = separateur || detecterSeparateur(texte);
   const lignes = [];
   let ligneCourante = [], champCourant = "", enGuillemets = false;
   const s = texte.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
@@ -1798,7 +1918,7 @@ function parserCSV(texte){
       else champCourant += c;
     } else {
       if (c === '"') enGuillemets = true;
-      else if (c === ";") { ligneCourante.push(champCourant); champCourant = ""; }
+      else if (c === sep) { ligneCourante.push(champCourant); champCourant = ""; }
       else if (c === "\n") { ligneCourante.push(champCourant); lignes.push(ligneCourante); ligneCourante = []; champCourant = ""; }
       else champCourant += c;
     }
@@ -1807,92 +1927,382 @@ function parserCSV(texte){
   return lignes.filter(l => l.some(c => c.trim() !== ""));
 }
 
-function elementParLibelleOuCode(liste, saisie){
-  const t = normaliserTexte(saisie);
-  if (!t) return null;
-  return liste.find(x => normaliserTexte(x.libelle) === t || normaliserTexte(x.code) === t) ||
-         liste.find(x => normaliserTexte(x.libelle).includes(t) || t.includes(normaliserTexte(x.libelle))) || null;
-}
+/* ---- Analyse d'une ligne ---- */
 
-function construireLigneImportCSV(cols, numeroLigne){
-  const g = (i) => (cols[i]||"").trim();
-  const f = g(1) ? fournisseurParNom(g(1)) : (g(2) ? fournisseurParNcc(g(2)) : null);
-  const n = natureParLibelle(g(3));
-  const s = serviceParLibelle(g(4));
-  const critere = Object.values(CRITICITES).find(c => normaliserTexte(c.libelle)===normaliserTexte(g(5)));
-  const ag = agentParNom(g(6));
-  const mode = elementParLibelleOuCode(modesPaiement(), g(7));
-  const delai = elementParLibelleOuCode(delaisPaiement(), g(8));
-  const regime = regimeParLibelle(g(9));
-  const statutObj = statutParLibelle(g(17));
-  const montantBrut = g(16).replace(/[^\d,.\-]/g,"").replace(",", ".");
+/* Le rapprochement des fournisseurs est mis en cache : un fichier
+   de plusieurs centaines de lignes ne compte souvent qu'une centaine
+   de fournisseurs distincts. */
+let __cacheRapprochementFournisseur = null;
 
-  const valeurs = {
-    objet: g(0),
-    fournisseurId: f ? f.id : "",
-    natureId: n ? n.code : "",
-    serviceId: s ? s.id : "",
-    criticite: critere ? critere.code : "NORMALE",
-    proprietaireId: ag ? ag.id : "",
-    modePaiement: mode ? mode.code : "VIREMENT",
-    delaiPaiement: delai ? delai.code : "J30",
-    regimeContractuel: regime ? regime.code : (g(9) ? "" : "MARCHE_PUBLIC"),
-    numeroBcMarche: g(10),
-    numeroRequisition: g(11),
-    motifDerogation: g(12),
-    etapeAdministrative: ETAPES_ADMINISTRATIVES.includes(g(13)) ? g(13) : "",
-    dateDebut: g(14), dateFin: g(15),
-    montant: montantBrut === "" ? "" : Number(montantBrut),
-    statut: statutObj ? statutObj.code : "BROUILLON"
+function analyserLigneImportContrat(cellules, numeroLigne, mapping){
+  const lire = (cle) => {
+    const i = mapping.index[cle];
+    return (i === undefined || cellules[i] === undefined) ? "" : String(cellules[i]).trim();
+  };
+  /* Un signalement porte un niveau : « info » quand la valeur a été
+     retrouvée malgré une écriture différente, « attention » quand une
+     information a été perdue et mérite un regard. Seul « attention »
+     fait sortir la ligne des lignes prêtes. */
+  const bloquants = [], signalements = [], inconnus = [];
+  const info = m => signalements.push({niveau:"info", message:m});
+  const attention = m => signalements.push({niveau:"attention", message:m});
+
+  const objet = lire("objet");
+  if (!objet) bloquants.push("L'objet du contrat est absent.");
+
+  /* Fournisseur : NCC d'abord, puis raison sociale avec tolérance. */
+  const nomFournisseur = lire("fournisseur"), ncc = lire("ncc");
+  let fournisseurId = "";
+  if (!nomFournisseur && !ncc) {
+    bloquants.push("Le fournisseur est absent (ni raison sociale, ni NCC).");
+  } else {
+    const cle = normaliserNcc(ncc) + "|" + normaliserTexte(nomFournisseur);
+    if (!__cacheRapprochementFournisseur) __cacheRapprochementFournisseur = new Map();
+    let r = __cacheRapprochementFournisseur.get(cle);
+    if (r === undefined) {
+      r = rapprocherFournisseurExistant(nomFournisseur, ncc);
+      __cacheRapprochementFournisseur.set(cle, r);
+    }
+    if (r) {
+      fournisseurId = r.existant.id;
+      if (r.type === "ressemblance") {
+        attention("Fournisseur rapproché de « " + r.existant.nom + " » (" + Math.round(r.score*100) + " % de similitude) — vérifiez avant d'intégrer.");
+      }
+    } else {
+      bloquants.push("Fournisseur « " + (nomFournisseur || ncc) + " » absent du référentiel.");
+      inconnus.push({type:"fournisseur", valeur: nomFournisseur || ncc, ncc: ncc});
+    }
+  }
+
+  /* Référentiels secondaires : jamais bloquants. */
+  const resoudre = (cle, liste, libelleType, typeCreable) => {
+    const saisie = lire(cle);
+    if (!saisie) return "";
+    const r = rapprocherValeurReferentiel(liste, saisie);
+    if (r && r.exact) return r.element.code || r.element.id;
+    if (r) {
+      info(libelleType + " « " + saisie + " » rapproché de « " + r.element.libelle + " ».");
+      return r.element.code || r.element.id;
+    }
+    attention(libelleType + " « " + saisie + " » absent du paramétrage — champ laissé vide.");
+    if (typeCreable) inconnus.push({type:typeCreable, valeur:saisie});
+    return "";
   };
 
-  const erreursColonnes = [];
-  if (g(1) && !f) erreursColonnes.push({champ:"fournisseurId", message:"Fournisseur « " + g(1) + " » introuvable dans le référentiel (Paramétrage → Services, acteurs, fournisseurs)."});
-  if (!g(1) && g(2) && !f) erreursColonnes.push({champ:"fournisseurId", message:"Aucun fournisseur ne porte le NCC « " + g(2) + " »."});
-  if (g(3) && !n) erreursColonnes.push({champ:"natureId", message:"Nature « " + g(3) + " » non reconnue."});
-  if (g(4) && !s) erreursColonnes.push({champ:"serviceId", message:"Service « " + g(4) + " » non reconnu."});
-  if (g(7) && !mode) erreursColonnes.push({champ:"modePaiement", message:"Mode de paiement « " + g(7) + " » non reconnu — Virement bancaire appliqué par défaut."});
-  if (g(8) && !delai) erreursColonnes.push({champ:"delaiPaiement", message:"Délai de paiement « " + g(8) + " » non reconnu — 30 jours appliqué par défaut."});
-  if (g(9) && !regime) erreursColonnes.push({champ:"regimeContractuel", message:"Régime contractuel « " + g(9) + " » non reconnu."});
-  if (g(17) && !statutObj) erreursColonnes.push({champ:"statut", message:"Statut « " + g(17) + " » non reconnu — ligne traitée en Brouillon si les autres champs sont valides."});
+  const natureId = resoudre("nature", listeNatures(), "Nature", "nature");
+  const serviceId = resoudre("service", DB.params.services.map(s => ({code:s.id, libelle:s.libelle})), "Service", "service");
+  const regime = resoudre("regime", regimesContractuels(), "Régime contractuel", "regime");
+  const modeP = resoudre("modePaiement", modesPaiement(), "Mode de paiement", "mode");
+  const delaiP = resoudre("delaiPaiement", delaisPaiement(), "Délai de paiement", "delai");
+  const criticite = resoudre("criticite", Object.values(CRITICITES), "Criticité", null);
+  const statutSaisi = resoudre("statut", Object.values(STATUTS), "Statut", null);
 
-  const erreurs = validerContrat(valeurs).concat(erreursColonnes);
-  return {numeroLigne, valeurs, erreurs};
+  /* Acheteur : rapproché sur l'annuaire partagé, jamais créé ici. */
+  let proprietaireId = "";
+  const nomAcheteur = lire("acheteur");
+  if (nomAcheteur) {
+    const a = agentParNom(nomAcheteur) ||
+      DB.params.agents.find(x => ressemblanceNoms(x.nom, nomAcheteur) >= 0.88);
+    if (a) proprietaireId = a.id;
+    else attention("Acheteur « " + nomAcheteur + " » inconnu de l'annuaire — contrat laissé à imputer.");
+  }
+
+  const dateDebutBrute = lire("dateDebut"), dateFinBrute = lire("dateFin"), montantBrut = lire("montant");
+  const dateDebut = lireDateImport(dateDebutBrute), dateFin = lireDateImport(dateFinBrute);
+  if (dateDebutBrute && !dateDebut) attention("Date de début « " + dateDebutBrute + " » illisible — champ laissé vide.");
+  if (dateFinBrute && !dateFin) attention("Date de fin « " + dateFinBrute + " » illisible — champ laissé vide.");
+  if (dateDebut && dateFin && dt(dateFin) <= dt(dateDebut)) attention("La date de fin n'est pas postérieure à la date de début.");
+
+  const montant = lireMontantImport(montantBrut);
+  if (montantBrut && montant === "") attention("Montant « " + montantBrut + " » illisible — champ laissé vide.");
+
+  const etape = lire("etapeAdministrative");
+  const etapeRetenue = ETAPES_ADMINISTRATIVES.find(e => normaliserTexte(e) === normaliserTexte(etape)) || "";
+  if (etape && !etapeRetenue) attention("Étape administrative « " + etape + " » non reconnue — champ laissé vide.");
+
+  const valeurs = {
+    objet, fournisseurId, natureId, serviceId, proprietaireId,
+    criticite: criticite || "NORMALE",
+    regimeContractuel: regime || "MARCHE_PUBLIC",
+    motifDerogation: lire("motifDerogation"),
+    modePaiement: modeP || "VIREMENT",
+    delaiPaiement: delaiP || "J30",
+    numeroBcMarche: lire("numeroBcMarche"),
+    numeroRequisition: lire("numeroRequisition"),
+    etapeAdministrative: etapeRetenue,
+    dateDebut, dateFin, montant,
+    statut: statutSaisi || "BROUILLON"
+  };
+
+  if (valeurs.regimeContractuel === "DEROGATION" && !valeurs.motifDerogation) {
+    attention("Régime « Dérogation » sans motif — à compléter sur la fiche.");
+  }
+
+  /* Contrat déjà enregistré ? Même fournisseur et même objet, ou
+     même numéro de bon de commande / marché. */
+  let doublon = null;
+  if (fournisseurId) {
+    const objetNorm = normaliserTexte(objet);
+    doublon = DB.contrats.find(c => c.fournisseurId === fournisseurId && normaliserTexte(c.objet) === objetNorm) || null;
+  }
+  if (!doublon && valeurs.numeroBcMarche) {
+    const bc = normaliserTexte(valeurs.numeroBcMarche);
+    doublon = DB.contrats.find(c => c.numeroBcMarche && normaliserTexte(c.numeroBcMarche) === bc) || null;
+  }
+
+  const aExaminer = signalements.some(s => s.niveau === "attention");
+  const classement = bloquants.length ? "bloque"
+                   : doublon ? "doublon"
+                   : aExaminer ? "signale" : "pret";
+
+  return {numeroLigne, cellules, valeurs, bloquants, signalements, inconnus, doublon,
+          classement, retenue: classement === "pret" || classement === "signale"};
+}
+
+/* ---- Écran d'import ---- */
+
+function rendreImportCSV(etat){
+  const lignes = etat.lignesCSV || null;
+  return '<div class="carte"><div class="tete"><h2>⭱ Import en masse depuis un fichier CSV</h2></div><div class="corps">' +
+    '<p class="msgInfo">Téléchargez le gabarit, complétez-le (Excel, LibreOffice Calc…) avec un contrat ou un bon de commande par ligne, puis importez-le. ' +
+    'Le fichier est lu <b>par en-tête de colonne</b> : leur ordre n\'a pas d\'importance, et une colonne inconnue est simplement ignorée. ' +
+    'Chaque ligne est analysée et rapprochée du paramétrage avant intégration — rien n\'est enregistré tant que vous n\'avez pas validé l\'aperçu.</p>' +
+    '<div class="barreActions">' +
+      '<button class="btn" onclick="telechargerGabaritImportCSV()">⭳ Télécharger le gabarit CSV</button>' +
+      '<label class="btn primaire">⭱ Choisir un fichier CSV rempli<input type="file" accept=".csv,.txt" style="display:none" onchange="chargerFichierImportCSV(this.files[0])"></label>' +
+    '</div>' +
+    (lignes ? rendreApercuImportCSV(lignes, etat) : '') +
+  '</div></div>';
+}
+
+function telechargerGabaritImportCSV(){
+  const exemple = {
+    objet:"Maintenance des groupes électrogènes du siège", fournisseur:"Générale de Froid et Climatisation",
+    ncc:"1234567 A", nature:"Maintenance / entretien technique", service:"Division Marchés",
+    criticite:"Normale", acheteur:"", modePaiement:"Virement bancaire", delaiPaiement:"30 jours",
+    regime:"Marché public", numeroBcMarche:"BC-1234/D2MG/2026", numeroRequisition:"REQ-0087/D2MG/2026",
+    motifDerogation:"", dateDebut:"2026-09-01", dateFin:"2027-08-31", montant:"4500000",
+    statut:"Actif", etapeAdministrative:""
+  };
+  const lignes = [
+    csvLigne(ENTETES_GABARIT_CSV),
+    csvLigne(COLONNES_IMPORT_CONTRAT.map(c => exemple[c.cle] || ""))
+  ];
+  telecharger("gabarit_import_contrats_" + auj() + ".csv", lignes.join("\r\n"), "text/csv");
 }
 
 function chargerFichierImportCSV(file){
   if (!file) return;
   const r = new FileReader();
   r.onload = () => {
-    const texte = String(r.result||"").replace(/^\uFEFF/, "");
+    const texte = String(r.result||"").replace(/^﻿/, "");
     const grille = parserCSV(texte);
-    if (grille.length < 2) { toast("Le fichier CSV ne contient aucune ligne de données au-delà de l'en-tête.", "err"); return; }
-    const lignesDonnees = grille.slice(1);
-    const lignes = lignesDonnees.map((cols, idx) => construireLigneImportCSV(cols, idx+2));
-    App.aller("importer", {onglet:"csv", lignesCSV:lignes});
-    toast(lignes.length + " ligne(s) lue(s) — vérifiez l'aperçu avant d'importer.", "info", 4500);
+    if (grille.length < 2) { toast("Le fichier ne contient aucune ligne de données au-delà de l'en-tête.", "err"); return; }
+    const mapping = associerColonnesImport(grille[0]);
+    if (mapping.index.objet === undefined || mapping.index.fournisseur === undefined) {
+      toast("Colonnes « Objet du contrat » et « Fournisseur » introuvables dans l'en-tête du fichier. Repartez du gabarit.", "err", 8000);
+      return;
+    }
+    __cacheRapprochementFournisseur = new Map();
+    const lignes = grille.slice(1).map((cols, idx) => analyserLigneImportContrat(cols, idx+2, mapping));
+    App.aller("importer", {onglet:"csv", lignesCSV:lignes, mappingCSV:mapping, entetesCSV:grille[0]});
+    const prets = lignes.filter(l => l.classement === "pret" || l.classement === "signale").length;
+    toast(lignes.length + " ligne(s) analysée(s) — " + prets + " prête(s) à intégrer.", prets ? "ok" : "err", 6000);
   };
   r.onerror = () => toast("Lecture du fichier impossible.", "err");
   r.readAsText(file, "utf-8");
 }
 
-function rendreApercuImportCSV(lignes){
-  const valides = lignes.filter(l => l.erreurs.length === 0);
+/* Regroupe les valeurs absentes du paramétrage rencontrées dans le
+   fichier, pour permettre de les créer d'un geste. */
+function valeursManquantesImport(lignes){
+  const par = {nature:new Map(), service:new Map(), regime:new Map(), mode:new Map(), delai:new Map()};
+  lignes.forEach(l => (l.inconnus||[]).forEach(x => {
+    if (!par[x.type]) return;
+    par[x.type].set(x.valeur, (par[x.type].get(x.valeur) || 0) + 1);
+  }));
+  return par;
+}
+
+function creerValeursManquantesImport(){
+  if (!aDroit("parametrer")) { toast("Seul un profil disposant du droit de paramétrage peut créer ces valeurs.", "err", 6000); return; }
+  const etat = App.etat.importer || {};
+  const lignes = etat.lignesCSV || [];
+  const par = valeursManquantesImport(lignes);
+  let creees = 0;
+
+  par.nature.forEach((_, libelle) => {
+    const nat = naturesContrat();
+    const code = codeDepuisLibelle(libelle, Object.keys(nat));
+    nat[code] = {code, libelle, preavis:30, dureeTypeMois:12};
+    DB.params.preavisParNature[code] = 30;
+    if (!DB.params.slaParNature[code]) DB.params.slaParNature[code] = [];
+    creees++;
+  });
+  par.service.forEach((_, libelle) => { DB.params.services.push(construireService(libelle, null)); creees++; });
+  par.regime.forEach((_, libelle) => {
+    const liste = regimesContractuels();
+    liste.push({code: codeDepuisLibelle(libelle, liste.map(r=>r.code)), libelle});
+    creees++;
+  });
+  par.mode.forEach((_, libelle) => {
+    const liste = modesPaiement();
+    liste.push({code: codeDepuisLibelle(libelle, liste.map(m=>m.code)), libelle});
+    creees++;
+  });
+  par.delai.forEach((_, libelle) => {
+    const liste = delaisPaiement();
+    const m = String(libelle).match(/(\d+)/);
+    liste.push({code: codeDepuisLibelle(libelle, liste.map(x=>x.code)), libelle, jours: m ? Number(m[1]) : 30});
+    creees++;
+  });
+
+  if (!creees) { toast("Aucune valeur à créer.", "info"); return; }
+  sauver();
+  /* Le fichier est immédiatement ré-analysé avec le paramétrage enrichi. */
+  const mapping = etat.mappingCSV;
+  __cacheRapprochementFournisseur = new Map();
+  const relues = lignes.map(l => l.cellules ? analyserLigneImportContrat(l.cellules, l.numeroLigne, mapping) : l);
+  toast(creees + " valeur(s) créée(s) — le fichier vient d'être ré-analysé.", "ok", 7000);
+  App.aller("importer", {onglet:"csv", lignesCSV:relues, mappingCSV:mapping, entetesCSV:etat.entetesCSV});
+}
+
+function basculerLigneImportContrat(index, coche){
+  const etat = App.etat.importer || {};
+  const lignes = etat.lignesCSV || [];
+  if (!lignes[index] || lignes[index].classement === "bloque") return;
+  lignes[index].retenue = !!coche;
+  App.aller("importer", {onglet:"csv", lignesCSV:lignes, mappingCSV:etat.mappingCSV, entetesCSV:etat.entetesCSV, filtreApercu:etat.filtreApercu});
+}
+
+function basculerFiltreApercuImport(){
+  const etat = App.etat.importer || {};
+  App.aller("importer", {onglet:"csv", lignesCSV:etat.lignesCSV, mappingCSV:etat.mappingCSV,
+    entetesCSV:etat.entetesCSV, filtreApercu: !etat.filtreApercu});
+}
+
+/* Regroupe les constats identiques, en remplaçant la valeur citée par
+   des points de suspension pour que les variantes se cumulent. */
+function cumuler(carte, niveau, message){
+  const modele = message.replace(/«[^»]*»/g, "« … »");
+  const cle = niveau + "|" + modele;
+  const e = carte.get(cle) || {niveau, message:modele, n:0};
+  e.n++;
+  carte.set(cle, e);
+}
+
+function rendreApercuImportCSV(lignes, etat){
+  etat = etat || {};
+  const mapping = etat.mappingCSV || {index:{}, ignorees:[], manquantes:[]};
+  const par = c => lignes.filter(l => l.classement === c);
+  const prets = par("pret"), signales = par("signale"), doublons = par("doublon"), bloques = par("bloque");
+  const retenues = lignes.filter(l => l.retenue && l.classement !== "bloque");
+  const manquantes = valeursManquantesImport(lignes);
+  const nbManquantes = Object.keys(manquantes).reduce((s,k) => s + manquantes[k].size, 0);
+
+  const etiquette = {
+    pret:    '<span class="et vert">Prêt</span>',
+    signale: '<span class="et orange">À vérifier</span>',
+    doublon: '<span class="et bleu">Déjà enregistré</span>',
+    bloque:  '<span class="et rouge">Bloqué</span>'
+  };
+
+  /* Au-delà de 60 lignes, l'aperçu se concentre par défaut sur ce
+     qui demande une décision. */
+  const filtrer = etat.filtreApercu === undefined ? lignes.length > 60 : etat.filtreApercu;
+  const affichees = filtrer ? lignes.filter(l => l.classement !== "pret") : lignes;
+
+  const detail = l => {
+    const bouts = [];
+    l.bloquants.forEach(m => bouts.push('<span style="color:var(--rouge)">' + ech(m) + '</span>'));
+    /* Sur une ligne bloquée, seul le motif de blocage compte : les autres
+       constats sont sans objet tant qu'il n'est pas levé. */
+    if (!l.bloquants.length) {
+      if (l.doublon) bouts.push('<span style="color:var(--bleu)">Contrat déjà enregistré sous le n° ' + ech(numeroCourt(l.doublon.numero)) + '.</span>');
+      l.signalements.filter(s => s.niveau === "attention")
+        .forEach(s => bouts.push('<span style="color:#8a5c07">' + ech(s.message) + '</span>'));
+    }
+    return bouts.length ? bouts.join("<br>") : '<span class="muet">Aucune remarque.</span>';
+  };
+
+  /* Synthèse : un même constat revient souvent sur des centaines de
+     lignes. Il est présenté une fois, avec son nombre d'occurrences. */
+  const synthese = new Map();
+  lignes.forEach(l => {
+    l.bloquants.forEach(m => cumuler(synthese, "bloquant", m));
+    l.signalements.forEach(s => cumuler(synthese, s.niveau, s.message));
+  });
+  const entreesSynthese = [...synthese.values()].sort((a,b) => b.n - a.n);
+
   return '<hr style="margin:16px 0;border:none;border-top:1px solid var(--gris-200)">' +
-    '<h3>Aperçu (' + lignes.length + ' ligne(s), ' + valides.length + ' valide(s))</h3>' +
-    '<div class="tableauScroll"><table><thead><tr><th>Ligne</th><th>Statut</th><th>Objet</th><th>Fournisseur</th><th>Nature</th><th class="num">Montant</th><th>Détail</th></tr></thead><tbody>' +
-    lignes.map(l => '<tr>' +
+    '<h3>Analyse du fichier</h3>' +
+    '<div class="grille g4">' +
+      kpi(prets.length, "Prêtes à intégrer", "vert") +
+      kpi(signales.length, "À vérifier (intégrables)", signales.length?"orange":"gris") +
+      kpi(doublons.length, "Déjà enregistrées", doublons.length?"bleu":"gris") +
+      kpi(bloques.length, "Bloquées", bloques.length?"rouge":"gris") +
+    '</div>' +
+
+    /* Correspondance des colonnes */
+    '<div class="carte compact" style="margin-top:12px"><div class="corps">' +
+      '<b>Colonnes reconnues</b> : ' + Object.keys(mapping.index).length + ' sur ' + COLONNES_IMPORT_CONTRAT.length + '. ' +
+      (mapping.ignorees.length ? '<span class="muet">Colonnes ignorées : ' + ech(mapping.ignorees.join(", ")) + '.</span> ' : '') +
+      (mapping.manquantes.length ? '<span class="muet">Colonnes absentes du fichier : ' + ech(mapping.manquantes.join(", ")) + '.</span>' : '') +
+    '</div></div>' +
+
+    /* Valeurs absentes du paramétrage */
+    (nbManquantes ?
+      '<div class="carte compact"><div class="corps">' +
+      '<p class="msgInfo" style="margin-bottom:8px"><b>' + nbManquantes + ' valeur(s) absente(s) du paramétrage.</b> ' +
+      'Les lignes concernées s\'intègrent quand même, le champ restant vide. Vous pouvez aussi créer ces valeurs d\'un geste, puis recharger le fichier.</p>' +
+      '<table><thead><tr><th>Type</th><th>Valeur du fichier</th><th class="num">Lignes</th></tr></thead><tbody>' +
+      ["nature","service","regime","mode","delai"].map(t => {
+        const libelleType = {nature:"Nature de contrat", service:"Service porteur", regime:"Régime contractuel",
+                             mode:"Mode de paiement", delai:"Délai de paiement"}[t];
+        return [...manquantes[t].entries()].map(([v, n]) =>
+          '<tr><td>' + libelleType + '</td><td><b>' + ech(v) + '</b></td><td class="num">' + n + '</td></tr>').join("");
+      }).join("") +
+      '</tbody></table>' +
+      (aDroit("parametrer") ? '<button class="btn primaire" style="margin-top:10px" onclick="creerValeursManquantesImport()">Créer ces valeurs dans le paramétrage</button>' : '') +
+      '</div></div>' : '') +
+
+    /* Synthèse des constats */
+    (entreesSynthese.length ?
+      '<div class="carte compact"><div class="tete"><h4>Ce que l\'analyse a relevé</h4></div><div class="corps">' +
+      '<table><thead><tr><th>Constat</th><th class="num">Lignes</th></tr></thead><tbody>' +
+      entreesSynthese.map(e => '<tr><td>' +
+        ({bloquant:'<span class="et rouge">Bloquant</span> ', attention:'<span class="et orange">À examiner</span> ', info:'<span class="et gris">Rapproché</span> '})[e.niveau] +
+        ech(e.message) + '</td><td class="num">' + e.n + '</td></tr>').join("") +
+      '</tbody></table></div></div>' : '') +
+
+    '<div class="barreActions" style="margin:10px 0">' +
+      '<button class="btn mini" onclick="basculerFiltreApercuImport()">' +
+        (filtrer ? "Afficher les " + lignes.length + " lignes" : "N'afficher que les lignes à examiner") + '</button>' +
+      '<span class="muet">' + affichees.length + ' ligne(s) affichée(s)</span>' +
+    '</div>' +
+
+    '<div class="tableauScroll"><table><thead><tr>' +
+      '<th>Intégrer</th><th>Ligne</th><th>Analyse</th><th>Objet</th><th>Fournisseur</th><th>Nature</th><th class="num">Montant</th><th>Remarques</th>' +
+    '</tr></thead><tbody>' +
+    affichees.map(l => {
+      const i = lignes.indexOf(l);
+      return '<tr>' +
+      '<td>' + (l.classement === "bloque"
+        ? '<span class="muet">—</span>'
+        : '<input type="checkbox" ' + (l.retenue ? "checked" : "") + ' onchange="basculerLigneImportContrat(' + i + ', this.checked)">') + '</td>' +
       '<td>' + l.numeroLigne + '</td>' +
-      '<td>' + (l.erreurs.length ? '<span class="et rouge">Erreur</span>' : '<span class="et vert">OK</span>') + '</td>' +
-      '<td>' + ech(l.valeurs.objet||"—") + '</td>' +
+      '<td>' + etiquette[l.classement] + '</td>' +
+      '<td>' + ech((l.valeurs.objet||"—").slice(0,70)) + '</td>' +
       '<td>' + ech(l.valeurs.fournisseurId ? libelleFournisseur(l.valeurs.fournisseurId) : "—") + '</td>' +
       '<td>' + ech(l.valeurs.natureId ? libelleNature(l.valeurs.natureId) : "—") + '</td>' +
-      '<td class="num">' + (l.valeurs.montant ? formaterMontant(l.valeurs.montant) : "—") + '</td>' +
-      '<td style="font-size:12px">' + (l.erreurs.length ? l.erreurs.map(e=>ech(e.message)).join("<br>") : '<span class="muet">—</span>') + '</td>' +
-    '</tr>').join("") +
+      '<td class="num">' + (l.valeurs.montant !== "" && l.valeurs.montant != null ? formaterMontant(l.valeurs.montant) : "—") + '</td>' +
+      '<td style="font-size:12px">' + detail(l) + '</td>' +
+    '</tr>'; }).join("") +
     '</tbody></table></div>' +
     '<div class="barreActions" style="margin-top:10px">' +
-      (valides.length ? '<button class="btn primaire" onclick="importerLotCSV()">Importer les ' + valides.length + ' contrat(s) valide(s)</button>' : '<span class="muet">Aucune ligne valide à importer.</span>') +
+      (retenues.length
+        ? '<button class="btn primaire" onclick="importerLotCSV()">Intégrer les ' + retenues.length + ' ligne(s) cochées</button>'
+        : '<span class="muet">Aucune ligne retenue pour l\'intégration.</span>') +
       '<button class="btn" onclick="App.aller(\'importer\',{onglet:\'csv\',lignesCSV:null})">Annuler cet import</button>' +
     '</div>';
 }
@@ -1900,15 +2310,38 @@ function rendreApercuImportCSV(lignes){
 function importerLotCSV(){
   const etat = App.etat.importer || {};
   const lignes = etat.lignesCSV || [];
-  const valides = lignes.filter(l => l.erreurs.length === 0);
-  if (!valides.length) { toast("Aucune ligne valide à importer.", "err"); return; }
-  valides.forEach(l => {
+  const retenues = lignes.filter(l => l.retenue && l.classement !== "bloque");
+  if (!retenues.length) { toast("Aucune ligne retenue pour l'intégration.", "err"); return; }
+  retenues.forEach(l => {
     const o = construireContrat(l.valeurs);
-    finaliserAjoutContrat(o, "Import en masse (gabarit CSV, ligne " + l.numeroLigne + ")");
+    tracer(o, "Enregistrement du contrat", "Statut initial : " + libelleStatut(o.statut) + " — Import CSV (ligne " + l.numeroLigne + ")");
+    if (o.clausesSLA && o.clausesSLA.length) {
+      tracer(o, "Clauses SLA chargées", o.clausesSLA.length + " clause(s) type de la nature « " + libelleNature(o.natureId) + " »");
+    }
+    DB.contrats.push(o);
   });
-  toast(valides.length + " contrat(s) importé(s) avec succès.", "ok", 5000);
+  sauver();
+  /* Agrément d'office : appliqué une seule fois par fournisseur du lot,
+     pour les contrats passés sous régime « Marché public ». */
+  const aAgreer = new Set();
+  retenues.forEach(l => {
+    if (l.valeurs.regimeContractuel === "MARCHE_PUBLIC" && l.valeurs.fournisseurId && !estAgree(l.valeurs.fournisseurId)) {
+      aAgreer.add(l.valeurs.fournisseurId);
+    }
+  });
+  if (aAgreer.size) agreerDOfficeLot([...aAgreer]);
+  toast(retenues.length + " contrat(s) intégré(s) avec succès." +
+    (aAgreer.size ? " " + aAgreer.size + " fournisseur(s) agréé(s) d'office (marché public)." : ""), "ok", 7000);
   App.etat.importer = {};
   App.aller("registre");
+}
+
+/* Agrément d'office d'un lot de fournisseurs retenus sur marché public. */
+async function agreerDOfficeLot(ids){
+  const { error } = await sb.from('contrats_fournisseurs')
+    .update({agree:true, updated_at:new Date().toISOString()}).in('id', ids);
+  if (error) { console.error(error); return; }
+  ids.forEach(id => { const f = fournisseur(id); if (f) f.agree = true; });
 }
 
 /* ============================================================
