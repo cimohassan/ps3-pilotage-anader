@@ -3476,6 +3476,8 @@ function codeDepuisLibelle(libelle, codesExistants){
   return code;
 }
 function nbContratsAvecNature(code){ return DB.contrats.filter(o => o.natureId === code).length; }
+function nbContratsAvecService(id){ return DB.contrats.filter(o => o.serviceId === id).length; }
+function nbActeursAvecService(id){ return DB.params.agents.filter(a => a.serviceId === id).length; }
 function nbContratsAvecRegime(code){ return DB.contrats.filter(o => o.regimeContractuel === code).length; }
 function nbContratsAvecMode(code){ return DB.contrats.filter(o => o.modePaiement === code).length; }
 function nbContratsAvecDelai(code){ return DB.contrats.filter(o => o.delaiPaiement === code).length; }
@@ -3942,14 +3944,21 @@ function paramReferentiels(etat){
       (complet ? '<button class="btn mini" onclick="ouvrirModaleAjoutService()">+ Ajouter un service</button>' : '') +
       '</div><div class="corps">' +
       (DB.params.services.length ?
-        '<table><thead><tr><th>Service</th><th>Chef de service (escalade niveau 1)</th>' + (complet ? '<th></th>' : '') + '</tr></thead><tbody>' +
-        DB.params.services.map(s => '<tr><td>' + ech(s.libelle) + '</td><td>' +
-          (complet ? '<select onchange="changerChefService(\''+s.id+'\',this.value)">' + optionsAgents(s.chefId) + '</select>'
+        '<table><thead><tr><th>Service</th><th>Chef de service (escalade niveau 1)</th>' + (complet ? '<th class="num" title="Contrats / acteurs rattachés">Rattachés</th><th></th>' : '') + '</tr></thead><tbody>' +
+        DB.params.services.map(s => '<tr><td>' +
+          (complet ? '<input type="text" id="svc_lib_' + s.id + '" value="' + ech(s.libelle) + '">' : ech(s.libelle)) +
+          '</td><td>' +
+          (complet ? '<select onchange="changerChefService(\'' + s.id + '\',this.value)">' + optionsAgents(s.chefId) + '</select>'
                    : ech(s.chefId ? libelleAgent(s.chefId) : "—")) +
-          '</td>' + (complet ? '<td><button class="btn mini" title="Supprimer ce service" onclick="confirmerSuppressionService(\''+s.id+'\')">🗑</button></td>' : '') +
+          '</td>' +
+          (complet ? '<td class="num">' + nbContratsAvecService(s.id) + ' / ' + nbActeursAvecService(s.id) + '</td>' +
+                     '<td><button class="btn mini" title="Supprimer ce service" onclick="confirmerSuppressionService(\'' + s.id + '\')">🗑</button></td>' : '') +
           '</tr>').join("") +
-        '</tbody></table>'
-        : '<p class="muet">Aucun service enregistré' + (complet ? ' — cliquez sur « + Ajouter un service » ci-dessus pour créer le premier.' : '.') + '</p>') +
+        '</tbody></table>' +
+        (complet ? '<button class="btn primaire" style="margin-top:10px" onclick="enregistrerLibellesServices()">Enregistrer les libellés</button>' +
+                   '<p class="aide">Corriger un libellé ne rompt aucun rattachement : les contrats et les acteurs restent liés au même service. ' +
+                   'La colonne « Rattachés » indique le nombre de contrats, puis d\'acteurs, concernés.</p>' : '')
+        : '<p class="muet">Aucun service enregistré' + (complet ? ' — cliquez sur « + Ajouter un service » ci-dessus pour créer le premier.' : '.') + '</p>') +
       '</div></div>' +
     '<div class="carte"><div class="tete"><h3>Acteurs</h3></div><div class="corps"><table><thead><tr><th>Nom</th><th>Fonction</th><th>Service (portée « voir mon service »)</th></tr></thead><tbody>' +
       agentsTries.map(a => '<tr><td>' + ech(a.nom) + '</td><td>' + ech(a.fonction || a.role || "—") + '</td><td>' +
@@ -3984,6 +3993,34 @@ function paramReferentiels(etat){
         '</tr>').join("") + '</tbody></table></div>' +
     (lignesImport ? rendreApercuImportFournisseursCSV(lignesImport) : '') +
     '</div></div>';
+}
+
+/* Le libellé d'un service se corrige sur place. L'identifiant reste
+   inchangé : les contrats et les acteurs qui s'y rattachent conservent
+   leur lien, ce qu'une suppression suivie d'une recréation romprait. */
+function enregistrerLibellesServices(){
+  if (!aDroit("parametrer")) { toast("Vous n'avez pas les droits pour modifier les services.", "err"); return; }
+  const lus = [];
+  for (const s of DB.params.services) {
+    const el = document.getElementById("svc_lib_" + s.id);
+    if (!el) continue;
+    const libelle = (el.value || "").trim();
+    if (!libelle) { toast("Le libellé d'un service ne peut pas être vide.", "err"); return; }
+    lus.push({service:s, libelle});
+  }
+  const vus = new Set();
+  for (const x of lus) {
+    const n = normaliserTexte(x.libelle);
+    if (vus.has(n)) { toast("Deux services porteraient le même libellé « " + x.libelle + " ».", "err", 6000); return; }
+    vus.add(n);
+  }
+  const modifies = lus.filter(x => x.service.libelle !== x.libelle);
+  if (!modifies.length) { toast("Aucun libellé modifié.", "info"); return; }
+  const detail = modifies.map(x => "« " + x.service.libelle + " » → « " + x.libelle + " »").join(", ");
+  modifies.forEach(x => { x.service.libelle = x.libelle; });
+  sauver();
+  toast(modifies.length + " libellé(s) mis à jour : " + detail + ". Les rattachements sont conservés.", "ok", 8000);
+  App.aller("parametrage", {onglet:"referentiels"});
 }
 
 async function changerChefService(serviceId, agentId){
