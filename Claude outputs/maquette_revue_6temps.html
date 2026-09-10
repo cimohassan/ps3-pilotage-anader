@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revue en 6 temps</title>
+<style>
+  :root{
+    --accent:#2C4A63; --accent-fonce:#1B2F3F; --accent-clair:#E7ECF1;
+    --bg:#F4F6F7; --panel:#fff; --line:#DDE3E7; --texte:#1F262A; --gris:#6B767C;
+    --rouge:#C0392B; --orange:#B9770E; --bleu:#1F618D; --vertok:#0B6E4F; --vertok-clair:#E8F3EF; --violet:#6C3FA6;
+    --ombre:0 6px 20px rgba(27,47,63,.08); --rayon:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--texte);font-size:14px}
+  h1,h2,h3,h4{margin:0}
+
+  /* ---- ruban de maquette (n'existe pas dans l'application) ---- */
+  .ruban{background:var(--accent-fonce);color:#DCE6EC;font-size:12.5px;padding:9px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .ruban b{color:#fff}
+  .ruban .puce{display:inline-block;width:7px;height:7px;border-radius:999px;background:#E8B84B}
+
+  .shell{display:flex;min-height:calc(100vh - 38px);align-items:flex-start}
+  .cote{width:216px;flex:0 0 216px;background:var(--accent-fonce);color:#DCE6EC;padding:16px 10px;position:sticky;top:38px}
+  .cote .marque{font-size:14px;font-weight:700;color:#fff;margin:4px 8px 2px;line-height:1.3}
+  .cote .sous{font-size:10.5px;opacity:.72;margin:0 8px 16px}
+  .cote .grp{font-size:10px;text-transform:uppercase;letter-spacing:.9px;opacity:.55;margin:16px 10px 5px}
+  .cote .grp:first-of-type{margin-top:4px}
+  .cote .lien{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:none;color:#DCE6EC;padding:8px 10px;border-radius:9px;font-size:13px;margin-bottom:1px;font-family:inherit;opacity:.85}
+  .cote .lien.active{background:#fff;color:var(--accent-fonce);font-weight:700;opacity:1}
+  .cote .ic{width:16px;text-align:center;flex:0 0 16px}
+
+  .princ{flex:1;padding:22px 26px 60px;max-width:1180px}
+  .tete{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+  .tete h1{color:var(--accent-fonce);font-size:21px}
+  .tete p{margin:4px 0 0;color:var(--gris);font-size:13px;max-width:640px}
+
+  .barre{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+  .champ label{display:block;font-size:11px;font-weight:700;color:var(--accent);margin-bottom:4px}
+  select,button.faux{border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;background:#fff;font-family:inherit;color:var(--texte)}
+  .btn{border:1px solid var(--line);background:#fff;color:var(--accent-fonce);border-radius:9px;padding:9px 14px;font-weight:600;font-size:13px;font-family:inherit}
+  .btn.sm{padding:6px 10px;font-size:11.5px;border-radius:7px}
+
+  .carte{background:#fff;border:1px solid var(--line);border-radius:var(--rayon);box-shadow:var(--ombre);padding:15px 17px;margin-bottom:15px}
+  .carte h3{color:var(--accent-fonce);font-size:14.5px;margin-bottom:9px}
+  .carte p.soustitre{margin:-6px 0 9px;color:var(--gris);font-size:11.5px}
+  .deux{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .kpi{background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:11px;padding:12px 13px;box-shadow:var(--ombre)}
+  .kpi .lib{font-size:11px;color:var(--gris);line-height:1.35;min-height:28px}
+  .kpi .val{font-size:24px;font-weight:700;color:var(--accent-fonce);margin-top:3px}
+  .kpi .sub{font-size:10.5px;color:var(--gris)}
+  .kpi.ok{border-left-color:var(--vertok)} .kpi.ok .val{color:var(--vertok)}
+  .kpi.al{border-left-color:var(--orange)} .kpi.al .val{color:var(--orange)}
+
+  .et{display:inline-block;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap}
+  .et.gris{background:#ECF0EF;color:#5B6A6E}
+  .et.vert{background:var(--vertok-clair);color:var(--vertok)}
+  .et.bleu{background:#E7F0F7;color:var(--bleu)}
+  .et.orange{background:#FBF0DC;color:var(--orange)}
+  .et.rouge{background:#FAE5E2;color:var(--rouge)}
+  .et.violet{background:#EFE7F5;color:var(--violet)}
+
+  .tw{overflow:auto;border:1px solid var(--line);border-radius:11px;background:#fff}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}
+  th,td{padding:8px 9px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--accent-fonce);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;background:#fff}
+  td.centre,th.centre{text-align:center}
+  tbody tr:last-child td{border-bottom:none}
+
+  .numTemps{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:6px;background:var(--accent-clair);color:var(--accent-fonce);font-size:10.5px;font-weight:700;margin-right:7px;vertical-align:1px}
+
+  ul.liste{margin:0;padding-left:16px;line-height:1.65;font-size:11.6px}
+  ul.liste li{margin-bottom:2px}
+  ul.attention{margin:0;padding-left:18px;line-height:1.75;font-size:12.5px}
+  ul.attention li{margin-bottom:8px}
+  ul.attention .gris{color:var(--gris)}
+  .gris{color:var(--gris)}
+  .decisions{font-size:12.8px;line-height:1.7}
+
+  @media(max-width:860px){
+    .shell{flex-direction:column}
+    .cote{position:static;width:100%;flex:none;display:flex;flex-wrap:wrap;gap:4px 10px;padding:12px 14px}
+    .cote .grp{display:none}
+    .princ{padding:18px 16px 40px}
+    .deux{grid-template-columns:1fr}
+    .tw{overflow-x:auto}
+  }
+</style>
+</head>
+<body>
+
+  <div class="ruban"><span class="puce"></span><b>Maquette</b> — écran « Revue hebdomadaire », données d'exemple. Le même modèle en 6 temps s'applique au point du jour et à la revue mensuelle.</div>
+
+  <div class="shell">
+    <nav class="cote">
+      <div class="marque">Gestion des opérations</div>
+      <div class="sous">D2MG — ANADER</div>
+      <div class="grp">Mon travail</div>
+      <div class="lien"><span class="ic">☑</span> Mes activités</div>
+      <div class="lien"><span class="ic">▤</span> Suivi (kanban)</div>
+      <div class="grp">Animation</div>
+      <div class="lien"><span class="ic">⚑</span> Points d'attention</div>
+      <div class="lien"><span class="ic">☀</span> Aujourd'hui</div>
+      <div class="lien active"><span class="ic">↻</span> Revue hebdomadaire</div>
+      <div class="lien"><span class="ic">↻</span> Revue mensuelle</div>
+    </nav>
+
+    <main class="princ">
+      <div class="tete">
+        <div>
+          <h1>Revue hebdomadaire</h1>
+          <p>Revue en 6 temps, par entité : météo et présence, résultats de la semaine écoulée, activités de la semaine à venir, points d'attention et décisions.</p>
+        </div>
+      </div>
+
+      <div class="barre">
+        <div class="champ" style="min-width:220px">
+          <label>Semaine</label>
+          <select disabled><option>Semaine du 07/09/2026 au 13/09/2026</option></select>
+        </div>
+        <span class="gris" style="padding-bottom:9px">Semaine du 07/09/2026 au 13/09/2026</span>
+        <span style="margin-left:auto"></span>
+        <span class="et vert" style="align-self:center">Revue enregistrée</span>
+        <button class="btn sm">Modifier le compte rendu</button>
+      </div>
+
+      <div class="carte">
+        <h3>Aperçu de la semaine</h3>
+        <div class="kpis">
+          <div class="kpi"><div class="lib">Activités de la semaine</div><div class="val">27</div></div>
+          <div class="kpi ok"><div class="lib">Terminées</div><div class="val">19</div></div>
+          <div class="kpi al"><div class="lib">En retard</div><div class="val">2</div></div>
+          <div class="kpi al"><div class="lib">Bloquées</div><div class="val">1</div></div>
+          <div class="kpi ok"><div class="lib">Respect du délai</div><div class="val">88 %</div></div>
+        </div>
+        <p><b>Appréciation :</b> Objectif de respect des délais atteint sur la semaine, à consolider.</p>
+      </div>
+
+      <!-- Temps 1-2 -->
+      <div class="carte">
+        <h3><span class="numTemps">1-2</span>Météo et présence, par entité</h3>
+        <div class="tw"><table>
+          <thead><tr><th>Entité</th><th class="centre">Direction</th><th class="centre">Marchés</th><th class="centre">Approvisionnement</th><th class="centre">Logistique</th><th class="centre">Patrimoine</th></tr></thead>
+          <tbody>
+            <tr><td>Météo</td><td class="centre">☀ Ensoleillé</td><td class="centre">⛅ Soleil et nuage</td><td class="centre">☁ Nuageux</td><td class="centre">☀ Ensoleillé</td><td class="centre">⛅ Soleil et nuage</td></tr>
+            <tr><td>Présence</td><td class="centre"><span class="et vert">Complète</span></td><td class="centre"><span class="et vert">Complète</span></td><td class="centre"><span class="et rouge">Absence(s)</span></td><td class="centre"><span class="et vert">Complète</span></td><td class="centre"><span class="et vert">Complète</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <!-- Temps 3 -->
+      <div class="carte">
+        <h3><span class="numTemps">3</span>Résultats de la semaine écoulée</h3>
+        <div class="tw"><table>
+          <thead><tr><th>Direction</th><th>Marchés</th><th>Approvisionnement</th><th>Logistique</th><th>Patrimoine</th></tr></thead>
+          <tbody><tr>
+            <td><ul class="liste">
+              <li>Arbitrage budgétaire du 3ᵉ trimestre <span class="et vert">Réalisée dans le délai</span></li>
+              <li>Réception délégation partenaire PS3 <span class="et vert">Réalisée dans le délai</span></li>
+            </ul></td>
+            <td><ul class="liste">
+              <li>Dépouillement AO fournitures de bureau <span class="et vert">Réalisée dans le délai</span></li>
+            </ul></td>
+            <td><ul class="liste">
+              <li>Réception livraison intrants zone Sud <span class="et rouge">Réalisée hors délai</span></li>
+            </ul></td>
+            <td><ul class="liste">
+              <li>Entretien véhicule DL-2231 <span class="et vert">Réalisée dans le délai</span></li>
+              <li>Livraison carburant délégations Nord <span class="et vert">Réalisée dans le délai</span></li>
+            </ul></td>
+            <td><ul class="liste">
+              <li>Mise à jour du registre immobilier du siège <span class="et vert">Réalisée dans le délai</span></li>
+            </ul></td>
+          </tr></tbody>
+        </table></div>
+      </div>
+
+      <!-- Temps 4 -->
+      <div class="carte">
+        <h3><span class="numTemps">4</span>Activités en cours et à venir</h3>
+        <div class="tw"><table>
+          <thead><tr><th>Direction</th><th>Marchés</th><th>Approvisionnement</th><th>Logistique</th><th>Patrimoine</th></tr></thead>
+          <tbody><tr>
+            <td><ul class="liste">
+              <li>Validation du plan de charge du 4ᵉ trimestre <span class="et vert">Dans le délai</span></li>
+              <li>Préparation du comité de direction du 18/09 <span class="et orange">J−2</span></li>
+            </ul></td>
+            <td><ul class="liste">
+              <li>Notification du marché n°042/2026 <span class="et rouge">Retard 2 j</span></li>
+              <li>Analyse des offres — lot logistique <span class="et vert">Dans le délai</span></li>
+            </ul></td>
+            <td><ul class="liste">
+              <li>Inventaire trimestriel du magasin central <span class="et orange">Échéance ce jour</span></li>
+              <li>Relance du fournisseur Agro-Plus <span class="et vert">Dans le délai</span></li>
+            </ul></td>
+            <td><ul class="liste">
+              <li>Programmation du contrôle technique du parc auto <span class="et orange">J−1</span></li>
+            </ul></td>
+            <td><ul class="liste">
+              <li>Constat contradictoire — bâtiment délégation Est <span class="et rouge">Bloqué</span></li>
+              <li>Réforme du matériel informatique obsolète <span class="et vert">Dans le délai</span></li>
+            </ul></td>
+          </tr></tbody>
+        </table></div>
+      </div>
+
+      <!-- Temps 5-6 -->
+      <div class="deux">
+        <div class="carte">
+          <h3><span class="numTemps">5</span>Points d'attention</h3>
+          <ul class="attention">
+            <li><b>Retard de livraison d'intrants — zone Sud</b> <span class="et orange">En traitement</span><br>
+              <span class="gris">Approvisionnement — Koffi N'Guessan, échéance 15/09/2026</span></li>
+            <li><b>Litige sur le loyer de l'entrepôt — délégation Est</b> <span class="et rouge">Ouvert</span><br>
+              <span class="gris">Patrimoine — Aya Kouassi, échéance 22/09/2026</span></li>
+          </ul>
+        </div>
+        <div class="carte">
+          <h3><span class="numTemps">6</span>Décisions</h3>
+          <p class="decisions">Le marché n°042/2026 sera notifié au plus tard le 12/09. Le magasin central procède à l'inventaire trimestriel ce jour ; les écarts constatés seront présentés au prochain point. Le constat contradictoire du bâtiment de la délégation Est est priorisé pour la semaine à venir.</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+</body>
+</html>

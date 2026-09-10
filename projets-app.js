@@ -428,6 +428,7 @@ async function demarrer() {
 const MENU = [
   { grp: 'Portefeuille' },
   { id: 'portefeuille', lib: 'Mes projets', ic: '▦' },
+  { id: 'tdbportef', lib: 'Tableau de bord portefeuille', ic: '◫' },
   { id: 'import', lib: 'Importer un projet', ic: '⇧', droit: 'prj.importer' },
   { grp: 'Cadrage', projet: 1 },
   { id: 'charte', lib: 'Charte de projet', ic: '◈', projet: 1 },
@@ -486,7 +487,7 @@ const VUES = {
   decisions: () => vueRegistre('decisions'), reserves: () => vueRegistre('reserves'),
   obstacles: () => vueRegistre('obstacles'), tdb: vueTdb, indicateurs: () => vueRegistre('indicateurs'),
   alertes: vueAlertes, rapports: vueRapports, fiche5: vueFiche5, rapportProjet: vueRapportProjet, lecons: () => vueRegistre('lecons'),
-  import: vueImport, sauvegarde: vueSauvegarde, aide: vueAide
+  tdbportef: vueTdbPortefeuille, import: vueImport, sauvegarde: vueSauvegarde, aide: vueAide
 };
 
 function aller(v) {
@@ -543,6 +544,7 @@ function vuePortefeuille() {
       <div><h1>Portefeuille de projets</h1>
         <p>Pilotage des projets de la D2MG selon une structure générique inspirée des standards PMP : cadrage, planification, exécution, maîtrise des écarts et clôture capitalisée.</p></div>
       <div style="display:flex;gap:9px;flex-wrap:wrap">
+        <button class="btn" id="btnTdbPortef">◫ Tableau de bord</button>
         ${peut('prj.importer') ? '<button class="btn" id="btnImporter">⇧ Importer un classeur</button>' : ''}
         ${peut('prj.creer') ? '<button class="btn primaire" id="btnNouveau">+ Nouveau projet</button>' : ''}
       </div>
@@ -552,6 +554,7 @@ function vuePortefeuille() {
   $$('[data-projet]').forEach(c => c.addEventListener('click', () => ouvrirProjet(c.dataset.projet)));
   const b = $('#btnNouveau'); if (b) b.addEventListener('click', modaleNouveauProjet);
   const bi = $('#btnImporter'); if (bi) bi.addEventListener('click', () => aller('import'));
+  const bt = $('#btnTdbPortef'); if (bt) bt.addEventListener('click', () => aller('tdbportef'));
 }
 
 function modaleNouveauProjet() {
@@ -1687,52 +1690,219 @@ function vueRapports() {
 /* =========================================================================
  *  FICHE D'ÉTAT D'AVANCEMENT — 5 BLOCS
  * ========================================================================= */
+/* Activites d'un statut : intitule seul, losange si chemin critique,
+   etiquette RETARD si l'echeance est depassee. Ni responsable ni date. */
 function listeAct(statut) {
   const items = S.activites.filter(a => a.statut === statut);
-  if (!items.length) return '<p class="muted">Aucune activité dans cet état.</p>';
-  return '<ul>' + items.map(a => `<li>${a.chemin_critique ? '◆ ' : ''}${ech(a.denomination)}` +
-    (a.responsable_id ? ` — <em>${ech(nomActeur(a.responsable_id))}</em>` : '') +
-    (a.date_prevue ? ` (échéance ${fdate(a.date_prevue)}${a.statut !== 'Réalisé' && ecartOuvres(a.date_prevue) < 0 ? ', en retard' : ''})` : '') +
-    '</li>').join('') + '</ul>';
+  if (!items.length) return '<p class="f5-vide">Aucune activité dans cet état.</p>';
+  return '<ul class="f5-liste">' + items.map(a => {
+    const retard = a.statut !== 'Réalisé' && a.date_prevue && ecartOuvres(a.date_prevue) < 0;
+    return '<li>' +
+      '<span class="f5-txt">' + (a.chemin_critique ? '<span class="f5-crit">◆</span> ' : '') + ech(a.denomination) + '</span>' +
+      (retard ? '<span class="f5-retard">RETARD</span>' : '') +
+      (a.bloquee ? '<span class="f5-bloque">BLOQUÉE</span>' : '') +
+      '</li>';
+  }).join('') + '</ul>';
 }
+
 function fiche5Html() {
-  const p = S.projet, ar = avancementReel(), ap = avancementPrevu();
-  const spi = (ap && ap > 0) ? (ar / ap).toFixed(2) : '—';
-  const risq = S.risques.filter(r => r.statut !== 'Clos' && r.probabilite * r.impact >= 15);
+  const p = S.projet;
+  const ar = avancementReel(), ap = avancementPrevu();
+  const spi = (ap && ap > 0) ? (ar / ap) : null;
+  const enRetard = S.activites.filter(a => a.statut !== 'Réalisé' && a.date_prevue && ecartOuvres(a.date_prevue) < 0).length;
+
+  const jalonsOk = S.jalons.filter(j => j.statut === 'Réalisé').length;
+  const jalonsManques = S.jalons.filter(j => j.statut === 'Manqué').length;
+  const livrOk = S.livrables.filter(l => l.statut === 'Validé').length;
+
+  const budRef = Number(p.budget_approuve || p.budget_prevu || 0);
+  const budEng = S.budget.reduce((s, l) => s + Number(l.montant_engage || 0), 0);
+  const budPct = budRef > 0 ? (budEng / budRef) * 100 : null;
+
   const obs = S.obstacles.filter(o => o.statut === 'Ouvert' || o.statut === 'En cours');
   const dec = S.decisions.filter(d => d.statut === 'En attente de décision');
-  return `
-    <h2 style="margin:0 0 2px;color:var(--corail-fonce)">${ech(p.denomination)}</h2>
-    <p class="muted" style="margin:0 0 14px;font-size:12px">${ech(p.id_projet)} · Fiche d'état d'avancement · ${fdate(auj())}</p>
+  const resCrit = S.reserves.filter(r => r.categorie === 'Critique' && r.statut !== 'Levée');
 
-    <div class="bloc5"><h3>1. Présentation et appréciation générale</h3>
-      <p><strong>Météo du projet : ${METEO[p.appreciation_avancement] || ''} ${ech(p.appreciation_avancement)}</strong>
-         — avancement ${pct(ar)}${ap !== null ? ` (prévu à ce jour ${pct(ap)}, SPI ${spi})` : ''}</p>
-      <p><strong>Responsable :</strong> ${ech(nomActeur(p.responsable_id))}${p.commanditaire_id ? ' · <strong>Commanditaire :</strong> ' + ech(nomActeur(p.commanditaire_id)) : ''}</p>
-      <p><strong>Objectif :</strong> ${p.objectif_projet ? nl2br(p.objectif_projet) : 'Non renseigné'}</p>
-      <p><strong>Période :</strong> ${fdate(p.date_debut)} → ${fdate(p.date_fin_prevue)} · <strong>Budget :</strong> ${fnum(p.budget_approuve || p.budget_prevu)} ${ech(p.devise || '')}</p>
-      <p><strong>Jalons atteints :</strong> ${S.jalons.filter(j => j.statut === 'Réalisé').length}/${S.jalons.length}
-         · <strong>Livrables validés :</strong> ${S.livrables.filter(l => l.statut === 'Validé').length}/${S.livrables.length}</p>
+  const meteo = p.appreciation_avancement || 'Vert';
+  const clMeteo = meteo === 'Rouge' ? 'rouge' : meteo === 'Orange' ? 'orange' : 'vert';
+
+  const kpi = (lib, val, sub, cl) =>
+    `<div class="f5-kpi ${cl || ''}"><div class="lib">${ech(lib)}</div><div class="val">${val}</div><div class="sub">${sub || '&nbsp;'}</div></div>`;
+
+  const bloc = (titre, n, contenu) =>
+    `<div class="f5-col"><h3>${ech(titre)}<span class="n">${n}</span></h3>${contenu}</div>`;
+
+  const nb = st => S.activites.filter(a => a.statut === st).length;
+
+  return `
+  <div class="f5">
+
+    <div class="f5-entete">
+      <div class="f5-titre">
+        <h2>${ech(p.denomination)}</h2>
+        <div class="f5-ref">${ech(p.id_projet)} &nbsp;·&nbsp; Fiche d'état d'avancement${p.type_projet ? ' &nbsp;·&nbsp; ' + ech(p.type_projet) : ''}</div>
+      </div>
+      <div class="f5-meteo">
+        <span class="f5-pastille ${clMeteo}">MÉTÉO ${ech(meteo.toUpperCase())}</span>
+        <div class="f5-date">au ${fdate(auj())}</div>
+      </div>
     </div>
 
-    <div class="bloc5"><h3>2. À faire</h3>${listeAct('À faire')}</div>
-    <div class="bloc5"><h3>3. En cours</h3>${listeAct('En cours')}</div>
-    <div class="bloc5"><h3>4. Réalisé</h3>${listeAct('Réalisé')}</div>
+    <div class="f5-chiffres">
+      ${kpi('Avancement', pct(ar), ap !== null ? 'prévu ' + pct(ap) : '&nbsp;')}
+      ${kpi('SPI', spi === null ? '—' : spi.toFixed(2),
+            spi === null ? 'non calculable' : spi >= 1 ? 'en avance' : spi >= 0.9 ? 'retard léger' : 'décrochage',
+            spi === null ? '' : spi >= 1 ? 'bon' : spi >= 0.9 ? 'alerte' : 'mauvais')}
+      ${kpi('Jalons atteints', jalonsOk + '/' + S.jalons.length,
+            jalonsManques ? jalonsManques + ' manqué' + (jalonsManques > 1 ? 's' : '') : '&nbsp;',
+            jalonsManques ? 'mauvais' : '')}
+      ${kpi('Livrables validés', livrOk + '/' + S.livrables.length, '&nbsp;')}
+      ${kpi('Budget engagé', budPct === null ? '—' : pct(budPct),
+            budRef > 0 ? fnum(Math.round(budEng)) + ' / ' + fnum(budRef) : '&nbsp;',
+            budPct !== null && budPct > 100 ? 'mauvais' : budPct !== null && budPct > 90 ? 'alerte' : 'bon')}
+      ${kpi('Activités en retard', String(enRetard), 'sur ' + S.activites.length, enRetard ? 'mauvais' : 'bon')}
+    </div>
 
-    <div class="bloc5"><h3>5. Points d'attention</h3>
+    <div class="f5-identite">
+      <div><b>Responsable :</b> ${ech(nomActeur(p.responsable_id))}</div>
+      <div><b>Commanditaire :</b> ${p.commanditaire_id ? ech(nomActeur(p.commanditaire_id)) : ech(p.sponsor || '—')}</div>
+      <div><b>Période :</b> ${fdate(p.date_debut)} → ${fdate(p.date_fin_prevue)}</div>
+      <div><b>Budget ${p.budget_approuve ? 'approuvé' : 'prévisionnel'} :</b> ${fnum(budRef)} ${ech(p.devise || 'FCFA')}</div>
+      <div class="large"><b>Objectif :</b> ${p.objectif_projet ? nl2br(p.objectif_projet) : 'Non renseigné'}</div>
+    </div>
+
+    <div class="f5-colonnes">
+      ${bloc('À faire', nb('À faire'), listeAct('À faire'))}
+      ${bloc('En cours', nb('En cours'), listeAct('En cours'))}
+      ${bloc('Réalisé', nb('Réalisé'), listeAct('Réalisé'))}
+    </div>
+
+    <div class="f5-attention">
+      <h3>Points d'attention</h3>
       ${p.points_attention ? `<p>${nl2br(p.points_attention)}</p>` : ''}
-      ${risq.length ? `<p><strong>Risques critiques ouverts :</strong></p><ul>${risq.map(r => `<li>${ech(r.description)} (criticité ${r.probabilite * r.impact})</li>`).join('')}</ul>` : ''}
-      ${obs.length ? `<p><strong>Obstacles à lever :</strong></p><ul>${obs.map(o => `<li>${ech(o.description)}${o.responsable_id ? ' — ' + ech(nomActeur(o.responsable_id)) : ''}</li>`).join('')}</ul>` : ''}
-      ${dec.length ? `<p><strong>Décisions attendues :</strong></p><ul>${dec.map(d => `<li>${ech(d.objet)}${d.instance ? ' — ' + ech(d.instance) : ''}</li>`).join('')}</ul>` : ''}
-      ${!p.points_attention && !risq.length && !obs.length && !dec.length ? '<p class="muted">Aucun point d\'attention particulier à ce jour.</p>' : ''}
-    </div>`;
+      ${obs.length ? `<div class="sous">Obstacles à lever</div><ul>${obs.map(o => `<li>${ech(o.description)}${o.action_levee ? ' — ' + ech(o.action_levee) : ''}</li>`).join('')}</ul>` : ''}
+      ${resCrit.length ? `<div class="sous">Réserves critiques non levées</div><ul>${resCrit.map(r => `<li>${ech(r.description)}${r.zone ? ' (' + ech(r.zone) + ')' : ''}</li>`).join('')}</ul>` : ''}
+      ${dec.length ? `<div class="sous">Décisions attendues</div><ul>${dec.map(d => `<li>${ech(d.objet)}${d.instance ? ' — ' + ech(d.instance) : ''}</li>`).join('')}</ul>` : ''}
+      ${!p.points_attention && !obs.length && !dec.length && !resCrit.length ? '<p class="f5-vide">Aucun point d\'attention particulier à ce jour.</p>' : ''}
+    </div>
+
+  </div>`;
 }
+/* Variante Word de la fiche : Word ne rend pas les grilles CSS,
+   on reproduit la mise en page en tableaux. Memes donnees, meme lecture. */
+function fiche5WordHtml() {
+  const p = S.projet;
+  const ar = avancementReel(), ap = avancementPrevu();
+  const spi = (ap && ap > 0) ? (ar / ap) : null;
+  const enRetard = S.activites.filter(a => a.statut !== 'Réalisé' && a.date_prevue && ecartOuvres(a.date_prevue) < 0).length;
+  const jalonsOk = S.jalons.filter(j => j.statut === 'Réalisé').length;
+  const jalonsManques = S.jalons.filter(j => j.statut === 'Manqué').length;
+  const livrOk = S.livrables.filter(l => l.statut === 'Validé').length;
+  const budRef = Number(p.budget_approuve || p.budget_prevu || 0);
+  const budEng = S.budget.reduce((s, l) => s + Number(l.montant_engage || 0), 0);
+  const budPct = budRef > 0 ? (budEng / budRef) * 100 : null;
+  const obs = S.obstacles.filter(o => o.statut === 'Ouvert' || o.statut === 'En cours');
+  const dec = S.decisions.filter(d => d.statut === 'En attente de décision');
+  const resCrit = S.reserves.filter(r => r.categorie === 'Critique' && r.statut !== 'Levée');
+  const meteo = p.appreciation_avancement || 'Vert';
+  const clMeteo = meteo === 'Rouge' ? 'rouge' : meteo === 'Orange' ? 'orange' : 'vert';
+
+  const cellKpi = (lib, val, sub) =>
+    '<td style="width:16.6%;text-align:center;background:#FAFAFB;padding:5pt 3pt">' +
+      '<div style="font-size:7.5pt;color:#8a7570;text-transform:uppercase">' + ech(lib) + '</div>' +
+      '<div style="font-size:14pt;font-weight:700;color:#9C3D2A">' + val + '</div>' +
+      '<div style="font-size:7.5pt;color:#8a7570">' + (sub || '&nbsp;') + '</div>' +
+    '</td>';
+
+  const listeWord = statut => {
+    const items = S.activites.filter(a => a.statut === statut);
+    if (!items.length) return '<p class="muted" style="font-size:8.5pt;margin:3pt 0">Aucune activité.</p>';
+    return '<table style="width:100%;border:none;margin:0"><tr><td style="border:none;padding:0">' +
+      items.map(a => {
+        const retard = a.statut !== 'Réalisé' && a.date_prevue && ecartOuvres(a.date_prevue) < 0;
+        return '<div style="font-size:8.5pt;line-height:1.35;margin-bottom:2pt">' +
+          (a.chemin_critique ? '<span style="color:#C0504D;font-weight:700">&#9670;</span> ' : '') +
+          ech(a.denomination) +
+          (retard ? ' <span class="et rouge" style="font-size:7pt">RETARD</span>' : '') +
+          (a.bloquee ? ' <span class="et gris" style="font-size:7pt">BLOQU&Eacute;E</span>' : '') +
+          '</div>';
+      }).join('') + '</td></tr></table>';
+  };
+
+  const colonne = (titre, n, contenu) =>
+    '<td style="width:33.3%;vertical-align:top;padding:0 4pt 0 0;border:none">' +
+      '<div style="background:#7A3230;color:#fff;font-size:8.5pt;font-weight:700;padding:4pt 6pt;text-transform:uppercase">' +
+        ech(titre) + ' (' + n + ')</div>' +
+      '<div style="border:1pt solid #ecdfda;border-top:none;padding:5pt 6pt">' + contenu + '</div>' +
+    '</td>';
+
+  const nb = st => S.activites.filter(a => a.statut === st).length;
+  const puces = arr => '<ul style="margin:2pt 0 5pt;padding-left:14pt">' +
+    arr.map(t => '<li style="font-size:9pt;margin-bottom:1pt">' + t + '</li>').join('') + '</ul>';
+
+  return '' +
+    '<table style="width:100%;border:none;margin:0 0 6pt"><tr>' +
+      '<td style="border:none;padding:0;vertical-align:bottom">' +
+        '<div style="font-size:15pt;font-weight:700;color:#9C3D2A">' + ech(p.denomination) + '</div>' +
+        '<div style="font-size:8.5pt;color:#8a7570">' + ech(p.id_projet) + ' &middot; Fiche d\'état d\'avancement' +
+          (p.type_projet ? ' &middot; ' + ech(p.type_projet) : '') + '</div>' +
+      '</td>' +
+      '<td style="border:none;padding:0;text-align:right;vertical-align:bottom;white-space:nowrap">' +
+        '<span class="et ' + clMeteo + '" style="font-size:9pt">MÉTÉO ' + ech(meteo.toUpperCase()) + '</span>' +
+        '<div style="font-size:8pt;color:#8a7570;margin-top:2pt">au ' + fdate(auj()) + '</div>' +
+      '</td>' +
+    '</tr></table>' +
+    '<div style="border-bottom:1.5pt solid #C0504D;margin-bottom:7pt"></div>' +
+
+    '<table style="width:100%;margin:0 0 7pt"><tr>' +
+      cellKpi('Avancement', pct(ar), ap !== null ? 'prévu ' + pct(ap) : '') +
+      cellKpi('SPI', spi === null ? '—' : spi.toFixed(2),
+              spi === null ? 'non calculable' : spi >= 1 ? 'en avance' : spi >= 0.9 ? 'retard léger' : 'décrochage') +
+      cellKpi('Jalons atteints', jalonsOk + '/' + S.jalons.length,
+              jalonsManques ? jalonsManques + ' manqué' + (jalonsManques > 1 ? 's' : '') : '') +
+      cellKpi('Livrables validés', livrOk + '/' + S.livrables.length, '') +
+      cellKpi('Budget engagé', budPct === null ? '—' : pct(budPct),
+              budRef > 0 ? fnum(Math.round(budEng)) + ' / ' + fnum(budRef) : '') +
+      cellKpi('Activités en retard', String(enRetard), 'sur ' + S.activites.length) +
+    '</tr></table>' +
+
+    '<table style="width:100%;margin:0 0 7pt"><tr>' +
+      '<td style="width:50%;font-size:9pt;background:#FCFCFD"><b>Responsable :</b> ' + ech(nomActeur(p.responsable_id)) + '</td>' +
+      '<td style="width:50%;font-size:9pt;background:#FCFCFD"><b>Commanditaire :</b> ' +
+        (p.commanditaire_id ? ech(nomActeur(p.commanditaire_id)) : ech(p.sponsor || '—')) + '</td></tr>' +
+      '<tr><td style="font-size:9pt;background:#FCFCFD"><b>Période :</b> ' + fdate(p.date_debut) + ' &rarr; ' + fdate(p.date_fin_prevue) + '</td>' +
+      '<td style="font-size:9pt;background:#FCFCFD"><b>Budget ' + (p.budget_approuve ? 'approuvé' : 'prévisionnel') + ' :</b> ' +
+        fnum(budRef) + ' ' + ech(p.devise || 'FCFA') + '</td></tr>' +
+      '<tr><td colspan="2" style="font-size:9pt;background:#FCFCFD"><b>Objectif :</b> ' +
+        (p.objectif_projet ? nl2br(p.objectif_projet) : 'Non renseigné') + '</td></tr>' +
+    '</table>' +
+
+    '<table style="width:100%;border:none;margin:0 0 7pt"><tr>' +
+      colonne('À faire', nb('À faire'), listeWord('À faire')) +
+      colonne('En cours', nb('En cours'), listeWord('En cours')) +
+      colonne('Réalisé', nb('Réalisé'), listeWord('Réalisé')) +
+    '</tr></table>' +
+
+    '<table style="width:100%;margin:0"><tr><td style="background:#FFFCF6;border-left:3pt solid #CB8800">' +
+      '<div style="font-size:9pt;font-weight:700;color:#CB8800;text-transform:uppercase;margin-bottom:4pt">Points d\'attention</div>' +
+      (p.points_attention ? '<p style="font-size:9pt;margin:0 0 4pt">' + nl2br(p.points_attention) + '</p>' : '') +
+      (obs.length ? '<div style="font-size:8.5pt;font-weight:700;color:#9C3D2A;text-transform:uppercase">Obstacles à lever</div>' +
+        puces(obs.map(o => ech(o.description) + (o.action_levee ? ' — ' + ech(o.action_levee) : ''))) : '') +
+      (resCrit.length ? '<div style="font-size:8.5pt;font-weight:700;color:#9C3D2A;text-transform:uppercase">Réserves critiques non levées</div>' +
+        puces(resCrit.map(r => ech(r.description) + (r.zone ? ' (' + ech(r.zone) + ')' : ''))) : '') +
+      (dec.length ? '<div style="font-size:8.5pt;font-weight:700;color:#9C3D2A;text-transform:uppercase">Décisions attendues</div>' +
+        puces(dec.map(d => ech(d.objet) + (d.instance ? ' — ' + ech(d.instance) : ''))) : '') +
+      (!p.points_attention && !obs.length && !dec.length && !resCrit.length
+        ? '<p class="muted" style="font-size:9pt;margin:0">Aucun point d\'attention particulier à ce jour.</p>' : '') +
+    '</td></tr></table>';
+}
+
 function telechargerFiche5Word() {
   const p = S.projet;
-  telechargerFichier("Fiche_5_blocs_" + (p.id_projet || 'projet') + '.doc',
-    documentWordHtml("Fiche d'état d'avancement — " + p.denomination, '<div class="bloc5" style="border:none;padding:0">' + fiche5Html() + '</div>'),
+  telechargerFichier("Fiche_etat_avancement_" + (p.id_projet || 'projet') + '.doc',
+    documentWordHtml("Fiche d'état d'avancement — " + p.denomination, fiche5WordHtml()),
     'application/msword');
-  toast('Fiche 5 blocs téléchargée (Word).', 'ok');
+  toast("Fiche d'état d'avancement téléchargée (Word).", 'ok');
 }
 function vueFiche5() {
   $('#zone').innerHTML = `
@@ -1831,7 +2001,7 @@ async function genererRapportProjetHtml() {
   const indicLignes = S.indicateurs.map(i => `<tr><td>${ech(i.libelle)}</td><td>${ech(i.cible || '—')}</td><td>${ech(i.valeur_mesuree || '—')} ${ech(i.unite || '')}</td><td>${fdate(i.date_mesure)}</td><td>${ech(i.statut || '—')}</td></tr>`).join('');
   const performanceHtml = `
     <h2>5. Suivi des performances</h2>
-    <div class="bloc5" style="padding:0;border:none">${fiche5Html()}</div>
+    ${fiche5WordHtml()}
     <h3>5.1 Indicateurs de pilotage</h3>${S.indicateurs.length ? `<table><thead><tr><th>Indicateur</th><th>Cible</th><th>Dernière mesure</th><th>Date</th><th>Statut</th></tr></thead><tbody>${indicLignes}</tbody></table>` : '<p class="muted">Aucun indicateur renseigné.</p>'}`;
 
   return `
@@ -3036,6 +3206,309 @@ function impNettoyer(ligne, def) {
     o[c] = ligne[c];
   });
   return o;
+}
+
+/* =========================================================================
+ *  TABLEAU DE BORD DU PORTEFEUILLE (tous projets suivis)
+ *  Huit indicateurs : meteo, rythme (SPI), derive de delai, budget,
+ *  activites en retard, jalons, arbitrages en attente, charge par responsable.
+ * ========================================================================= */
+
+const TDB_CLOS = ['Clôturé', 'Abandonné'];
+
+async function chargerTdbPortefeuille() {
+  const ids = S.projets.map(p => p.id_projet);
+  const vide = { activites: [], jalons: [], budget: [], obstacles: [], decisions: [], reserves: [] };
+  if (!ids.length) { S._tdb = vide; return; }
+
+  const lot = async (table, cols) => {
+    const { data, error } = await sb.from(table).select(cols).in('id_projet', ids);
+    if (error) { console.warn('Tableau de bord — ' + table + ' :', error.message); return []; }
+    return data || [];
+  };
+
+  const [activites, jalons, budget, obstacles, decisions, reserves] = await Promise.all([
+    lot('projet_activites', 'id_projet,statut,date_debut_prevue,date_prevue,avancement_pct,chemin_critique,bloquee,responsable_id,denomination'),
+    lot('projet_jalons', 'id_projet,libelle,statut,date_prevue'),
+    lot('projet_budget', 'id_projet,type_ligne,montant_prevu,montant_engage,montant_paye'),
+    lot('projet_obstacles', 'id_projet,statut'),
+    lot('projet_decisions', 'id_projet,statut'),
+    lot('projet_reserves', 'id_projet,categorie,statut')
+  ]);
+  S._tdb = { activites, jalons, budget, obstacles, decisions, reserves };
+}
+
+/* Avancement reel et prevu d'un lot d'activites — meme regle que la fiche projet. */
+function tdbAvancement(acts) {
+  if (!acts.length) return { reel: 0, prevu: null };
+  const reel = acts.reduce((s, a) =>
+    s + (a.statut === 'Réalisé' ? 100 : a.statut === 'En cours' ? (a.avancement_pct != null ? a.avancement_pct : 50) : (a.avancement_pct || 0)), 0) / acts.length;
+  const dat = acts.filter(a => a.date_debut_prevue && a.date_prevue);
+  if (!dat.length) return { reel: reel, prevu: null };
+  const t = auj();
+  const prevu = dat.reduce((s, a) => {
+    if (t >= a.date_prevue) return s + 100;
+    if (t <= a.date_debut_prevue) return s + 0;
+    const tot = Math.max(joursCal(a.date_debut_prevue, a.date_prevue), 1);
+    return s + Math.min(100, (joursCal(a.date_debut_prevue, t) / tot) * 100);
+  }, 0) / dat.length;
+  return { reel: reel, prevu: prevu };
+}
+
+/* Consolide tous les indicateurs en une passe. */
+function tdbCalculer() {
+  const d = S._tdb || { activites: [], jalons: [], budget: [], obstacles: [], decisions: [], reserves: [] };
+  const actifs = S.projets.filter(p => TDB_CLOS.indexOf(p.statut) < 0);
+  const parProjet = {};
+  actifs.forEach(p => { parProjet[p.id_projet] = []; });
+  d.activites.forEach(a => { if (parProjet[a.id_projet]) parProjet[a.id_projet].push(a); });
+
+  /* 1. meteo */
+  const meteo = { Vert: 0, Orange: 0, Rouge: 0 };
+  actifs.forEach(p => { const m = p.appreciation_avancement || 'Vert'; if (meteo[m] !== undefined) meteo[m]++; });
+
+  /* 2. rythme : SPI par projet */
+  const spis = [];
+  actifs.forEach(p => {
+    const av = tdbAvancement(parProjet[p.id_projet] || []);
+    if (av.prevu === null || av.prevu <= 0) return;
+    spis.push({ p: p, spi: av.reel / av.prevu, reel: av.reel, prevu: av.prevu });
+  });
+  const derive = spis.filter(x => x.spi < 0.9).sort((a, b) => a.spi - b.spi);
+  const spiMoyen = spis.length ? spis.reduce((s, x) => s + x.spi, 0) / spis.length : null;
+
+  /* 3. derive de delai vs baseline */
+  const glissants = actifs
+    .filter(p => p.date_fin_baseline && p.date_fin_prevue && p.date_fin_prevue > p.date_fin_baseline)
+    .map(p => ({ p: p, jours: joursCal(p.date_fin_baseline, p.date_fin_prevue) }))
+    .sort((a, b) => b.jours - a.jours);
+  const glissMoyen = glissants.length ? Math.round(glissants.reduce((s, x) => s + x.jours, 0) / glissants.length) : 0;
+
+  /* 4. budget du portefeuille */
+  let budRef = 0, budEng = 0, budPaye = 0;
+  const parBudget = {};
+  d.budget.forEach(l => {
+    const e = Number(l.montant_engage || 0), y = Number(l.montant_paye || 0);
+    budEng += e; budPaye += y;
+    parBudget[l.id_projet] = (parBudget[l.id_projet] || 0) + e;
+  });
+  actifs.forEach(p => { budRef += Number(p.budget_approuve || p.budget_prevu || 0); });
+  const depassements = actifs.filter(p => {
+    const ref = Number(p.budget_approuve || p.budget_prevu || 0);
+    return ref > 0 && (parBudget[p.id_projet] || 0) > ref;
+  });
+
+  /* 5. activites en retard */
+  const retards = [];
+  actifs.forEach(p => {
+    (parProjet[p.id_projet] || []).forEach(a => {
+      if (a.statut !== 'Réalisé' && a.date_prevue && ecartOuvres(a.date_prevue) < 0)
+        retards.push({ p: p, a: a, jours: -ecartOuvres(a.date_prevue) });
+    });
+  });
+  retards.sort((a, b) => b.jours - a.jours);
+  const retardsCritiques = retards.filter(r => r.a.chemin_critique).length;
+
+  /* 6. jalons */
+  const idsActifs = {}; actifs.forEach(p => { idsActifs[p.id_projet] = p; });
+  const t = auj();
+  const dans30 = [];
+  let manques = 0;
+  d.jalons.forEach(j => {
+    const p = idsActifs[j.id_projet];
+    if (!p) return;
+    if (j.statut === 'Manqué') { manques++; return; }
+    if (j.statut === 'Réalisé' || j.statut === 'Annulé' || !j.date_prevue) return;
+    const ec = joursCal(t, j.date_prevue);
+    if (ec >= 0 && ec <= 30) dans30.push({ p: p, j: j, jours: ec });
+    else if (ec < 0) dans30.push({ p: p, j: j, jours: ec });
+  });
+  dans30.sort((a, b) => a.jours - b.jours);
+  const jalonsEnRetard = dans30.filter(x => x.jours < 0).length;
+
+  /* 7. arbitrages en attente */
+  const compter = (arr, test) => arr.filter(x => idsActifs[x.id_projet] && test(x)).length;
+  const arbitrages = {
+    obstacles: compter(d.obstacles, o => o.statut === 'Ouvert' || o.statut === 'En cours'),
+    decisions: compter(d.decisions, x => x.statut === 'En attente de décision'),
+    reserves: compter(d.reserves, r => r.categorie === 'Critique' && r.statut !== 'Levée')
+  };
+  arbitrages.total = arbitrages.obstacles + arbitrages.decisions + arbitrages.reserves;
+
+  /* 8. charge par responsable */
+  const charge = {};
+  const ajouter = (id, cle) => {
+    if (!id) return;
+    charge[id] = charge[id] || { projets: 0, activites: 0, retards: 0 };
+    charge[id][cle]++;
+  };
+  actifs.forEach(p => ajouter(p.responsable_id, 'projets'));
+  actifs.forEach(p => (parProjet[p.id_projet] || []).forEach(a => {
+    if (a.statut === 'Réalisé') return;
+    ajouter(a.responsable_id, 'activites');
+    if (a.date_prevue && ecartOuvres(a.date_prevue) < 0) ajouter(a.responsable_id, 'retards');
+  }));
+  const chargeListe = Object.keys(charge).map(id => ({ id: id, ...charge[id] }))
+    .sort((a, b) => (b.activites + b.projets * 3) - (a.activites + a.projets * 3));
+
+  return { actifs, meteo, spis, derive, spiMoyen, glissants, glissMoyen,
+           budRef, budEng, budPaye, depassements, retards, retardsCritiques,
+           dans30, manques, jalonsEnRetard, arbitrages, chargeListe };
+}
+
+async function vueTdbPortefeuille() {
+  S.projet = null;
+  $('#zone').innerHTML = '<div class="topbar"><div><h1>Tableau de bord du portefeuille</h1>' +
+    '<p>Vue consolidée de tous les projets que vous suivez.</p></div></div>' +
+    '<div class="carte"><p class="muted">Consolidation en cours…</p></div>';
+
+  await chargerTdbPortefeuille();
+  const k = tdbCalculer();
+
+  if (!k.actifs.length) {
+    $('#zone').innerHTML = '<div class="topbar"><div><h1>Tableau de bord du portefeuille</h1></div></div>' +
+      '<div class="carte"><p class="muted">Aucun projet actif à consolider.</p></div>';
+    return;
+  }
+
+  const nomP = p => ech(p.denomination) + ' <span class="muted" style="font-size:11px">(' + ech(p.id_projet) + ')</span>';
+  const pctBud = k.budRef > 0 ? (k.budEng / k.budRef) * 100 : null;
+
+  const kpi = (lib, val, sub, cl) =>
+    `<div class="kpi ${cl || ''}"><div class="lib">${ech(lib)}</div><div class="val">${val}</div><div class="sub">${sub || '&nbsp;'}</div></div>`;
+
+  const carte = (titre, intro, contenu) =>
+    `<div class="carte"><h3>${ech(titre)}</h3>` +
+    (intro ? `<p class="muted" style="font-size:12px;margin:0 0 9px">${ech(intro)}</p>` : '') +
+    contenu + '</div>';
+
+  const tot = k.actifs.length;
+  const barreMeteo = ['Vert', 'Orange', 'Rouge'].map(m => {
+    const n = k.meteo[m], w = tot ? Math.round((n / tot) * 1000) / 10 : 0;
+    const c = m === 'Vert' ? 'var(--ok)' : m === 'Orange' ? 'var(--warn)' : 'var(--bad)';
+    return n ? `<div style="width:${w}%;background:${c};color:#fff;font-size:11px;font-weight:700;
+                 text-align:center;padding:5px 0" title="${m} : ${n}">${n}</div>` : '';
+  }).join('');
+
+  const tbl = (entetes, lignes, vide) => lignes.length
+    ? '<table><thead><tr>' + entetes.map(e => `<th${e.n ? ' class="num"' : ''}>${ech(e.t || e)}</th>`).join('') +
+      '</tr></thead><tbody>' + lignes.join('') + '</tbody></table>'
+    : `<p class="muted" style="font-size:12.5px;margin:0">${ech(vide)}</p>`;
+
+  $('#zone').innerHTML = `
+    <div class="topbar"><div><h1>Tableau de bord du portefeuille</h1>
+      <p>Vue consolidée des ${tot} projet(s) actif(s) que vous suivez — au ${fdate(auj())}.</p></div>
+      <button class="btn" id="btnTdbRafraichir">Actualiser</button></div>
+
+    <div class="kpis">
+      ${kpi('Projets actifs', String(tot), k.meteo.Rouge ? k.meteo.Rouge + ' en météo rouge' : 'aucun en rouge',
+            k.meteo.Rouge ? 'bad' : 'ok')}
+      ${kpi('SPI moyen', k.spiMoyen === null ? '—' : k.spiMoyen.toFixed(2),
+            k.derive.length ? k.derive.length + ' projet(s) en décrochage' : 'rythme tenu',
+            k.spiMoyen === null ? '' : k.spiMoyen >= 1 ? 'ok' : k.spiMoyen >= 0.9 ? 'warn' : 'bad')}
+      ${kpi('Projets qui glissent', String(k.glissants.length),
+            k.glissants.length ? 'glissement moyen ' + k.glissMoyen + ' j' : 'dates de référence tenues',
+            k.glissants.length ? 'warn' : 'ok')}
+      ${kpi('Budget engagé', pctBud === null ? '—' : pct(pctBud),
+            fnum(Math.round(k.budEng)) + ' / ' + fnum(Math.round(k.budRef)),
+            pctBud === null ? '' : pctBud > 100 ? 'bad' : pctBud > 90 ? 'warn' : 'ok')}
+      ${kpi('Activités en retard', String(k.retards.length),
+            k.retardsCritiques ? k.retardsCritiques + ' sur chemin critique' : 'aucune critique',
+            k.retards.length ? 'bad' : 'ok')}
+      ${kpi('Jalons manqués', String(k.manques),
+            k.jalonsEnRetard ? k.jalonsEnRetard + ' échéance(s) dépassée(s)' : 'aucune échéance dépassée',
+            k.manques || k.jalonsEnRetard ? 'bad' : 'ok')}
+      ${kpi('En attente d\'arbitrage', String(k.arbitrages.total),
+            k.arbitrages.obstacles + ' obst. · ' + k.arbitrages.decisions + ' déc. · ' + k.arbitrages.reserves + ' rés.',
+            k.arbitrages.total ? 'warn' : 'ok')}
+      ${kpi('Responsables mobilisés', String(k.chargeListe.length), 'sur l\'ensemble du portefeuille')}
+    </div>
+
+    ${carte('1. Météo du portefeuille',
+      'Répartition des projets actifs selon l\'appréciation portée par leur responsable.',
+      `<div style="display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--line);min-height:26px">
+         ${barreMeteo || '<div style="padding:5px 9px;font-size:12px" class="muted">Aucun projet</div>'}
+       </div>
+       <div style="display:flex;gap:16px;margin-top:8px;font-size:12px">
+         <span><span class="et vert">Vert</span> ${k.meteo.Vert}</span>
+         <span><span class="et orange">Orange</span> ${k.meteo.Orange}</span>
+         <span><span class="et rouge">Rouge</span> ${k.meteo.Rouge}</span>
+       </div>`)}
+
+    ${carte('2. Projets en décrochage de rythme',
+      'SPI inférieur à 0,90 : le projet avance moins vite que son planning ne le prévoyait.',
+      tbl(['Projet', { t: 'Avancement', n: 1 }, { t: 'Prévu', n: 1 }, { t: 'SPI', n: 1 }],
+        k.derive.map(x => `<tr><td>${nomP(x.p)}</td><td class="num">${pct(x.reel)}</td>` +
+          `<td class="num">${pct(x.prevu)}</td>` +
+          `<td class="num"><span class="et rouge">${x.spi.toFixed(2)}</span></td></tr>`),
+        'Aucun projet en décrochage : tous tiennent leur rythme.'))}
+
+    ${carte('3. Dérive de délai',
+      'Projets dont la date de fin prévue a glissé par rapport à la date de référence figée au cadrage.',
+      tbl(['Projet', 'Date de référence', 'Fin prévue', { t: 'Glissement', n: 1 }],
+        k.glissants.map(x => `<tr><td>${nomP(x.p)}</td><td>${fdate(x.p.date_fin_baseline)}</td>` +
+          `<td>${fdate(x.p.date_fin_prevue)}</td>` +
+          `<td class="num"><span class="et ${x.jours > 30 ? 'rouge' : 'orange'}">+${x.jours} j</span></td></tr>`),
+        'Aucune dérive : toutes les dates de référence sont tenues.'))}
+
+    ${carte('4. Consommation budgétaire',
+      'Engagements rapportés au budget approuvé, tous projets actifs confondus.',
+      `<div class="prog" style="height:12px"><span style="width:${Math.round(Math.min(100, pctBud || 0) * 10) / 10}%"></span></div>
+       <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:6px" class="muted">
+         <span>Engagé ${fnum(Math.round(k.budEng))} · Payé ${fnum(Math.round(k.budPaye))}</span>
+         <span>Budget approuvé ${fnum(Math.round(k.budRef))}</span>
+       </div>
+       ${k.depassements.length
+         ? `<p style="font-size:12.5px;margin:10px 0 4px"><strong>${k.depassements.length} projet(s) au-delà de leur enveloppe :</strong></p>
+            <ul style="margin:0;padding-left:18px;font-size:12.5px">${k.depassements.map(p => `<li>${nomP(p)}</li>`).join('')}</ul>`
+         : '<p class="muted" style="font-size:12.5px;margin:10px 0 0">Aucun projet au-delà de son enveloppe.</p>'}`)}
+
+    ${carte('5. Activités en retard',
+      'Toutes activités non réalisées dont l\'échéance est dépassée. Les dix plus anciennes.',
+      tbl(['Projet', 'Activité', { t: 'Retard', n: 1 }],
+        k.retards.slice(0, 10).map(x => `<tr><td>${nomP(x.p)}</td>` +
+          `<td>${x.a.chemin_critique ? '<span style="color:var(--corail);font-weight:700">◆</span> ' : ''}${ech(x.a.denomination)}` +
+          `${x.a.bloquee ? ' <span class="et gris">bloquée</span>' : ''}</td>` +
+          `<td class="num"><span class="et rouge">${x.jours} j</span></td></tr>`),
+        'Aucune activité en retard sur l\'ensemble du portefeuille.') +
+      (k.retards.length > 10 ? `<p class="muted" style="font-size:12px;margin:8px 0 0">et ${k.retards.length - 10} autre(s).</p>` : ''))}
+
+    ${carte('6. Jalons à venir et échéances dépassées',
+      'Jalons non franchis dont la date tombe dans les 30 prochains jours, ou déjà passée.',
+      tbl(['Projet', 'Jalon', 'Date prévue', { t: 'Échéance', n: 1 }],
+        k.dans30.slice(0, 12).map(x => `<tr><td>${nomP(x.p)}</td><td>${ech(x.j.libelle)}</td>` +
+          `<td>${fdate(x.j.date_prevue)}</td>` +
+          `<td class="num">${x.jours < 0
+            ? `<span class="et rouge">dépassée de ${-x.jours} j</span>`
+            : `<span class="et ${x.jours <= 7 ? 'orange' : 'gris'}">J-${x.jours}</span>`}</td></tr>`),
+        'Aucun jalon dans les 30 prochains jours.') +
+      (k.manques ? `<p style="font-size:12.5px;margin:9px 0 0"><span class="et rouge">${k.manques}</span> jalon(s) déjà déclaré(s) manqué(s).</p>` : ''))}
+
+    ${carte('7. En attente d\'un arbitrage',
+      'Ce qui est bloqué et attend une décision de votre part ou d\'une instance.',
+      `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:11px">
+         <div style="border:1px solid var(--line);border-radius:9px;padding:10px 12px">
+           <div style="font-size:22px;font-weight:700;color:${k.arbitrages.obstacles ? 'var(--bad)' : 'var(--ok)'}">${k.arbitrages.obstacles}</div>
+           <div class="muted" style="font-size:12px">Obstacles ouverts ou en cours de levée</div></div>
+         <div style="border:1px solid var(--line);border-radius:9px;padding:10px 12px">
+           <div style="font-size:22px;font-weight:700;color:${k.arbitrages.decisions ? 'var(--warn)' : 'var(--ok)'}">${k.arbitrages.decisions}</div>
+           <div class="muted" style="font-size:12px">Décisions en attente d'arbitrage</div></div>
+         <div style="border:1px solid var(--line);border-radius:9px;padding:10px 12px">
+           <div style="font-size:22px;font-weight:700;color:${k.arbitrages.reserves ? 'var(--bad)' : 'var(--ok)'}">${k.arbitrages.reserves}</div>
+           <div class="muted" style="font-size:12px">Réserves critiques non levées</div></div>
+       </div>`)}
+
+    ${carte('8. Charge par responsable',
+      'Projets portés et activités ouvertes, pour repérer une surcharge.',
+      tbl(['Responsable', { t: 'Projets', n: 1 }, { t: 'Activités ouvertes', n: 1 }, { t: 'Dont en retard', n: 1 }],
+        k.chargeListe.map(c => `<tr><td>${ech(nomActeur(c.id))}</td>` +
+          `<td class="num">${c.projets}</td><td class="num">${c.activites}</td>` +
+          `<td class="num">${c.retards ? `<span class="et rouge">${c.retards}</span>` : '<span class="muted">—</span>'}</td></tr>`),
+        'Aucune affectation enregistrée.'))}
+  `;
+
+  const b = $('#btnTdbRafraichir');
+  if (b) b.addEventListener('click', async () => { await chargerPortefeuille(); await vueTdbPortefeuille(); });
 }
 
 /* --------------------------------------------------------------- lancement */
