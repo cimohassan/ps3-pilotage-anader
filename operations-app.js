@@ -69,8 +69,17 @@ const PERIODES = [
   { code: 'TRIM',      libelle: 'Trimestre en cours' },
   { code: 'TRIM_PREC', libelle: 'Trimestre précédent' },
   { code: 'SEM1',      libelle: 'Semestre en cours' },
-  { code: 'ANNEE',     libelle: 'Année en cours' }
+  { code: 'ANNEE',     libelle: 'Année en cours' },
+  { code: 'PERSO',     libelle: 'Période personnalisée…' }
 ];
+function champsPeriodePerso(id, perso, opt) {
+  opt = opt || {};
+  const p = perso || {};
+  return `<div id="${id}" class="champs" style="${opt.inline ? 'min-width:300px' : 'margin-top:8px'}">
+    <div><label for="${id}_deb">Du</label><input type="date" id="${id}_deb" value="${ech(p.debut || '')}"></div>
+    <div><label for="${id}_fin">Au</label><input type="date" id="${id}_fin" value="${ech(p.fin || '')}"></div>
+  </div>`;
+}
 /* Anciens codes de rôle du catalogue (operations_catalogue.roles) : purement
    d'affichage désormais — ne portent plus de droits (cf. plan §2/§3). */
 const ROLES_LABELS = {
@@ -98,7 +107,7 @@ function estOuvre(s) {
 }
 function ajoutOuvres(dateStr, n) {
   let d = dt(dateStr), c = 0, garde = 0;
-  n = Math.max(1, Math.round(n));
+  n = Math.max(0, Math.round(n));
   while (c < n && garde++ < 3650) { d.setDate(d.getDate() + 1); if (estOuvre(iso(d))) c++; }
   return iso(d);
 }
@@ -119,9 +128,9 @@ function ecartOuvres(a, b) {
 }
 function ajoutJours(dateStr, n) { const d = dt(dateStr); d.setDate(d.getDate() + n); return iso(d); }
 function delaiEffectif(delaiBase, priorite) {
-  const b = (typeof delaiBase === 'number' && delaiBase > 0) ? delaiBase : 3;
+  const b = (typeof delaiBase === 'number' && delaiBase >= 0) ? delaiBase : 3;
   const f = PRIORITES[priorite] ? PRIORITES[priorite].facteur : 1;
-  return Math.max(1, Math.round(b * f));
+  return Math.max(0, Math.round(b * f));
 }
 
 const MOIS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
@@ -398,13 +407,13 @@ const Compteurs = {
 const VUES = [
   { grp: "Vue d'ensemble" },
   { id: 'bord', lib: 'Tableau de bord', ic: '◧' },
-  { id: 'aujourdhui', lib: "Aujourd'hui", ic: '☀' },
   { grp: 'Mon travail' },
   { id: 'mes', lib: 'Mes activités', ic: '☑', badge: () => Compteurs.mes() },
   { id: 'kanban', lib: 'Suivi (kanban)', ic: '▤' },
   { id: 'planifier', lib: 'Planifier', ic: '✎', droit: 'ops.planifier' },
   { grp: 'Animation' },
   { id: 'attention', lib: "Points d'attention", ic: '⚑', badge: () => Compteurs.attention() },
+  { id: 'aujourdhui', lib: "Aujourd'hui", ic: '☀' },
   { id: 'revue', lib: 'Revue hebdomadaire', ic: '↻' },
   { id: 'revueMois', lib: 'Revue mensuelle', ic: '↻' },
   { grp: 'Restitution' },
@@ -473,8 +482,8 @@ function modaleTexte(titre, label, cb, req) {
 
 /* ======================================================== TABLEAU DE BORD */
 function vueBord() {
-  const e = D.etat.bord || (D.etat.bord = { periode: 'MOIS' });
-  const b = bornesPeriode(e.periode);
+  const e = D.etat.bord || (D.etat.bord = { periode: 'MOIS', perso: null });
+  const b = bornesPeriode(e.periode, e.perso);
   const lot = Stats.lotPeriode(b);
   const s = Stats.synthese(lot);
   const att = Stats.syntheseAttentions(attentionsVisibles());
@@ -497,6 +506,7 @@ function vueBord() {
       <div style="min-width:220px"><label>Période</label><select id="f_periode">
         ${PERIODES.map(x => `<option value="${x.code}" ${e.periode === x.code ? 'selected' : ''}>${ech(x.libelle)}</option>`).join('')}
       </select></div>
+      ${e.periode === 'PERSO' ? champsPeriodePerso('bord_perso', e.perso, { inline: true }) : ''}
       <span class="gris" style="padding-bottom:9px">${ech(b.libelle)}</span>
     </div>
     <div class="kpis">
@@ -539,7 +549,14 @@ function vueBord() {
       <p class="gris" style="font-size:11px;margin-top:8px">Le traitement des points d'attention (Andon) sera disponible dans une prochaine phase.</p>
     </div>`;
 
-  $('#f_periode').addEventListener('change', ev => { e.periode = ev.target.value; vueBord(); });
+  $('#f_periode').addEventListener('change', ev => {
+    e.periode = ev.target.value;
+    if (e.periode === 'PERSO' && !e.perso) e.perso = { debut: debutMois(auj()), fin: auj() };
+    vueBord();
+  });
+  const bpd = $('#bord_perso_deb'), bpf = $('#bord_perso_fin');
+  if (bpd) bpd.addEventListener('change', ev => { e.perso = Object.assign({}, e.perso, { debut: ev.target.value }); vueBord(); });
+  if (bpf) bpf.addEventListener('change', ev => { e.perso = Object.assign({}, e.perso, { fin: ev.target.value }); vueBord(); });
   $$('[data-fiche]').forEach(tr => tr.addEventListener('click', () => ouvrirFiche(tr.dataset.fiche)));
   $$('[data-division]').forEach(tr => tr.addEventListener('click', () => { D.etat.kanban = Object.assign(D.etat.kanban || {}, { division: tr.dataset.division }); aller('kanban'); }));
 }
@@ -575,10 +592,65 @@ function ficheKanban(o) {
 }
 
 /* =========================================================== MES ACTIVITÉS */
+function exporterMesListe(lot, titre, cols, format) {
+  if (!lot.length) { toast('Aucune activité à exporter pour cette sélection.', 'err'); return; }
+  const base = 'D2MG_' + titre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_') + '_' + auj();
+  if (format === 'csv') {
+    const l = [csvLigne(cols.map(c => c.lib))];
+    lot.forEach(o => l.push(csvLigne(cols.map(c => c.val(o)))));
+    telechargerCsv(base + '.csv', l.join('\r\n'));
+    toast('Liste exportée en CSV (Excel).', 'ok');
+    return;
+  }
+  const style = "body{font-family:Calibri,Arial,sans-serif;font-size:12px;color:#1C2529;margin:26px}"
+    + "table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}"
+    + "th{background:#2C4A63;color:#fff;text-align:left;padding:6px 8px}"
+    + "td{padding:5px 8px;border-bottom:1px solid #DDE3E7}"
+    + "tbody tr:nth-child(even){background:#F4F6F7}"
+    + "h2{color:#1B2F3F;margin-bottom:2px}.gris{color:#6B767C;font-size:11px;margin-top:0}";
+  const corps = `<h2>${ech(titre)}</h2><p class="gris">${ech(D.moi.nom_prenoms)} · ${ech(dateLongue(auj()))} · ${lot.length} activité(s)</p>
+    <table><thead><tr>${cols.map(c => `<th>${ech(c.lib)}</th>`).join('')}</tr></thead>
+    <tbody>${lot.map(o => `<tr>${cols.map(c => `<td>${ech(String(c.val(o) === null || c.val(o) === undefined ? '' : c.val(o)))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const html = "<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'><title>" + ech(titre) + "</title><style>" + style + "</style></head><body>" + corps + "</body></html>";
+  if (format === 'html') {
+    telechargerFichier(base + '.html', html, 'text/html');
+    toast('Liste enregistrée en fichier autonome, ouvrable dans Word.', 'ok');
+    return;
+  }
+  if (format === 'pdf') {
+    const w = window.open('', '_blank');
+    if (!w) { toast("Autorisez les fenêtres popup pour imprimer, ou utilisez l'export Word.", 'err'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
+  }
+}
+function boutonsExtraire(idPrefix) {
+  return `<div class="btnGroupe" style="display:inline-flex;gap:6px">
+    <button class="btn sm" type="button" id="${idPrefix}_word">Extraire (Word)</button>
+    <button class="btn sm" type="button" id="${idPrefix}_excel">Extraire (Excel)</button>
+    <button class="btn sm" type="button" id="${idPrefix}_pdf">Extraire (PDF)</button>
+  </div>`;
+}
+const COLS_MES_OUVERT = [
+  { lib: 'Numéro', val: o => o.numero }, { lib: 'Activité', val: o => o.intitule },
+  { lib: 'Division', val: o => nomDivision(o.division_id) }, { lib: 'Planifiée le', val: o => dateFr(o.date_planifiee) },
+  { lib: 'Échéance', val: o => dateFr(o.date_echeance) }, { lib: 'Statut', val: o => STATUTS[o.statut].libelle }
+];
+const COLS_MES_CLOS = [
+  { lib: 'Numéro', val: o => o.numero }, { lib: 'Activité', val: o => o.intitule },
+  { lib: 'Réalisée le', val: o => dateFr(o.date_fin) }, { lib: 'Résultat', val: o => o.resultat || o.motif_suspension || '' },
+  { lib: 'Délai', val: o => o.date_echeance ? (ecartOuvres(o.date_fin, o.date_echeance) >= 0 ? 'Dans les délais' : 'Hors délai') : '' }
+];
 function vueMes() {
+  const e = D.etat.mes || (D.etat.mes = { du: '', au: '' });
   const mien = D.activites.filter(o => o.responsable_id === D.moi.id_acteur);
-  const ouvert = mien.filter(estOuvert).sort((a, b) => joursRestants(a) - joursRestants(b));
-  const clos = mien.filter(estClos).sort((a, b) => (b.date_fin || '') < (a.date_fin || '') ? -1 : 1);
+  let ouvert = mien.filter(estOuvert);
+  let clos = mien.filter(estClos);
+  if (e.du) { ouvert = ouvert.filter(o => o.date_planifiee >= e.du); clos = clos.filter(o => (o.date_fin || '') >= e.du); }
+  if (e.au) { ouvert = ouvert.filter(o => o.date_planifiee <= e.au); clos = clos.filter(o => (o.date_fin || '') <= e.au); }
+  ouvert = ouvert.sort((a, b) => joursRestants(a) - joursRestants(b));
+  clos = clos.sort((a, b) => (b.date_fin || '') < (a.date_fin || '') ? -1 : 1);
   const s = Stats.synthese(mien);
   const seuil = D.parametres.wip_par_agent;
   const enCours = mien.filter(o => o.statut === 'EN_COURS' || o.statut === 'BLOQUE').length;
@@ -593,27 +665,47 @@ function vueMes() {
       <div class="kpi ok"><div class="lib">Terminées</div><div class="val">${s.termine}</div><div class="sub">depuis l'origine</div></div>
     </div>
     ${enCours > seuil ? `<div class="msgInfo">Charge élevée : vous avez ${enCours} activités démarrées en même temps, au-delà du seuil de ${seuil}. Terminez-en avant d'en démarrer d'autres — c'est ce qui raccourcit les délais.</div>` : ''}
-    <div class="carte"><h3>Ma file de travail</h3>
-      ${tableauActivites(ouvert, { sansDivision: true, vide: "Vous n'avez aucune activité en cours. Rien ne vous attend." })}
+    <div class="barre noPrint">
+      <div style="min-width:150px"><label for="m_du">Période du</label><input type="date" id="m_du" value="${ech(e.du)}"></div>
+      <div style="min-width:150px"><label for="m_au">au</label><input type="date" id="m_au" value="${ech(e.au)}"></div>
+      ${(e.du || e.au) ? '<button class="btn sm" id="btnMesReset" style="align-self:flex-end">Réinitialiser la période</button>' : ''}
+      <span class="gris" style="padding-bottom:9px">Le filtre de période s'applique aux deux listes ci-dessous (planification pour la file de travail, clôture pour les activités closes).</span>
     </div>
-    <div class="carte"><h3>Mes dernières activités clôturées</h3>
+    <div class="carte">
+      <div class="barre noPrint" style="margin-bottom:8px"><h3 style="margin:0">Ma file de travail</h3><span style="margin-left:auto"></span>${boutonsExtraire('mfo')}</div>
+      ${tableauActivites(ouvert, { sansDivision: true, vide: "Vous n'avez aucune activité en cours sur cette période." })}
+    </div>
+    <div class="carte">
+      <div class="barre noPrint" style="margin-bottom:8px"><h3 style="margin:0">Mes dernières activités clôturées</h3><span style="margin-left:auto"></span>${boutonsExtraire('mfc')}</div>
       ${clos.length ? `<div class="tw" style="max-height:none"><table><thead><tr><th>N°</th><th>Activité</th><th>Réalisée le</th><th>Résultat</th><th>Délai</th></tr></thead>
         <tbody>${clos.slice(0, 15).map(o => `<tr data-fiche="${ech(o.id)}" style="cursor:pointer">
           <td class="mono">${ech(numCourt(o.numero))}</td><td><b>${ech(tronque(o.intitule, 55))}</b></td>
           <td>${dateFr(o.date_fin)}</td><td>${ech(tronque(o.resultat || o.motif_suspension || '', 70))}</td>
           <td>${badgeEcheance(o)}</td></tr>`).join('')}</tbody></table></div>`
-        : '<div class="vide">Aucune activité clôturée pour l\'instant.</div>'}
+        : '<div class="vide">Aucune activité clôturée sur cette période.</div>'}
+      ${clos.length > 15 ? `<p class="gris" style="font-size:11px;margin-top:8px">Affichage limité aux 15 plus récentes. Utilisez l'extraction pour obtenir l'ensemble des ${clos.length} activités closes sur la période.</p>` : ''}
     </div>`;
+  $('#m_du').addEventListener('change', ev => { e.du = ev.target.value; vueMes(); });
+  $('#m_au').addEventListener('change', ev => { e.au = ev.target.value; vueMes(); });
+  const br = $('#btnMesReset'); if (br) br.addEventListener('click', () => { D.etat.mes = { du: '', au: '' }; vueMes(); });
+  $('#mfo_word').addEventListener('click', () => exporterMesListe(ouvert, 'Ma file de travail', COLS_MES_OUVERT, 'html'));
+  $('#mfo_excel').addEventListener('click', () => exporterMesListe(ouvert, 'Ma file de travail', COLS_MES_OUVERT, 'csv'));
+  $('#mfo_pdf').addEventListener('click', () => exporterMesListe(ouvert, 'Ma file de travail', COLS_MES_OUVERT, 'pdf'));
+  $('#mfc_word').addEventListener('click', () => exporterMesListe(clos, 'Mes activités clôturées', COLS_MES_CLOS, 'html'));
+  $('#mfc_excel').addEventListener('click', () => exporterMesListe(clos, 'Mes activités clôturées', COLS_MES_CLOS, 'csv'));
+  $('#mfc_pdf').addEventListener('click', () => exporterMesListe(clos, 'Mes activités clôturées', COLS_MES_CLOS, 'pdf'));
   $$('[data-fiche]').forEach(tr => tr.addEventListener('click', () => ouvrirFiche(tr.dataset.fiche)));
 }
 
 /* ================================================================= KANBAN */
 function vueKanban() {
-  const e = D.etat.kanban || (D.etat.kanban = { division: '', acteur: '', masquerClos: true });
+  const e = D.etat.kanban || (D.etat.kanban = { division: '', acteur: '', masquerClos: true, du: '', au: '' });
   let lot = D.activites.slice();
   if (e.division) lot = lot.filter(o => o.division_id === e.division);
   if (e.acteur) lot = lot.filter(o => o.responsable_id === e.acteur);
   if (e.masquerClos) lot = lot.filter(estOuvert);
+  if (e.du) lot = lot.filter(o => o.date_planifiee >= e.du);
+  if (e.au) lot = lot.filter(o => o.date_planifiee <= e.au);
 
   $('#zone').innerHTML = `
     <div class="tete"><div><h1>Suivi des activités</h1>
@@ -623,6 +715,8 @@ function vueKanban() {
         ${D.divisions.map(d => `<option value="${ech(d.id)}" ${e.division === d.id ? 'selected' : ''}>${ech(d.court)}</option>`).join('')}</select></div>
       <div style="min-width:190px"><label>Acteur</label><select id="f_ac"><option value="">Tous</option>
         ${D.agents.map(a => `<option value="${ech(a.id_acteur)}" ${e.acteur === a.id_acteur ? 'selected' : ''}>${ech(a.nom_prenoms)}</option>`).join('')}</select></div>
+      <div style="min-width:150px"><label for="f_du">Planifiée du</label><input type="date" id="f_du" value="${ech(e.du)}"></div>
+      <div style="min-width:150px"><label for="f_au">au</label><input type="date" id="f_au" value="${ech(e.au)}"></div>
       <label style="font-weight:400;color:var(--gris);display:flex;align-items:center;gap:6px;padding-bottom:9px">
         <input type="checkbox" id="f_mc" ${e.masquerClos ? 'checked' : ''}> Masquer les activités closes</label>
       <span class="gris" style="padding-bottom:9px">${lot.length} activité(s)</span>
@@ -637,6 +731,8 @@ function vueKanban() {
 
   $('#f_div').addEventListener('change', ev => { e.division = ev.target.value; vueKanban(); });
   $('#f_ac').addEventListener('change', ev => { e.acteur = ev.target.value; vueKanban(); });
+  $('#f_du').addEventListener('change', ev => { e.du = ev.target.value; vueKanban(); });
+  $('#f_au').addEventListener('change', ev => { e.au = ev.target.value; vueKanban(); });
   $('#f_mc').addEventListener('change', ev => { e.masquerClos = ev.target.checked; vueKanban(); });
   const bp = $('#btnPlanifier'); if (bp) bp.addEventListener('click', () => aller('planifier'));
   $$('[data-fiche]').forEach(el => el.addEventListener('click', () => ouvrirFiche(el.dataset.fiche)));
@@ -712,7 +808,8 @@ function vuePlanifier() {
           <label for="pl_intitule">Intitulé de l'activité</label>
           <input type="text" id="pl_intitule" maxlength="160" placeholder="Commencez par un verbe d'action">
           <label for="pl_delai_libre">Délai en jours ouvrés</label>
-          <input type="number" id="pl_delai_libre" value="3" min="1" max="120">
+          <input type="number" id="pl_delai_libre" value="3" min="0" max="120">
+          <div class="aide">Un délai de 0 jour signifie une échéance le jour même de la planification.</div>
         </div>
         <label for="pl_precision">Précision (facultatif)</label>
         <input type="text" id="pl_precision" maxlength="180" placeholder="Ce qui distingue cette occurrence des précédentes">
@@ -796,7 +893,7 @@ async function enregistrerPlanification() {
     intitule = ($('#pl_intitule').value || '').trim();
     if (intitule.length < 5) erreurs.push("Indiquez l'intitulé de l'activité (5 caractères minimum, en commençant par un verbe).");
     base = parseInt($('#pl_delai_libre').value, 10);
-    if (!base || base < 1) erreurs.push("Indiquez un délai d'au moins 1 jour ouvré.");
+    if (isNaN(base) || base < 0) erreurs.push("Indiquez un délai de 0 jour ouvré ou plus.");
   }
   if (!div) erreurs.push('Choisissez la division qui portera l\'activité.');
   if (!dp) erreurs.push("Indiquez la date à laquelle l'activité est planifiée.");
@@ -1007,6 +1104,85 @@ async function tracerSeance(seanceId, action, detail) {
   await sb.from('operations_seance_historique').insert({ seance_id: seanceId, auteur_id: D.moi.id_acteur, action, detail: detail || '' });
 }
 
+/* ======================================== REVUES D'ANIMATION — 6 TEMPS PAR ENTITÉ */
+/* Les 5 entités de pilotage de la D2MG, alignées sur operations_divisions.id.
+   La Direction regroupe la Direction proprement dite et le Secrétariat de
+   Direction (DIR + SEC), conformément au modèle d'affichage de la revue. */
+const ENTITES_REVUE = [
+  { id: 'DIRECTION', libelle: 'Direction', divisions: ['DIR', 'SEC'] },
+  { id: 'MAR', libelle: 'Marchés', divisions: ['MAR'] },
+  { id: 'APP', libelle: 'Approvisionnement', divisions: ['APP'] },
+  { id: 'LOG', libelle: 'Logistique', divisions: ['LOG'] },
+  { id: 'PAT', libelle: 'Patrimoine', divisions: ['PAT'] }
+];
+function entiteDeDivision(divisionId) { return ENTITES_REVUE.find(en => en.divisions.includes(divisionId)) || null; }
+function lotParEntite(lot) {
+  const m = {}; ENTITES_REVUE.forEach(en => m[en.id] = []);
+  lot.forEach(o => { const en = entiteDeDivision(o.division_id); if (en) m[en.id].push(o); });
+  return m;
+}
+const METEO = { A: { lib: 'Ensoleillé', ic: '☀' }, B: { lib: 'Soleil et nuage', ic: '⛅' }, C: { lib: 'Nuageux', ic: '☁' } };
+/* Champs de saisie du climat (temps 1 et 2) pour la modale d'enregistrement d'une revue. */
+function champsClimat(idPrefix, climat) {
+  const c = climat || {};
+  return `<label>1-2. Météo et présence, par entité</label>
+    <div class="tw" style="max-height:none"><table><thead><tr><th>Entité</th><th>Météo</th><th>Présence</th></tr></thead>
+      <tbody>${ENTITES_REVUE.map(en => {
+        const cc = c[en.id] || {};
+        return `<tr><td><b>${ech(en.libelle)}</b></td>
+          <td><select id="${idPrefix}_${en.id}_meteo">${Object.keys(METEO).map(k => `<option value="${k}" ${cc.meteo === k ? 'selected' : ''}>${METEO[k].ic} ${ech(METEO[k].lib)}</option>`).join('')}</select></td>
+          <td><select id="${idPrefix}_${en.id}_presence"><option value="VERT" ${cc.presence !== 'ROUGE' ? 'selected' : ''}>🟢 Présence complète</option><option value="ROUGE" ${cc.presence === 'ROUGE' ? 'selected' : ''}>🔴 Absence(s) notable(s)</option></select></td></tr>`;
+      }).join('')}</tbody></table></div>`;
+}
+function lireClimat(idPrefix) {
+  const c = {};
+  ENTITES_REVUE.forEach(en => {
+    const me = $('#' + idPrefix + '_' + en.id + '_meteo'), pr = $('#' + idPrefix + '_' + en.id + '_presence');
+    c[en.id] = { meteo: me ? me.value : 'A', presence: pr ? pr.value : 'VERT' };
+  });
+  return c;
+}
+/* Rendu en lecture d'une liste d'activités dans une cellule de grille par entité. */
+function celluleActivites(lot) {
+  if (!lot.length) return '<span class="gris" style="font-size:11px">—</span>';
+  const max = 6;
+  return `<ul style="margin:0;padding-left:16px;line-height:1.6;font-size:11.5px">${lot.slice(0, max).map(o => `<li data-fiche="${ech(o.id)}" style="cursor:pointer">${ech(tronque(o.intitule, 46))} ${badgeEcheance(o)}</li>`).join('')}
+    ${lot.length > max ? `<li class="gris">… et ${lot.length - max} autre(s)</li>` : ''}</ul>`;
+}
+/* Rendu en lecture des 6 temps de la revue (météo/présence, hier, aujourd'hui,
+   points d'attention, décisions), identique pour le point du jour, la revue
+   hebdomadaire et la revue mensuelle — seuls les libellés et les lots diffèrent. */
+function blocsRevue(o) {
+  const lotHierEnt = lotParEntite(o.lotHier);
+  const lotAjdEnt = lotParEntite(o.lotAjd);
+  return `
+    <div class="carte"><h3>1-2. Météo et présence, par entité</h3>
+      ${o.climat ? `<div class="tw" style="max-height:none"><table><thead><tr><th>Entité</th>${ENTITES_REVUE.map(en => `<th class="centre">${ech(en.libelle)}</th>`).join('')}</tr></thead>
+        <tbody>
+          <tr><td>Météo</td>${ENTITES_REVUE.map(en => { const cc = o.climat[en.id]; const m = cc ? METEO[cc.meteo] : null; return `<td class="centre">${m ? m.ic + ' ' + ech(m.lib) : '<span class="gris">—</span>'}</td>`; }).join('')}</tr>
+          <tr><td>Présence</td>${ENTITES_REVUE.map(en => { const cc = o.climat[en.id]; return `<td class="centre">${cc ? (cc.presence === 'ROUGE' ? '<span class="et rouge">Absence(s)</span>' : '<span class="et vert">Complète</span>') : '<span class="gris">—</span>'}</td>`; }).join('')}</tr>
+        </tbody></table></div>`
+        : '<p class="gris">Météo et présence non encore renseignées pour cette séance.</p>'}
+    </div>
+    <div class="carte"><h3>3. ${ech(o.titreHier)}</h3>${o.sousTitreHier ? `<p class="gris" style="font-size:11.5px;margin-top:-6px">${ech(o.sousTitreHier)}</p>` : ''}
+      <div class="tw" style="max-height:none"><table><thead><tr>${ENTITES_REVUE.map(en => `<th>${ech(en.libelle)}</th>`).join('')}</tr></thead>
+        <tbody><tr>${ENTITES_REVUE.map(en => `<td style="vertical-align:top">${celluleActivites(lotHierEnt[en.id] || [])}</td>`).join('')}</tr></tbody></table></div>
+    </div>
+    <div class="carte"><h3>4. ${ech(o.titreAjd)}</h3>${o.sousTitreAjd ? `<p class="gris" style="font-size:11.5px;margin-top:-6px">${ech(o.sousTitreAjd)}</p>` : ''}
+      <div class="tw" style="max-height:none"><table><thead><tr>${ENTITES_REVUE.map(en => `<th>${ech(en.libelle)}</th>`).join('')}</tr></thead>
+        <tbody><tr>${ENTITES_REVUE.map(en => `<td style="vertical-align:top">${celluleActivites(lotAjdEnt[en.id] || [])}</td>`).join('')}</tr></tbody></table></div>
+    </div>
+    <div class="deux">
+      <div class="carte"><h3>5. Points d'attention</h3>
+        ${o.attentions.length ? `<ul style="margin:0;padding-left:18px;line-height:1.7;font-size:12.5px">${o.attentions.map(p => `<li><span data-attention="${ech(p.id)}" style="cursor:pointer"><b>${ech(p.intitule)}</b></span> ${badgeStatutAtt(p.statut)}<br><span class="gris">${ech(nomDivision(p.division_id))} — ${ech(p.responsable_id ? nomAgent(p.responsable_id) : '—')}, échéance ${dateFr(p.echeance)}</span></li>`).join('')}</ul>`
+          : '<div class="vide">Aucun point d\'attention ouvert.</div>'}
+      </div>
+      <div class="carte"><h3>6. Décisions</h3>
+        ${o.decisions ? nl2br(o.decisions) : '<p class="gris">Aucune décision enregistrée pour cette séance.</p>'}
+      </div>
+    </div>`;
+}
+
 /* ============================================================= AUJOURD'HUI */
 function lotsAujourdhui(divisionId) {
   const base = visibles().filter(o => !divisionId || o.division_id === divisionId);
@@ -1018,33 +1194,13 @@ function lotsAujourdhui(divisionId) {
     retard: base.filter(o => estOuvert(o) && etatEcheance(o) === 'retard'),
     enCours: base.filter(o => o.statut === 'EN_COURS'),
     aFaire: base.filter(o => o.statut === 'A_FAIRE'),
-    nonAffecte: base.filter(o => estOuvert(o) && !o.responsable_id)
+    nonAffecte: base.filter(o => estOuvert(o) && !o.responsable_id),
+    ouvert: base.filter(estOuvert)
   };
 }
 function seanceDuJour() { return D.seances.find(s => s.type === 'STAND_UP' && s.date === auj()) || null; }
 function blocageAncien(o) { return o.date_blocage && ecartOuvres(o.date_blocage, auj()) >= (D.parametres.blocage_jours || 3); }
 
-function blocAujourdhui(titre, lot, couleur, vide) {
-  if (!lot.length) return `<div style="margin-bottom:10px"><div class="gris" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">${ech(titre)}</div><div class="gris" style="font-size:11.5px">${ech(vide)}</div></div>`;
-  return `<div style="margin-bottom:10px"><div class="gris" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">${ech(titre)} <span class="et ${couleur}">${lot.length}</span></div>
-    ${lot.slice(0, 4).map(o => `<div data-fiche="${ech(o.id)}" style="padding:3px 0;cursor:pointer;line-height:1.4;font-size:11.8px">&bull; ${ech(tronque(o.intitule, 62))}<span class="gris"> — ${ech(o.responsable_id ? nomAgent(o.responsable_id) : 'non affectée')}</span></div>`).join('')}
-    ${lot.length > 4 ? `<div class="gris" style="font-size:11px">… et ${lot.length - 4} autre(s)</div>` : ''}</div>`;
-}
-function carteDivisionAujourdhui(d) {
-  const l = lotsAujourdhui(d.id);
-  const totalOuvert = l.enCours.length + l.aFaire.length + l.bloque.length;
-  if (!totalOuvert && !l.termineHier.length) return '';
-  const alerte = l.bloque.length || l.retard.length;
-  return `<div class="carte" style="border-left:4px solid ${alerte ? 'var(--rouge)' : 'var(--vertok)'}">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <h3 style="margin:0">${ech(d.court)}</h3><span class="et gris">${totalOuvert} en cours</span>
-    </div>
-    ${blocAujourdhui('Terminé la veille', l.termineHier, 'vert', 'Rien de clôturé la veille.')}
-    ${blocAujourdhui('Bloqué — à débloquer', l.bloque, 'rouge', 'Aucun blocage.')}
-    ${blocAujourdhui("Échéance aujourd'hui", l.ceJour, 'orange', 'Aucune échéance ce jour.')}
-    ${blocAujourdhui('En retard', l.retard, 'rouge', 'Aucun retard.')}
-  </div>`;
-}
 function panneauMotifsBlocage() {
   const l = lotsAujourdhui();
   const anciens = l.bloque.filter(blocageAncien);
@@ -1059,9 +1215,10 @@ function panneauMotifsBlocage() {
 function vueAujourdhui() {
   const l = lotsAujourdhui();
   const s = seanceDuJour();
+  const attentions = attentionsVisibles().filter(p => p.statut !== 'RESOLU');
   $('#zone').innerHTML = `
     <div class="tete"><div><h1>${ech(dateLongue(auj()))}</h1>
-      <p>Point quotidien de la D2MG : activités échues, blocages non levés et compte rendu du point du jour par division.</p></div></div>
+      <p>Point quotidien de la D2MG, en 6 temps : météo et présence, résultats de la veille, activités du jour, points d'attention et décisions, par entité.</p></div></div>
     <div class="barre noPrint">
       ${!estOuvre(auj()) ? '<span class="et orange">Jour non ouvré</span>' : ''}
       ${s ? `<span class="et vert">Point du jour enregistré</span>${aDroit('ops.animer') ? '<button class="btn sm" id="btnAuj">Modifier le compte rendu</button>' : ''}`
@@ -1075,19 +1232,23 @@ function vueAujourdhui() {
       <div class="kpi"><div class="lib">En cours</div><div class="val">${l.enCours.length}</div><div class="sub">activités démarrées</div></div>
       <div class="kpi ${l.nonAffecte.length ? 'al' : ''}"><div class="lib">Non affectées</div><div class="val">${l.nonAffecte.length}</div><div class="sub">sans responsable</div></div>
     </div>
-    ${s && s.decisions ? `<div class="msgOk"><b>Décisions du point du jour :</b><br>${nl2br(s.decisions)}</div>` : ''}
     ${panneauMotifsBlocage()}
     ${l.nonAffecte.length ? `<div class="carte" style="border-left:4px solid var(--orange)"><h3>Activités sans responsable</h3>${tableauActivites(l.nonAffecte, {})}</div>` : ''}
-    <h3 style="margin:18px 0 10px">Tour de table par division</h3>
-    <div class="deux" style="grid-template-columns:repeat(3,1fr)">
-      ${D.divisions.map(carteDivisionAujourdhui).filter(Boolean).join('') || '<div class="carte"><p class="gris">Aucune activité en cours ni clôturée la veille.</p></div>'}
-    </div>`;
+    ${blocsRevue({
+      climat: s && s.instantane && s.instantane.climat,
+      titreHier: 'Hier — résultats obtenus', sousTitreHier: dateFr(veilleOuvree()), lotHier: l.termineHier,
+      titreAjd: "Aujourd'hui — activités à réaliser", sousTitreAjd: '', lotAjd: l.ouvert,
+      attentions, decisions: s && s.decisions
+    })}`;
   const b = $('#btnAuj'); if (b) b.addEventListener('click', ouvrirModaleAujourdhui);
   $$('[data-fiche]').forEach(el => el.addEventListener('click', () => ouvrirFiche(el.dataset.fiche)));
+  $$('[data-attention]').forEach(el => el.addEventListener('click', () => ouvrirAttention(el.dataset.attention)));
 }
 function ouvrirModaleAujourdhui() {
   const l = lotsAujourdhui();
-  const cd = D.agents.filter(a => a.role_operations === 'Directeur' || a.role_operations === 'Chef de division');
+  const s = seanceDuJour();
+  const cd = new Set(D.agents.filter(a => a.role_operations === 'Directeur' || a.role_operations === 'Chef de division').map(a => a.id_acteur));
+  const partsExistants = s ? new Set(s.participants || []) : null;
   ouvrirModale("Enregistrer le point du jour — " + dateLongue(auj()),
     `<div class="msgInfo">Le compte rendu reprend automatiquement la situation du jour. Il constitue la preuve que le rituel d'animation a bien été tenu.</div>
      <div class="kpis">
@@ -1097,9 +1258,11 @@ function ouvrirModaleAujourdhui() {
        <div class="kpi ${l.retard.length ? 'ko' : ''}"><div class="lib">En retard</div><div class="val">${l.retard.length}</div></div>
      </div>
      <label>Participants</label>
-     <div class="champs">${(cd.length ? cd : D.agents).map(a => `<label style="font-weight:400;display:flex;align-items:center;gap:6px"><input type="checkbox" class="sePart" value="${ech(a.id_acteur)}" checked> ${ech(a.nom_prenoms)}</label>`).join('')}</div>
+     <p class="gris" style="font-size:11px;margin-top:-4px">Les chefs de division sont cochés par défaut ; décochez-les et cochez leur remplaçant si besoin, ou élargissez la participation à d'autres agents.</p>
+     <div class="champs">${D.agents.map(a => `<label style="font-weight:400;display:flex;align-items:center;gap:6px"><input type="checkbox" class="sePart" value="${ech(a.id_acteur)}" ${(partsExistants ? partsExistants.has(a.id_acteur) : cd.has(a.id_acteur)) ? 'checked' : ''}> ${ech(a.nom_prenoms)}</label>`).join('')}</div>
+     ${champsClimat('se', s && s.instantane && s.instantane.climat)}
      <label for="seDec">Décisions et arbitrages du jour</label>
-     <textarea id="seDec" rows="3" placeholder="Exemple : le Directeur reçoit le prestataire d'entretien en fin de matinée."></textarea>`,
+     <textarea id="seDec" rows="3" placeholder="Exemple : le Directeur reçoit le prestataire d'entretien en fin de matinée.">${ech(s && s.decisions || '')}</textarea>`,
     [{ lib: 'Annuler', cl: '', act: fermerModale },
      { lib: 'Enregistrer le point du jour', cl: 'primaire', act: enregistrerAujourdhui }]);
 }
@@ -1108,11 +1271,12 @@ async function enregistrerAujourdhui() {
   const parts = $$('.sePart').filter(c => c.checked).map(c => c.value);
   if (!parts.length) { toast('Sélectionnez au moins un participant.', 'err'); return; }
   const dec = ($('#seDec').value || '').trim();
+  const climat = lireClimat('se');
   const existante = seanceDuJour();
-  const instantane = { termineVeille: l.termineHier.length, bloque: l.bloque.length, ceJour: l.ceJour.length, retard: l.retard.length, enCours: l.enCours.length, nonAffecte: l.nonAffecte.length };
+  const instantane = { termineVeille: l.termineHier.length, bloque: l.bloque.length, ceJour: l.ceJour.length, retard: l.retard.length, enCours: l.enCours.length, nonAffecte: l.nonAffecte.length, climat };
   const ok = await enregistrerSeance('STAND_UP', existante, {
     date: auj(), animateur_id: D.moi.id_acteur, participants: parts,
-    points_abordes: 'Revue des activités du jour par division, blocages signalés et arbitrages immédiats.',
+    points_abordes: 'Revue des activités du jour par entité : météo, présence, résultats de la veille, activités à réaliser.',
     decisions: dec, statut: 'TENUE', instantane
   }, existante ? 'Mise à jour du compte rendu' : 'Séance tenue', 'Point quotidien');
   if (ok) { toast('Point du jour enregistré.', 'ok'); fermerModale(); await chargerSeances(); aller('aujourdhui'); }
@@ -1163,14 +1327,14 @@ function vueRevue() {
   const lot = visibles().filter(o => dansPeriode(o.date_fin, b) || (estOuvert(o) && dansPeriode(o.date_planifiee, b)));
   const st = Stats.synthese(lot);
   const termine = lot.filter(o => o.statut === 'TERMINEE');
-  const ecarts = lot.filter(o => estOuvert(o) && (etatEcheance(o) === 'retard' || o.statut === 'BLOQUE'));
-  const reporte = lot.filter(o => estOuvert(o) && etatEcheance(o) !== 'retard' && o.statut !== 'BLOQUE');
+  const ouvert = lot.filter(estOuvert);
+  const attentions = attentionsVisibles().filter(p => p.statut !== 'RESOLU');
   const rec = activitesReconductibles(['QUOTIDIENNE', 'HEBDOMADAIRE']);
   const peutAnimer = aDroit('ops.animer');
   const peutPlanifier = aDroit('ops.planifier') || peutAnimer;
 
   $('#zone').innerHTML = `
-    <div class="tete"><div><h1>Revue hebdomadaire</h1><p>Résultats de la semaine écoulée et planification de la semaine à venir.</p></div></div>
+    <div class="tete"><div><h1>Revue hebdomadaire</h1><p>Revue en 6 temps, par entité : météo et présence, résultats de la semaine écoulée, activités de la semaine à venir, points d'attention et décisions.</p></div></div>
     <div class="barre noPrint">
       <div style="min-width:220px"><label>Semaine</label><select id="f_semaine">
         ${[0, -1, -2, -3, -4].map(d => { const bb = semaineDe(d); const lib = d === 0 ? 'Semaine en cours' : (d === -1 ? 'Semaine écoulée' : bb.libelle);
@@ -1181,7 +1345,7 @@ function vueRevue() {
       ${s ? `<span class="et vert" style="align-self:center">Revue enregistrée</span>${peutAnimer ? '<button class="btn sm" id="btnRevue">Modifier le compte rendu</button>' : ''}`
           : (peutAnimer ? '<button class="btn primaire" id="btnRevue">Enregistrer la revue</button>' : '<span class="gris" style="align-self:center">Revue non encore enregistrée</span>')}
     </div>
-    <div class="carte"><h3>1. Résultats de la semaine</h3>
+    <div class="carte"><h3>Aperçu de la semaine</h3>
       <div class="kpis">
         <div class="kpi"><div class="lib">Activités de la semaine</div><div class="val">${st.total}</div></div>
         <div class="kpi ok"><div class="lib">Terminées</div><div class="val">${st.termine}</div></div>
@@ -1190,24 +1354,15 @@ function vueRevue() {
         <div class="kpi ${st.tauxRespect === null ? '' : (st.tauxRespect >= D.parametres.cible_respect_delai ? 'ok' : 'al')}"><div class="lib">Respect du délai</div><div class="val">${pct(st.tauxRespect)}</div></div>
       </div>
       <p><b>Appréciation :</b> ${ech(Stats.appreciation(st.tauxRespect, D.parametres.cible_respect_delai))}</p>
-      ${s && s.decisions ? `<div class="msgOk"><b>Décisions arrêtées en revue :</b><br>${nl2br(s.decisions)}</div>` : ''}
     </div>
-    <div class="carte"><h3>2. Ce qui a été réalisé, par division</h3>
-      ${termine.length ? D.divisions.map(d => {
-        const sous = termine.filter(o => o.division_id === d.id);
-        if (!sous.length) return '';
-        return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><h4 style="color:var(--accent-fonce);margin-bottom:4px">${ech(d.court)} <span class="et vert">${sous.length}</span></h4>
-          <ul style="margin:4px 0 0;padding-left:18px;line-height:1.7;font-size:12.5px">${sous.map(o => `<li><span data-fiche="${ech(o.id)}" style="cursor:pointer"><b>${ech(o.intitule)}</b></span>${o.precision ? ` <span class="gris">(${ech(o.precision)})</span>` : ''}<br><span class="gris">→ ${ech(o.resultat)}</span> ${badgeEcheance(o)}</li>`).join('')}</ul></div>`;
-      }).join('') : '<div class="vide">Aucune activité clôturée sur la semaine.</div>'}
-    </div>
-    <div class="carte"><h3>3. Écarts à traiter</h3>
-      ${tableauActivites(ecarts, { vide: "Aucun écart sur la semaine : toutes les activités sont dans le délai et aucune n'est bloquée." })}
-    </div>
-    <div class="carte"><h3>4. Planification de la semaine à venir</h3>
-      <h4>Activités reportées</h4>
-      ${reporte.length ? tableauActivites(reporte, {}) : '<p class="gris">Aucune activité reportée de la semaine écoulée.</p>'}
-      <h4 style="margin-top:14px">Travail standard à reconduire</h4>
-      <p class="gris" style="font-size:11.5px">Activités quotidiennes et hebdomadaires du catalogue sans occurrence ouverte.</p>
+    ${blocsRevue({
+      climat: s && s.instantane && s.instantane.climat,
+      titreHier: 'Résultats de la semaine écoulée', sousTitreHier: '', lotHier: termine,
+      titreAjd: 'Activités en cours et à venir', sousTitreAjd: '', lotAjd: ouvert,
+      attentions, decisions: s && s.decisions
+    })}
+    <div class="carte"><h3>Travail standard à reconduire</h3>
+      <p class="gris" style="font-size:11.5px">Activités quotidiennes et hebdomadaires du catalogue sans occurrence ouverte, à planifier pour la semaine à venir.</p>
       ${rec.length ? `<div class="tw" style="max-height:none"><table><thead><tr><th>Code</th><th>Activité</th><th>Division</th><th>Rythme</th><th>Délai</th>${peutPlanifier ? '<th class="noPrint"></th>' : ''}</tr></thead>
         <tbody>${rec.slice(0, 20).map(f => `<tr><td class="mono">${ech(f.id)}</td><td>${ech(f.intitule)}</td><td>${ech(nomDivision(f.division_id))}</td>
           <td>${ech(FREQUENCES[f.frequence] ? FREQUENCES[f.frequence].libelle : f.frequence)}</td><td>${f.delai} j</td>
@@ -1219,6 +1374,7 @@ function vueRevue() {
   $('#f_semaine').addEventListener('change', ev => { e.decalage = parseInt(ev.target.value, 10); vueRevue(); });
   const b2 = $('#btnRevue'); if (b2) b2.addEventListener('click', () => ouvrirModaleRevue(e.decalage));
   $$('[data-fiche]').forEach(el => el.addEventListener('click', () => ouvrirFiche(el.dataset.fiche)));
+  $$('[data-attention]').forEach(el => el.addEventListener('click', () => ouvrirAttention(el.dataset.attention)));
   $$('[data-reconduireHebdo]').forEach(bt => bt.addEventListener('click', () => {
     const lunProchain = lundiDe(ajoutJours(auj(), 7));
     reconduireFiche(bt.dataset.reconduireHebdo, lunProchain, 'Reconduite en revue hebdomadaire pour la semaine du ' + dateFr(lunProchain));
@@ -1226,9 +1382,11 @@ function vueRevue() {
 }
 function ouvrirModaleRevue(decalage) {
   const b = semaineDe(decalage);
+  const s = seanceRevueHebdo(b);
   const lot = visibles().filter(o => dansPeriode(o.date_fin, b) || (estOuvert(o) && dansPeriode(o.date_planifiee, b)));
   const st = Stats.synthese(lot);
-  const cd = D.agents.filter(a => a.role_operations === 'Directeur' || a.role_operations === 'Chef de division');
+  const cd = new Set(D.agents.filter(a => a.role_operations === 'Directeur' || a.role_operations === 'Chef de division').map(a => a.id_acteur));
+  const partsExistants = s ? new Set(s.participants || []) : null;
   ouvrirModale('Enregistrer la revue hebdomadaire — ' + b.libelle,
     `<div class="msgInfo">Le compte rendu reprend automatiquement les résultats de la semaine. Il vaut preuve d'animation du processus pour le SMQ.</div>
      <div class="kpis">
@@ -1239,9 +1397,11 @@ function ouvrirModaleRevue(decalage) {
      </div>
      <p class="gris">${ech(Stats.appreciation(st.tauxRespect, D.parametres.cible_respect_delai))}</p>
      <label>Participants</label>
-     <div class="champs">${(cd.length ? cd : D.agents).map(a => `<label style="font-weight:400;display:flex;align-items:center;gap:6px"><input type="checkbox" class="rvPart" value="${ech(a.id_acteur)}" checked> ${ech(a.nom_prenoms)}</label>`).join('')}</div>
+     <p class="gris" style="font-size:11px;margin-top:-4px">Les chefs de division sont cochés par défaut ; décochez-les et cochez leur remplaçant si besoin, ou élargissez la participation à d'autres agents.</p>
+     <div class="champs">${D.agents.map(a => `<label style="font-weight:400;display:flex;align-items:center;gap:6px"><input type="checkbox" class="rvPart" value="${ech(a.id_acteur)}" ${(partsExistants ? partsExistants.has(a.id_acteur) : cd.has(a.id_acteur)) ? 'checked' : ''}> ${ech(a.nom_prenoms)}</label>`).join('')}</div>
+     ${champsClimat('rv', s && s.instantane && s.instantane.climat)}
      <label for="rvDec">Décisions et planification de la semaine à venir</label>
-     <textarea id="rvDec" rows="4"></textarea>`,
+     <textarea id="rvDec" rows="4">${ech(s && s.decisions || '')}</textarea>`,
     [{ lib: 'Annuler', cl: '', act: fermerModale },
      { lib: 'Enregistrer la revue', cl: 'primaire', act: () => enregistrerRevue(decalage) }]);
 }
@@ -1251,6 +1411,7 @@ async function enregistrerRevue(decalage) {
   if (!parts.length) { toast('Sélectionnez au moins un participant.', 'err'); return; }
   const dec = ($('#rvDec').value || '').trim();
   if (dec.length < 5) { toast('Indiquez au moins une décision ou orientation pour la semaine à venir.', 'err'); return; }
+  const climat = lireClimat('rv');
   const lot = visibles().filter(o => dansPeriode(o.date_fin, b) || (estOuvert(o) && dansPeriode(o.date_planifiee, b)));
   const st = Stats.synthese(lot);
   const existante = seanceRevueHebdo(b);
@@ -1258,9 +1419,9 @@ async function enregistrerRevue(decalage) {
   if (dateSeance > auj()) dateSeance = auj();
   const ok = await enregistrerSeance('REVUE_HEBDO', existante, {
     date: dateSeance, animateur_id: D.moi.id_acteur, participants: parts,
-    points_abordes: 'Résultats de la semaine écoulée par division, écarts constatés, planification de la semaine suivante.',
+    points_abordes: 'Résultats de la semaine écoulée par entité, écarts constatés, planification de la semaine suivante.',
     decisions: dec, statut: 'TENUE',
-    instantane: { termine: st.termine, retard: st.retard, bloque: st.bloque, tauxRespect: st.tauxRespect, tauxRealisation: st.tauxRealisation }
+    instantane: { termine: st.termine, retard: st.retard, bloque: st.bloque, tauxRespect: st.tauxRespect, tauxRealisation: st.tauxRealisation, climat }
   }, existante ? 'Mise à jour du compte rendu' : 'Séance tenue', 'Revue hebdomadaire — ' + b.libelle);
   if (ok) { toast('Revue hebdomadaire enregistrée.', 'ok'); fermerModale(); await chargerSeances(); aller('revue'); }
 }
@@ -1279,13 +1440,14 @@ function vueRevueMois() {
   const lot = visibles().filter(o => dansPeriode(o.date_fin, b) || (estOuvert(o) && dansPeriode(o.date_planifiee, b)));
   const st = Stats.synthese(lot);
   const termine = lot.filter(o => o.statut === 'TERMINEE');
+  const ouvert = lot.filter(estOuvert);
   const attOuvertes = attentionsVisibles().filter(p => p.statut !== 'RESOLU');
   const rec = activitesReconductibles(['MENSUELLE']);
   const peutAnimer = aDroit('ops.animer');
   const peutPlanifier = aDroit('ops.planifier') || peutAnimer;
 
   $('#zone').innerHTML = `
-    <div class="tete"><div><h1>Revue mensuelle</h1><p>Consolidation mensuelle pour la Direction et les chefs de division.</p></div></div>
+    <div class="tete"><div><h1>Revue mensuelle</h1><p>Revue en 6 temps, par entité, pour la Direction et les chefs de division : météo et présence, résultats du mois écoulé, travail du mois à venir, points d'attention et décisions.</p></div></div>
     <div class="barre noPrint">
       <div style="min-width:220px"><label>Mois</label><select id="f_mois">
         ${[0, -1, -2, -3, -4, -5].map(d => { const bb = moisDe(d); const lib = d === 0 ? 'Mois en cours' : (d === -1 ? 'Mois écoulé' : bb.libelle);
@@ -1305,45 +1467,19 @@ function vueRevueMois() {
         <div class="kpi ${attOuvertes.length ? 'al' : 'ok'}"><div class="lib">Points d'attention ouverts</div><div class="val">${attOuvertes.length}</div></div>
       </div>
       <p><b>Appréciation :</b> ${ech(Stats.appreciation(st.tauxRespect, D.parametres.cible_respect_delai))}</p>
-      ${s && s.decisions ? `<div class="msgOk"><b>Décisions arrêtées en revue :</b><br>${nl2br(s.decisions)}</div>` : ''}
     </div>
-    <div class="carte"><h3>1. Ce qui a été réalisé</h3>
-      ${termine.length ? D.divisions.map(d => {
-        const sous = termine.filter(o => o.division_id === d.id);
-        if (!sous.length) return '';
-        return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><h4 style="color:var(--accent-fonce);margin-bottom:4px">${ech(d.court)} <span class="et vert">${sous.length}</span></h4>
-          <ul style="margin:4px 0 0;padding-left:18px;line-height:1.7;font-size:12.5px">${sous.map(o => `<li><span data-fiche="${ech(o.id)}" style="cursor:pointer"><b>${ech(o.intitule)}</b></span>${o.precision ? ` <span class="gris">(${ech(o.precision)})</span>` : ''}<br><span class="gris">→ ${ech(o.resultat)}</span> ${badgeEcheance(o)}</li>`).join('')}</ul></div>`;
-      }).join('') : '<div class="vide">Aucune activité clôturée sur le mois.</div>'}
-    </div>
-    <div class="carte"><h3>2. Ce qui doit être fait</h3>
-      ${(() => {
-        let une = false;
-        const h = D.divisions.map(d => {
-          const ouvertesDiv = lot.filter(o => o.division_id === d.id && estOuvert(o));
-          const recDiv = rec.filter(f => f.division_id === d.id);
-          if (!ouvertesDiv.length && !recDiv.length) return '';
-          une = true;
-          return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><h4 style="color:var(--accent-fonce)">${ech(d.court)}</h4>
-            ${ouvertesDiv.length ? `<p class="gris" style="font-size:11px;margin:4px 0">À poursuivre ou à clôturer</p>
-              <ul style="margin:0 0 8px;padding-left:18px;line-height:1.7;font-size:12.5px">${ouvertesDiv.slice(0, 10).map(o => `<li><span data-fiche="${ech(o.id)}" style="cursor:pointer"><b>${ech(o.intitule)}</b></span> ${badgeStatut(o.statut)} ${badgeEcheance(o)}</li>`).join('')}
-              ${ouvertesDiv.length > 10 ? `<li class="gris">… et ${ouvertesDiv.length - 10} autre(s).</li>` : ''}</ul>` : ''}
-            ${recDiv.length ? `<p class="gris" style="font-size:11px;margin:4px 0">Travail standard mensuel à reconduire</p>
-              <ul style="margin:0;padding-left:18px;line-height:1.7;font-size:12.5px">${recDiv.map(f => `<li>${ech(f.intitule)}${peutPlanifier ? ` <button class="btn sm noPrint" style="margin-left:6px" data-reconduireMois="${ech(f.id)}">Planifier</button>` : ''}</li>`).join('')}</ul>` : ''}
-          </div>`;
-        }).join('');
-        return une ? h : '<div class="vide">Aucune activité ouverte ni travail standard mensuel à reconduire.</div>';
-      })()}
-    </div>
-    <div class="carte"><h3>3. Points d'attention</h3>
-      ${attOuvertes.length ? D.divisions.map(d => {
-        const sous = attOuvertes.filter(p => p.division_id === d.id);
-        if (!sous.length) return '';
-        return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><h4 style="color:var(--accent-fonce);margin-bottom:4px">${ech(d.court)} <span class="et orange">${sous.length}</span></h4>
-          <ul style="margin:4px 0 0;padding-left:18px;line-height:1.7;font-size:12.5px">${sous.map(p => {
-            const enRetard = p.echeance && ecartOuvres(auj(), p.echeance) < 0;
-            return `<li><span data-attention="${ech(p.id)}" style="cursor:pointer"><b>${ech(p.intitule)}</b></span> ${badgeStatutAtt(p.statut)}${enRetard ? ' <span class="et rouge">dépassée</span>' : ''}<br><span class="gris">${ech(tronque(p.action_a_mener, 100))}</span> — <span class="gris">${ech(nomAgent(p.responsable_id))}, échéance ${dateFr(p.echeance)}</span></li>`;
-          }).join('')}</ul></div>`;
-      }).join('') : '<div class="vide">Aucun point d\'attention ouvert.</div>'}
+    ${blocsRevue({
+      climat: s && s.instantane && s.instantane.climat,
+      titreHier: 'Résultats du mois écoulé', sousTitreHier: '', lotHier: termine,
+      titreAjd: 'Travail du mois à venir', sousTitreAjd: '', lotAjd: ouvert,
+      attentions: attOuvertes, decisions: s && s.decisions
+    })}
+    <div class="carte"><h3>Travail standard mensuel à reconduire</h3>
+      <p class="gris" style="font-size:11.5px">Activités mensuelles du catalogue sans occurrence ouverte, à planifier pour le mois à venir.</p>
+      ${rec.length ? `<div class="tw" style="max-height:none"><table><thead><tr><th>Code</th><th>Activité</th><th>Division</th><th>Délai</th>${peutPlanifier ? '<th class="noPrint"></th>' : ''}</tr></thead>
+        <tbody>${rec.map(f => `<tr><td class="mono">${ech(f.id)}</td><td>${ech(f.intitule)}</td><td>${ech(nomDivision(f.division_id))}</td><td>${f.delai} j</td>
+          ${peutPlanifier ? `<td class="noPrint"><button class="btn sm" data-reconduireMois="${ech(f.id)}">Planifier</button></td>` : ''}</tr>`).join('')}</tbody></table></div>`
+        : '<p class="gris">Tout le travail standard mensuel est déjà planifié.</p>'}
     </div>`;
 
   $('#f_mois').addEventListener('change', ev => { e.decalage = parseInt(ev.target.value, 10); vueRevueMois(); });
@@ -1358,12 +1494,14 @@ function vueRevueMois() {
 }
 function ouvrirModaleRevueMois(decalage) {
   const b = moisDe(decalage);
+  const s = seanceRevueMois(b);
   const lot = visibles().filter(o => dansPeriode(o.date_fin, b) || (estOuvert(o) && dansPeriode(o.date_planifiee, b)));
   const st = Stats.synthese(lot);
   const att = attentionsVisibles().filter(p => p.statut !== 'RESOLU');
-  const cd = D.agents.filter(a => a.role_operations === 'Directeur' || a.role_operations === 'Chef de division');
+  const cd = new Set(D.agents.filter(a => a.role_operations === 'Directeur' || a.role_operations === 'Chef de division').map(a => a.id_acteur));
+  const partsExistants = s ? new Set(s.participants || []) : null;
   ouvrirModale('Enregistrer la revue mensuelle — ' + b.libelle,
-    `<div class="msgInfo">Le compte rendu reprend automatiquement les résultats du mois, division par division. Il vaut preuve d'animation du processus pour le SMQ.</div>
+    `<div class="msgInfo">Le compte rendu reprend automatiquement les résultats du mois, par entité. Il vaut preuve d'animation du processus pour le SMQ.</div>
      <div class="kpis">
        <div class="kpi ok"><div class="lib">Terminées</div><div class="val">${st.termine}</div></div>
        <div class="kpi ${st.retard ? 'ko' : ''}"><div class="lib">En retard</div><div class="val">${st.retard}</div></div>
@@ -1372,9 +1510,11 @@ function ouvrirModaleRevueMois(decalage) {
      </div>
      <p class="gris">${ech(Stats.appreciation(st.tauxRespect, D.parametres.cible_respect_delai))}</p>
      <label>Participants</label>
-     <div class="champs">${(cd.length ? cd : D.agents).map(a => `<label style="font-weight:400;display:flex;align-items:center;gap:6px"><input type="checkbox" class="rmPart" value="${ech(a.id_acteur)}" checked> ${ech(a.nom_prenoms)}</label>`).join('')}</div>
+     <p class="gris" style="font-size:11px;margin-top:-4px">Les chefs de division sont cochés par défaut ; décochez-les et cochez leur remplaçant si besoin, ou élargissez la participation à d'autres agents.</p>
+     <div class="champs">${D.agents.map(a => `<label style="font-weight:400;display:flex;align-items:center;gap:6px"><input type="checkbox" class="rmPart" value="${ech(a.id_acteur)}" ${(partsExistants ? partsExistants.has(a.id_acteur) : cd.has(a.id_acteur)) ? 'checked' : ''}> ${ech(a.nom_prenoms)}</label>`).join('')}</div>
+     ${champsClimat('rm', s && s.instantane && s.instantane.climat)}
      <label for="rmDec">Décisions et priorités du mois à venir</label>
-     <textarea id="rmDec" rows="4"></textarea>`,
+     <textarea id="rmDec" rows="4">${ech(s && s.decisions || '')}</textarea>`,
     [{ lib: 'Annuler', cl: '', act: fermerModale },
      { lib: 'Enregistrer la revue', cl: 'primaire', act: () => enregistrerRevueMois(decalage) }]);
 }
@@ -1384,6 +1524,7 @@ async function enregistrerRevueMois(decalage) {
   if (!parts.length) { toast('Sélectionnez au moins un participant.', 'err'); return; }
   const dec = ($('#rmDec').value || '').trim();
   if (dec.length < 5) { toast('Indiquez au moins une décision ou priorité pour le mois à venir.', 'err'); return; }
+  const climat = lireClimat('rm');
   const lot = visibles().filter(o => dansPeriode(o.date_fin, b) || (estOuvert(o) && dansPeriode(o.date_planifiee, b)));
   const st = Stats.synthese(lot);
   const att = attentionsVisibles().filter(p => p.statut !== 'RESOLU');
@@ -1392,9 +1533,9 @@ async function enregistrerRevueMois(decalage) {
   if (dateSeance > auj()) dateSeance = auj();
   const ok = await enregistrerSeance('REVUE_MOIS', existante, {
     date: dateSeance, animateur_id: D.moi.id_acteur, participants: parts,
-    points_abordes: "Résultats du mois par division, travail à conduire le mois suivant, points d'attention ouverts.",
+    points_abordes: "Résultats du mois par entité, travail à conduire le mois suivant, points d'attention ouverts.",
     decisions: dec, statut: 'TENUE',
-    instantane: { termine: st.termine, retard: st.retard, bloque: st.bloque, tauxRespect: st.tauxRespect, tauxRealisation: st.tauxRealisation, pointsAttention: att.length }
+    instantane: { termine: st.termine, retard: st.retard, bloque: st.bloque, tauxRespect: st.tauxRespect, tauxRealisation: st.tauxRealisation, pointsAttention: att.length, climat }
   }, existante ? 'Mise à jour du compte rendu' : 'Séance tenue', 'Revue mensuelle — ' + b.libelle);
   if (ok) { toast('Revue mensuelle enregistrée.', 'ok'); fermerModale(); await chargerSeances(); aller('revueMois'); }
 }
@@ -1837,7 +1978,7 @@ function pCatalogue() {
         <tbody>${sous.map(f => `<tr ${f.actif ? '' : 'style="opacity:.55"'}>
           <td class="mono">${ech(f.id)}</td><td>${ech(f.intitule)}</td>
           <td><select class="f_freq" data-id="${ech(f.id)}" style="padding:4px;font-size:12px">${Object.keys(FREQUENCES).sort((a, b) => FREQUENCES[a].ordre - FREQUENCES[b].ordre).map(k => `<option value="${k}" ${f.frequence === k ? 'selected' : ''}>${ech(FREQUENCES[k].libelle)}</option>`).join('')}</select></td>
-          <td class="centre"><input type="number" class="f_delai" data-id="${ech(f.id)}" value="${f.delai}" min="1" max="250" style="width:70px;text-align:center"></td>
+          <td class="centre"><input type="number" class="f_delai" data-id="${ech(f.id)}" value="${f.delai}" min="0" max="250" style="width:70px;text-align:center"></td>
           <td class="centre"><input type="checkbox" class="f_actif" data-id="${ech(f.id)}" ${f.actif ? 'checked' : ''}></td>
           <td class="noPrint"><button class="btn sm" data-modif="${ech(f.id)}">Modifier</button> <button class="btn sm danger" data-suppr="${ech(f.id)}">✕</button></td></tr>`).join('')}</tbody></table></div></div>`;
     }).join('')}`;
@@ -1845,7 +1986,7 @@ function pCatalogue() {
   $$('.f_freq').forEach(sel => sel.addEventListener('change', async () => { await sb.from('operations_catalogue').update({ frequence: sel.value }).eq('id', sel.dataset.id); await chargerReferentiels(); toast('Rythme mis à jour.', 'ok'); }));
   $$('.f_delai').forEach(i => i.addEventListener('change', async () => {
     const v = parseInt(i.value, 10);
-    if (!v || v < 1 || v > 250) { toast('Le délai doit être compris entre 1 et 250 jours ouvrés.', 'err'); pCatalogue(); return; }
+    if (isNaN(v) || v < 0 || v > 250) { toast('Le délai doit être compris entre 0 et 250 jours ouvrés.', 'err'); pCatalogue(); return; }
     await sb.from('operations_catalogue').update({ delai: v }).eq('id', i.dataset.id); await chargerReferentiels(); toast('Délai mis à jour.', 'ok');
   }));
   $$('.f_actif').forEach(c => c.addEventListener('change', async () => { await sb.from('operations_catalogue').update({ actif: c.checked }).eq('id', c.dataset.id); await chargerReferentiels(); }));
@@ -1867,7 +2008,7 @@ function ouvrirModaleAjoutFiche() {
      <label for="fInt">Intitulé de l'activité</label><input type="text" id="fInt" maxlength="160">
      <div class="champs">
        <div><label for="fFreq">Rythme</label><select id="fFreq">${Object.keys(FREQUENCES).sort((a, b) => FREQUENCES[a].ordre - FREQUENCES[b].ordre).map(k => `<option value="${k}" ${k === 'A_LA_DEMANDE' ? 'selected' : ''}>${ech(FREQUENCES[k].libelle)}</option>`).join('')}</select></div>
-       <div><label for="fDelai">Délai (jours ouvrés)</label><input type="number" id="fDelai" value="5" min="1" max="250"></div>
+       <div><label for="fDelai">Délai (jours ouvrés)</label><input type="number" id="fDelai" value="5" min="0" max="250"></div>
      </div>
      <label>Rôles autorisés à la traiter (aucun coché = tous)</label>${casesRoles('fRol', [])}
      <div id="errFiche"></div>`,
@@ -1875,7 +2016,7 @@ function ouvrirModaleAjoutFiche() {
      { lib: 'Ajouter', cl: 'primaire', act: async () => {
         const div = $('#fDiv').value, intitule = ($('#fInt').value || '').trim(), delai = parseInt($('#fDelai').value, 10);
         if (intitule.length < 5) { $('#errFiche').innerHTML = "<div class=\"msgErreur\">Précisez l'intitulé de l'activité (5 caractères au moins).</div>"; return; }
-        if (!delai || delai < 1 || delai > 250) { $('#errFiche').innerHTML = '<div class="msgErreur">Le délai doit être compris entre 1 et 250 jours ouvrés.</div>'; return; }
+        if (isNaN(delai) || delai < 0 || delai > 250) { $('#errFiche').innerHTML = '<div class="msgErreur">Le délai doit être compris entre 0 et 250 jours ouvrés.</div>'; return; }
         const code = prochainCodeFiche(div);
         const { error } = await sb.from('operations_catalogue').insert({ id: code, division_id: div, intitule, frequence: $('#fFreq').value, delai, roles: rolesCoches('fRol'), actif: true });
         if (error) { toast('Erreur : ' + error.message, 'err'); return; }
@@ -1889,7 +2030,7 @@ function ouvrirModaleModifierFiche(id) {
      <label for="fInt2">Intitulé de l'activité</label><input type="text" id="fInt2" maxlength="160" value="${ech(f.intitule)}">
      <div class="champs">
        <div><label for="fFreq2">Rythme</label><select id="fFreq2">${Object.keys(FREQUENCES).sort((a, b) => FREQUENCES[a].ordre - FREQUENCES[b].ordre).map(k => `<option value="${k}" ${f.frequence === k ? 'selected' : ''}>${ech(FREQUENCES[k].libelle)}</option>`).join('')}</select></div>
-       <div><label for="fDelai2">Délai (jours ouvrés)</label><input type="number" id="fDelai2" value="${f.delai}" min="1" max="250"></div>
+       <div><label for="fDelai2">Délai (jours ouvrés)</label><input type="number" id="fDelai2" value="${f.delai}" min="0" max="250"></div>
      </div>
      <label>Rôles autorisés à la traiter (aucun coché = tous)</label>${casesRoles('fRol2', f.roles || [])}
      <div id="errFiche2"></div>`,
@@ -1897,7 +2038,7 @@ function ouvrirModaleModifierFiche(id) {
      { lib: 'Enregistrer', cl: 'primaire', act: async () => {
         const intitule = ($('#fInt2').value || '').trim(), delai = parseInt($('#fDelai2').value, 10);
         if (intitule.length < 5) { $('#errFiche2').innerHTML = "<div class=\"msgErreur\">Précisez l'intitulé de l'activité (5 caractères au moins).</div>"; return; }
-        if (!delai || delai < 1 || delai > 250) { $('#errFiche2').innerHTML = '<div class="msgErreur">Le délai doit être compris entre 1 et 250 jours ouvrés.</div>'; return; }
+        if (isNaN(delai) || delai < 0 || delai > 250) { $('#errFiche2').innerHTML = '<div class="msgErreur">Le délai doit être compris entre 0 et 250 jours ouvrés.</div>'; return; }
         const { error } = await sb.from('operations_catalogue').update({ intitule, frequence: $('#fFreq2').value, delai, roles: rolesCoches('fRol2') }).eq('id', f.id);
         if (error) { toast('Erreur : ' + error.message, 'err'); return; }
         await chargerReferentiels(); fermerModale(); toast(f.id + ' — activité modifiée.', 'ok'); pCatalogue();
@@ -1922,8 +2063,8 @@ function pSeuilsOps() {
     <div class="carte"><h3>Facteurs de priorité</h3>
       <div class="tw" style="max-height:none"><table><thead><tr><th>Priorité</th><th class="centre">Facteur appliqué au délai</th><th>Effet</th></tr></thead>
       <tbody>${Object.keys(PRIORITES).sort((a, b) => PRIORITES[a].ordre - PRIORITES[b].ordre).map(k => { const pr = PRIORITES[k];
-        return `<tr><td><b>${ech(pr.libelle)}</b></td><td class="centre">× ${pr.facteur}</td><td>${pr.facteur < 1 ? 'Délai réduit de moitié, avec un plancher de 1 jour ouvré.' : (pr.facteur > 1 ? 'Délai majoré de moitié.' : 'Délai du catalogue appliqué tel quel.')}</td></tr>`; }).join('')}</tbody></table></div>
-      <p class="aide">Ces facteurs sont fixes dans cette version du module.</p>
+        return `<tr><td><b>${ech(pr.libelle)}</b></td><td class="centre">× ${pr.facteur}</td><td>${pr.facteur < 1 ? 'Délai réduit de moitié.' : (pr.facteur > 1 ? 'Délai majoré de moitié.' : 'Délai du catalogue appliqué tel quel.')}</td></tr>`; }).join('')}</tbody></table></div>
+      <p class="aide">Ces facteurs sont fixes dans cette version du module. Un délai de base de 0 jour (échéance le jour même) reste à 0 quelle que soit la priorité.</p>
     </div>`;
   const btn = $('#btnSeuils');
   if (btn) btn.addEventListener('click', async () => {
