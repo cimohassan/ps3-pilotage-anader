@@ -31,6 +31,9 @@ function toast(msg, type) {
 function iso(d) { return d.toISOString().slice(0, 10); }
 function auj() { return iso(new Date()); }
 function fdate(d) { if (!d) return '—'; try { return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR'); } catch (e) { return d; } }
+/* Date compacte (12/10/26) pour les tableaux denses du rapport, ou une date
+   complete serait coupee en deux lignes par le moteur de rendu du document. */
+function fdateCourt(d) { if (!d) return '—'; try { return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }); } catch (e) { return d; } }
 function fnum(n) { return (n === null || n === undefined || n === '') ? '—' : Number(n).toLocaleString('fr-FR'); }
 function pct(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : Math.round(n) + '%'; }
 
@@ -615,6 +618,7 @@ async function ouvrirProjet(id) {
   S.raci = ra.data || []; S.budget = bu.data || []; S.risques = ri.data || [];
   S.decisions = de.data || []; S.reserves = re.data || []; S.indicateurs = ind.data || [];
   S.obstacles = ob.data || []; S.lecons = le.data || []; S.rapports = rap.data || [];
+  trierRegistresProjet();
   aller('tdb');
 }
 async function rafraichir() { if (S.projet) { const v = S.vue; await ouvrirProjet(S.projet.id_projet); aller(v); } }
@@ -1237,29 +1241,191 @@ function graduationsPlanning(min, max, total, posi) {
   return ticks;
 }
 
+/* =========================================================================
+ *  TRI AUTOMATIQUE — phase, puis code WBS
+ *  Applique au chargement du projet : tous les ecrans (kanban, planning,
+ *  rapport, fiche) heritent du meme ordre, et un element ajoute ou corrige
+ *  se replace tout seul au bon endroit apres rafraichissement.
+ * ========================================================================= */
+
+/* Rang d'une phase dans le decoupage. Les elements sans phase passent en fin. */
+function rangPhase(idPhase) {
+  if (idPhase == null || idPhase === '') return 1e9;
+  const ph = S.phases.find(x => String(x.id) === String(idPhase));
+  if (!ph) return 1e9;
+  return ph.ordre == null ? 1e9 - 1 : Number(ph.ordre);
+}
+
+/* Comparaison naturelle de deux codes WBS : 2.9 vient avant 2.10,
+   et un code absent passe apres les codes renseignes. */
+function cmpWbs(a, b) {
+  const va = String(a == null ? '' : a).trim();
+  const vb = String(b == null ? '' : b).trim();
+  if (!va && !vb) return 0;
+  if (!va) return 1;
+  if (!vb) return -1;
+  const sa = va.split(/[.\-_/\s]+/), sb = vb.split(/[.\-_/\s]+/);
+  for (let i = 0; i < Math.max(sa.length, sb.length); i++) {
+    const xa = sa[i], xb = sb[i];
+    if (xa === undefined) return -1;
+    if (xb === undefined) return 1;
+    const na = parseInt(xa, 10), nb = parseInt(xb, 10);
+    const aNum = !isNaN(na) && /^\d+$/.test(xa), bNum = !isNaN(nb) && /^\d+$/.test(xb);
+    if (aNum && bNum) { if (na !== nb) return na - nb; }
+    else { const c = xa.localeCompare(xb, 'fr', { numeric: true, sensitivity: 'base' }); if (c) return c; }
+  }
+  return 0;
+}
+
+/* Comparateur generique : phase, puis cle naturelle, puis ordre de saisie. */
+function cmpParPhase(cleSecondaire) {
+  return (a, b) => {
+    const ra = rangPhase(a.id_phase), rb = rangPhase(b.id_phase);
+    if (ra !== rb) return ra - rb;
+    const c = cleSecondaire(a, b);
+    if (c) return c;
+    return (Number(a.ordre) || 0) - (Number(b.ordre) || 0);
+  };
+}
+
+function cmpDate(cle) {
+  return (a, b) => {
+    const da = a[cle] || '', db = b[cle] || '';
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da < db ? -1 : da > db ? 1 : 0;
+  };
+}
+
+/* Remet tous les registres rattaches a une phase dans l'ordre attendu. */
+function trierRegistresProjet() {
+  S.phases.sort((a, b) => (Number(a.ordre) || 0) - (Number(b.ordre) || 0));
+  S.activites.sort(cmpParPhase((a, b) => cmpWbs(a.code_wbs, b.code_wbs)));
+  S.jalons.sort(cmpParPhase(cmpDate('date_prevue')));
+  S.livrables.sort(cmpParPhase(cmpDate('echeance')));
+  S.indicateurs.sort(cmpParPhase(() => 0));
+  S.raci.sort(cmpParPhase(() => 0));
+}
+
+/* Palette de phases : une couleur par phase, reprise par ses activites.
+   Huit teintes distinctes, qui se repetent au-dela de huit phases. */
+const COULEURS_PHASE = [
+  { fort: '#C0504D', doux: '#E8A9A7' },
+  { fort: '#1F6FB2', doux: '#9CC4E4' },
+  { fort: '#19945D', doux: '#92D3B4' },
+  { fort: '#CB8800', doux: '#F2CC84' },
+  { fort: '#7A4FA3', doux: '#C3A8DC' },
+  { fort: '#0F8C8C', doux: '#8ECFCF' },
+  { fort: '#B5512F', doux: '#E8AE97' },
+  { fort: '#55606B', doux: '#B3BBC3' }
+];
+function couleurPhase(i) { return COULEURS_PHASE[((i % COULEURS_PHASE.length) + COULEURS_PHASE.length) % COULEURS_PHASE.length]; }
+
+/* Pastille d'etat, pour que la couleur de phase ne fasse pas perdre le statut. */
+function pastilleEtat(i) {
+  if (i.fictive) return '';
+  let c = '#B3BBC3', titre = 'Non démarré';
+  if (i.t === 'phase') {
+    c = i.st === 'Rouge' ? '#C0392B' : i.st === 'Orange' ? '#CB8800' : '#19945D';
+    titre = 'Phase — ' + (i.st || 'Vert');
+  } else if (i.st === 'Réalisé') { c = '#19945D'; titre = 'Réalisé'; }
+  else if (i.retard) { c = '#C0392B'; titre = 'En retard'; }
+  else if (i.st === 'En cours') { c = '#1F6FB2'; titre = 'En cours'; }
+  return `<span title="${ech(titre)}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:6px;flex:0 0 8px"></span>`;
+}
+
+/* Items du planning, regroupes : chaque phase est suivie de ses activites.
+   Les activites sans phase forment un dernier groupe. */
 function construirePlanningItems() {
   const items = [];
-  S.phases.forEach(p => items.push({ t: 'phase', lib: p.libelle, d: p.date_debut_prevue, f: p.date_fin_prevue, dr: p.date_debut_reelle, fr: p.date_fin_reelle, st: p.statut }));
-  S.activites.forEach(a => items.push({ t: 'act', lib: a.denomination, d: a.date_debut_prevue, f: a.date_prevue, dr: a.date_debut_reelle, fr: a.date_realisation, crit: a.chemin_critique, st: a.statut }));
-  return items.filter(i => i.d && i.f);
+  const parPhase = {};
+  const sansPhase = [];
+  S.activites.forEach(a => {
+    const k = a.id_phase == null || a.id_phase === '' ? null : String(a.id_phase);
+    if (k === null) sansPhase.push(a); else (parPhase[k] = parPhase[k] || []).push(a);
+  });
+
+  const pousserAct = (a, idx) => items.push({
+    t: 'act', lib: a.denomination, wbs: a.code_wbs,
+    d: a.date_debut_prevue, f: a.date_prevue, dr: a.date_debut_reelle, fr: a.date_realisation,
+    crit: a.chemin_critique, bloquee: a.bloquee, st: a.statut, grp: idx,
+    retard: a.statut !== 'Réalisé' && a.date_prevue && ecartOuvres(a.date_prevue) < 0
+  });
+
+  /* Une phase sans dates propres emprunte l'amplitude de ses activites :
+     sans cela son bandeau disparait et ses activites semblent appartenir
+     a la phase precedente. */
+  const amplitude = lot => {
+    const avec = lot.filter(a => a.date_debut_prevue && a.date_prevue);
+    if (!avec.length) return { d: null, f: null };
+    return {
+      d: avec.reduce((m, a) => a.date_debut_prevue < m ? a.date_debut_prevue : m, avec[0].date_debut_prevue),
+      f: avec.reduce((m, a) => a.date_prevue > m ? a.date_prevue : m, avec[0].date_prevue)
+    };
+  };
+
+  S.phases.forEach((p, idx) => {
+    const lot = parPhase[String(p.id)] || [];
+    const amp = amplitude(lot);
+    items.push({ t: 'phase', lib: p.libelle,
+                 d: p.date_debut_prevue || amp.d, f: p.date_fin_prevue || amp.f,
+                 dr: p.date_debut_reelle, fr: p.date_fin_reelle, st: p.statut, grp: idx, debutGroupe: true });
+    lot.forEach(a => pousserAct(a, idx));
+  });
+
+  if (sansPhase.length) {
+    const idx = S.phases.length;
+    const amp = amplitude(sansPhase);
+    items.push({ t: 'phase', lib: 'Hors phase', d: amp.d, f: amp.f, st: null, grp: idx, debutGroupe: true, fictive: true });
+    sansPhase.forEach(a => pousserAct(a, idx));
+  }
+
+  /* une ligne n'est traçable que si elle porte deux dates ;
+     on conserve le marqueur de debut de groupe sur la premiere ligne visible du groupe */
+  const visibles = [];
+  let groupeEnCours = null;
+  items.forEach(i => {
+    if (!i.d || !i.f) return;
+    const nouveau = i.grp !== groupeEnCours;
+    visibles.push(Object.assign({}, i, { debutGroupe: nouveau }));
+    groupeEnCours = i.grp;
+  });
+  return visibles;
 }
+
 function ganttHtml(avec, idCapture) {
   if (!avec.length) return { html: '', min: null, max: null, total: 0, dansPeriode: false };
   const min = avec.reduce((m, i) => i.d < m ? i.d : m, avec[0].d);
   const max = avec.reduce((m, i) => i.f > m ? i.f : m, avec[0].f);
   const total = Math.max(joursCal(min, max), 1);
-  const posi = d => Math.max(0, Math.min(100, (joursCal(min, d) / total) * 100));
+  const posi = d => Math.round(Math.max(0, Math.min(100, (joursCal(min, d) / total) * 100)) * 100) / 100;
 
+  let premierGroupe = true;
   const ligne = i => {
-    const g = posi(i.d), w = Math.max(1.2, posi(i.f) - g);
-    const cl = i.st === 'Rouge' ? 'rouge' : i.st === 'Orange' ? 'orange' : i.st === 'Réalisé' ? 'vert' : '';
+    const g = posi(i.d), w = Math.round(Math.max(1.2, posi(i.f) - g) * 100) / 100;
+    const col = couleurPhase(i.grp == null ? 0 : i.grp);
+    const fond = i.t === 'phase' ? col.fort : col.doux;
+    const bord = i.retard ? ';outline:1.5px solid #C0392B;outline-offset:-1.5px' : '';
     let reel = '';
-    if (i.dr) { const gr = posi(i.dr), wr = Math.max(1.2, posi(i.fr || auj()) - gr);
-      reel = `<span class="gbar reel" style="left:${gr}%;width:${wr}%"></span>`; }
-    return `<div class="gline">
-      <div style="${i.t === 'phase' ? 'font-weight:700;color:var(--corail-fonce)' : 'padding-left:12px'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ech(i.lib)}">
-        ${i.crit ? '<span class="crit">◆</span> ' : ''}${ech(i.lib)}</div>
-      <div class="gbar-zone"><span class="gbar ${cl}" style="left:${g}%;width:${w}%"></span>${reel}</div>
+    if (i.dr) {
+      const gr = posi(i.dr), wr = Math.round(Math.max(1.2, posi(i.fr || auj()) - gr) * 100) / 100;
+      reel = `<span class="gbar reel" style="left:${gr}%;width:${wr}%;background:${col.fort}"></span>`;
+    }
+    let sep = '';
+    if (i.debutGroupe) {
+      sep = premierGroupe ? '' : 'border-top:1px solid var(--line);padding-top:6px;margin-top:4px;';
+      premierGroupe = false;
+    }
+    const libStyle = i.t === 'phase'
+      ? 'font-weight:700;color:' + col.fort
+      : 'padding-left:14px;border-left:3px solid ' + col.doux + ';margin-left:3px';
+    return `<div class="gline" style="${sep}">
+      <div style="display:flex;align-items:center;${libStyle};overflow:hidden" title="${ech(i.lib)}">
+        ${pastilleEtat(i)}
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.crit ? '<span class="crit">◆</span> ' : ''}${i.wbs ? '<span class="muted" style="font-size:11px">' + ech(i.wbs) + '</span> ' : ''}${ech(i.lib)}</span>
+      </div>
+      <div class="gbar-zone"><span class="gbar" style="left:${g}%;width:${w}%;background:${fond}${bord}"></span>${reel}</div>
     </div>`;
   };
 
@@ -1278,10 +1444,7 @@ function ganttHtml(avec, idCapture) {
         ${graduations.map(g => `<div style="position:absolute;left:${g.pos}%;top:0;bottom:0;width:1px;background:#f0e6e1"></div>`).join('')}
         ${dansPeriode ? `<div style="position:absolute;left:${posAuj}%;top:0;bottom:0;width:2px;background:var(--bad);opacity:.6"></div>` : ''}
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:9px">Phases</div>
-      ${avec.filter(i => i.t === 'phase').map(ligne).join('')}
-      <div style="font-size:11px;color:var(--muted);margin:14px 0 9px">Activités</div>
-      ${avec.filter(i => i.t === 'act').map(ligne).join('') || '<div class="muted" style="font-size:12px">Aucune activité datée.</div>'}
+      ${avec.map(ligne).join('')}
     </div>`;
   return { html, min, max, total, dansPeriode };
 }
@@ -1296,7 +1459,7 @@ function vuePlanning() {
   $('#zone').innerHTML = `
     <div class="topbar">
       <div><h1>Planning visuel</h1>
-      <p>Barre claire = prévu, barre foncée = réel. Du ${fdate(min)} au ${fdate(max)}. Échelle graduée ${total <= 70 ? 'par semaine' : 'par mois'} ; le trait rouge marque aujourd'hui${dansPeriode ? '' : ' (hors période affichée)'}.</p></div>
+      <p>Une couleur par phase : la phase et ses activités partagent la même teinte. Barre claire = prévu, barre foncée = réel ; liseré rouge = activité en retard ; la pastille indique l'état. Du ${fdate(min)} au ${fdate(max)}, échelle graduée ${total <= 70 ? 'par semaine' : 'par mois'} ; le trait rouge marque aujourd'hui${dansPeriode ? '' : ' (hors période affichée)'}.</p></div>
       ${peut('prj.exporter') ? '<button class="btn primaire" id="btnImgGantt">🖼 Télécharger (image A4)</button>' : ''}
     </div>
     ${html}`;
@@ -1932,6 +2095,98 @@ window.addEventListener('afterprint', () => document.body.classList.remove('impr
  *  jalons, activités, planning visuel, livrables) + Budget + Risques +
  *  Suivi des performances (fiche 5 blocs, indicateurs).
  * ========================================================================= */
+/* Resume executif : une page, pour un decideur qui ne lira pas la suite.
+   Ce qu'on produit, ou on en est, ce qui coince, ce qu'on attend de lui. */
+function resumeExecutifHtml() {
+  const p = S.projet;
+  const ar = avancementReel(), ap = avancementPrevu();
+  const spi = (ap && ap > 0) ? (ar / ap) : null;
+  const enRetard = S.activites.filter(a => a.statut !== 'Réalisé' && a.date_prevue && ecartOuvres(a.date_prevue) < 0).length;
+  const jalonsOk = S.jalons.filter(j => j.statut === 'Réalisé').length;
+  const jalonsManques = S.jalons.filter(j => j.statut === 'Manqué').length;
+  const budRef = Number(p.budget_approuve || p.budget_prevu || 0);
+  const budEng = S.budget.reduce((s, l) => s + Number(l.montant_engage || 0), 0);
+  const budPct = budRef > 0 ? (budEng / budRef) * 100 : null;
+  const glissement = (p.date_fin_baseline && p.date_fin_prevue && p.date_fin_prevue > p.date_fin_baseline)
+    ? joursCal(p.date_fin_baseline, p.date_fin_prevue) : 0;
+  const risquesForts = S.risques.filter(r => r.statut !== 'Clos' && (r.probabilite * r.impact) >= 15)
+    .sort((a, b) => (b.probabilite * b.impact) - (a.probabilite * a.impact));
+  const dec = S.decisions.filter(d => d.statut === 'En attente de décision');
+  const obs = S.obstacles.filter(o => o.statut === 'Ouvert' || o.statut === 'En cours');
+  const meteo = p.appreciation_avancement || 'Vert';
+  const clMeteo = meteo === 'Rouge' ? 'rouge' : meteo === 'Orange' ? 'orange' : 'vert';
+
+  /* appreciation redigee, deduite des ecarts reellement constates */
+  let appreciation;
+  if (spi === null) appreciation = "Le projet n'a pas encore assez d'activités datées pour mesurer un rythme d'avancement.";
+  else if (spi >= 1) appreciation = "Le projet avance au rythme prévu, voire en avance sur le planning de référence.";
+  else if (spi >= 0.9) appreciation = "Le projet accuse un retard léger sur son planning de référence, encore rattrapable.";
+  else appreciation = "Le projet décroche nettement de son planning de référence : le rythme actuel ne permet pas de tenir l'échéance sans mesure corrective.";
+  if (glissement > 0) appreciation += ` La date de fin a déjà glissé de ${glissement} jours par rapport à la référence du cadrage.`;
+  if (budPct !== null && budPct > 100) appreciation += " L'enveloppe approuvée est dépassée par les engagements.";
+
+  const cell = (lib, val, sub) =>
+    '<td style="width:20%;text-align:center;background:#FAFAFB;padding:6pt 3pt;border:1pt solid #ecdfda">' +
+      '<div style="font-size:7.5pt;color:#8a7570;text-transform:uppercase">' + ech(lib) + '</div>' +
+      '<div style="font-size:15pt;font-weight:700;color:#9C3D2A">' + val + '</div>' +
+      '<div style="font-size:7.5pt;color:#8a7570">' + (sub || '&nbsp;') + '</div></td>';
+
+  const puces = arr => '<ul style="margin:2pt 0 6pt;padding-left:15pt">' +
+    arr.map(x => '<li style="font-size:9.5pt;margin-bottom:1pt">' + x + '</li>').join('') + '</ul>';
+
+  return '' +
+    '<h2 style="margin-top:0">Résumé exécutif</h2>' +
+
+    '<table style="width:100%;margin:0 0 8pt"><tr>' +
+      '<td style="border:none;padding:0;vertical-align:top">' +
+        '<div style="font-size:13pt;font-weight:700;color:#9C3D2A">' + ech(p.denomination) + '</div>' +
+        '<div style="font-size:9pt;color:#8a7570">' + ech(p.id_projet) +
+          (p.code_projet ? ' / ' + ech(p.code_projet) : '') +
+          (p.type_projet ? ' &middot; ' + ech(p.type_projet) : '') + '</div>' +
+      '</td>' +
+      '<td style="border:none;padding:0;text-align:right;white-space:nowrap;vertical-align:top">' +
+        '<span class="et ' + clMeteo + '" style="font-size:9pt">MÉTÉO ' + ech(meteo.toUpperCase()) + '</span>' +
+        '<div style="font-size:8pt;color:#8a7570;margin-top:2pt">Situation au ' + fdate(auj()) + '</div>' +
+      '</td></tr></table>' +
+
+    '<table style="width:100%;margin:0 0 8pt"><tr>' +
+      cell('Avancement', pct(ar), ap !== null ? 'prévu ' + pct(ap) : '') +
+      cell('Rythme (SPI)', spi === null ? '—' : spi.toFixed(2),
+           spi === null ? '' : spi >= 1 ? 'conforme' : spi >= 0.9 ? 'retard léger' : 'décrochage') +
+      cell('Jalons', jalonsOk + '/' + S.jalons.length, jalonsManques ? jalonsManques + ' manqué(s)' : 'aucun manqué') +
+      cell('Budget engagé', budPct === null ? '—' : pct(budPct),
+           budRef > 0 ? fnum(Math.round(budEng)) + ' / ' + fnum(budRef) : '') +
+      cell('Échéance', fdate(p.date_fin_prevue), glissement > 0 ? '+' + glissement + ' j vs référence' : 'référence tenue') +
+    '</tr></table>' +
+
+    '<p style="font-size:10pt;margin:0 0 5pt"><strong>Ce que produit le projet.</strong> ' +
+      (p.objectif_projet ? nl2br(p.objectif_projet) : 'Objectif non renseigné.') +
+      (p.livrable_final ? ' <em>Livrable final :</em> ' + nl2br(p.livrable_final) : '') + '</p>' +
+
+    '<p style="font-size:10pt;margin:0 0 5pt"><strong>Où en est-on.</strong> ' + appreciation +
+      (enRetard ? ' ' + enRetard + ' activité(s) sont en retard à ce jour.' : '') + '</p>' +
+
+    (risquesForts.length
+      ? '<p style="font-size:10pt;margin:0 0 2pt"><strong>Ce qui menace le projet.</strong></p>' +
+        puces(risquesForts.slice(0, 3).map(r => ech(r.description) + ' <em>(criticité ' + (r.probabilite * r.impact) + ')</em>'))
+      : '') +
+
+    (obs.length
+      ? '<p style="font-size:10pt;margin:0 0 2pt"><strong>Ce qui bloque aujourd\'hui.</strong></p>' +
+        puces(obs.slice(0, 3).map(o => ech(o.description) + (o.action_levee ? ' — <em>' + ech(o.action_levee) + '</em>' : '')))
+      : '') +
+
+    (dec.length
+      ? '<p style="font-size:10pt;margin:0 0 2pt"><strong>Ce qui est attendu de la Direction.</strong></p>' +
+        puces(dec.map(d => ech(d.objet) + (d.instance ? ' — <em>' + ech(d.instance) + '</em>' : '') +
+              (d.echeance ? ' — échéance ' + fdate(d.echeance) : '')))
+      : '<p style="font-size:10pt;margin:0 0 5pt"><strong>Ce qui est attendu de la Direction.</strong> Aucune décision n\'est en attente d\'arbitrage à ce jour.</p>') +
+
+    (p.points_attention ? '<p style="font-size:10pt;margin:4pt 0 0"><strong>Points d\'attention du responsable.</strong> ' + nl2br(p.points_attention) + '</p>' : '') +
+
+    '<div style="border-bottom:1pt solid #ecdfda;margin:10pt 0"></div>';
+}
+
 async function genererRapportProjetHtml() {
   const p = S.projet;
 
@@ -1942,36 +2197,99 @@ async function genererRapportProjetHtml() {
   const partiesTable = S.parties.length ? `<table><thead><tr><th>Code</th><th>Partie prenante</th><th>Organisation</th><th>Rôle</th><th>Influence</th><th>Intérêt</th></tr></thead><tbody>${partiesLignes}</tbody></table>` : '<p class="muted">Aucune partie prenante enregistrée.</p>';
   const raciTable = construireRaciTableHtml(false);
 
+  /* identification : les champs courts, en tableau a deux colonnes */
+  const ident = [
+    ['Dénomination', ech(p.denomination)],
+    ['Identifiant', ech(p.id_projet) + (p.code_projet ? ' / ' + ech(p.code_projet) : '')],
+    ['Type de projet', ech(p.type_projet || '—')],
+    ['Statut', ech(p.statut || '—')],
+    ['Météo du projet', ech(p.appreciation_avancement || '—')],
+    ['Responsable de projet', ech(nomActeur(p.responsable_id))],
+    ['Commanditaire (MOA)', p.commanditaire_id ? ech(nomActeur(p.commanditaire_id)) : '—'],
+    ['Sponsor / autorité de tutelle', ech(p.sponsor || '—')],
+    ['Date de début', fdate(p.date_debut)],
+    ['Date de fin prévue', fdate(p.date_fin_prevue)],
+    ['Date de fin de référence', fdate(p.date_fin_baseline)],
+    ['Date de fin réelle', fdate(p.date_fin_reelle)],
+    ['Budget prévisionnel', fnum(p.budget_prevu) + ' ' + ech(p.devise || '')],
+    ['Budget approuvé (référence)', fnum(p.budget_approuve) + ' ' + ech(p.devise || '')]
+  ].map(l => `<tr><td style="width:34%;background:#FCFCFD"><strong>${l[0]}</strong></td><td>${l[1]}</td></tr>`).join('');
+
+  /* le reste de la charte : les champs redactionnels, aucun n'est omis */
+  const redaction = [
+    ['Contexte et justification', p.contexte],
+    ['Objectif du projet', p.objectif_projet],
+    ['Livrable final attendu', p.livrable_final],
+    ['Périmètre inclus', p.perimetre_inclus],
+    ['Périmètre exclu (hors projet)', p.perimetre_exclus],
+    ['Critères de succès et de réception', p.criteres_succes],
+    ['Contraintes', p.contraintes],
+    ['Hypothèses retenues', p.hypotheses],
+    ['Gouvernance et circuit de décision', p.gouvernance],
+    ['Points d\'attention actuels', p.points_attention]
+  ].map(l => bloc(l[0], l[1])).join('');
+
   const cadrageHtml = `
     <h2>1. Cadrage</h2>
     <h3>1.1 Charte de projet</h3>
-    <p><strong>Type :</strong> ${ech(p.type_projet || '—')} · <strong>Statut :</strong> ${ech(p.statut || '—')} · <strong>Météo :</strong> ${ech(p.appreciation_avancement || '—')}</p>
-    <p><strong>Responsable :</strong> ${ech(nomActeur(p.responsable_id))} · <strong>Commanditaire :</strong> ${ech(p.commanditaire_id ? nomActeur(p.commanditaire_id) : (p.sponsor || '—'))}</p>
-    <p><strong>Période :</strong> ${fdate(p.date_debut)} → ${fdate(p.date_fin_prevue)}</p>
-    ${bloc('Objectif du projet', p.objectif_projet)}
-    ${bloc('Livrable final attendu', p.livrable_final)}
-    ${bloc('Périmètre inclus', p.perimetre_inclus)}
-    ${bloc('Périmètre exclu', p.perimetre_exclus)}
+    <table>${ident}</table>
+    ${redaction}
     <h3>1.2 Parties prenantes</h3>${partiesTable}
     <h3>1.3 Matrice RACI</h3>${raciTable}
     <h3>1.4 Équipe projet</h3><ul>${membres}</ul>`;
 
   /* ---- 2. Planification ---- */
   const phasesLignes = S.phases.map(ph => `<tr><td>${ech(ph.libelle)}</td><td>${fdate(ph.date_debut_prevue)}</td><td>${fdate(ph.date_fin_prevue)}</td><td>${ech(ph.statut || '—')}</td></tr>`).join('');
-  const jalonsLignes = S.jalons.map(j => `<tr><td>${ech(j.libelle)}</td><td>${fdate(j.date_prevue)}</td><td>${ech(j.statut || '—')}</td></tr>`).join('');
+  const jalonsLignes = S.jalons.map(j => `<tr><td>${ech(j.libelle)}</td><td>${ech(nomPhase(j.id_phase))}</td><td>${fdate(j.date_prevue)}</td><td>${ech(j.statut || '—')}</td></tr>`).join('');
   const livrablesLignes = S.livrables.map(l => `<tr><td>${ech(l.libelle)}</td><td>${ech(nomPhase(l.id_phase))}</td><td>${fdate(l.echeance)}</td><td>${ech(l.statut || '—')}</td></tr>`).join('');
-  const avecPlan = construirePlanningItems();
-  let ganttImg = '<p class="muted">Aucune date renseignée pour afficher le planning.</p>';
-  if (avecPlan.length) {
-    const { html: ganttMarkup, min: ganttMin, max: ganttMax } = ganttHtml(avecPlan);
-    const dataUrl = await capturerHtmlEnImage(`<div style="padding:14px;font-family:Arial">${ganttMarkup}</div>`, 1400);
-    ganttImg = dataUrl ? `<img src="${dataUrl}" alt="Planning visuel">` : ('<p class="muted">Planning du ' + fdate(ganttMin) + ' au ' + fdate(ganttMax) + ' (image indisponible hors ligne).</p>');
+
+  /* activites classees par phase, triees par code WBS */
+  /* Debut et fin tiennent dans une seule colonne : sept colonnes etroites,
+     les moteurs de rendu de document coupent les dates en deux lignes. */
+  const entetesAct = '<tr><th style="width:7%">Code</th><th style="width:33%">Activité</th>' +
+    '<th style="width:20%">Responsable</th><th style="width:18%;white-space:nowrap">Période</th>' +
+    '<th style="width:11%">Priorité</th><th style="width:11%">Critique</th></tr>';
+  const ligneAct = a => {
+    const retard = a.statut !== 'Réalisé' && a.date_prevue && ecartOuvres(a.date_prevue) < 0;
+    return `<tr>
+      <td>${ech(a.code_wbs || '—')}</td>
+      <td>${ech(a.denomination)}${retard ? ' <span class="et rouge" style="font-size:8pt">RETARD</span>' : ''}${a.bloquee ? ' <span class="et gris" style="font-size:8pt">BLOQUÉE</span>' : ''}</td>
+      <td>${a.responsable_id ? ech(nomActeur(a.responsable_id)) : '—'}</td>
+      <td style="white-space:nowrap">${fdateCourt(a.date_debut_prevue)} &rarr; ${fdateCourt(a.date_prevue)}</td>
+      <td>${ech(a.priorite || '—')}</td>
+      <td>${a.chemin_critique ? 'Oui' : 'Non'}</td></tr>`;
+  };
+  let activitesHtml = '';
+  if (!S.activites.length) {
+    activitesHtml = '<p class="muted">Aucune activité enregistrée.</p>';
+  } else {
+    const parPhase = {}; const sansPhase = [];
+    S.activites.forEach(a => {
+      const k = a.id_phase == null || a.id_phase === '' ? null : String(a.id_phase);
+      if (k === null) sansPhase.push(a); else (parPhase[k] = parPhase[k] || []).push(a);
+    });
+    S.phases.forEach(ph => {
+      const lot = parPhase[String(ph.id)] || [];
+      if (!lot.length) return;
+      activitesHtml += `<p style="margin:9pt 0 3pt"><strong>${ech(ph.libelle)}</strong>` +
+        `<span class="muted"> — ${lot.length} activité(s)` +
+        (ph.date_debut_prevue || ph.date_fin_prevue ? ` · ${fdate(ph.date_debut_prevue)} → ${fdate(ph.date_fin_prevue)}` : '') +
+        `</span></p>` +
+        `<table><thead>${entetesAct}</thead><tbody>${lot.map(ligneAct).join('')}</tbody></table>`;
+    });
+    if (sansPhase.length) {
+      activitesHtml += `<p style="margin:9pt 0 3pt"><strong>Hors phase</strong><span class="muted"> — ${sansPhase.length} activité(s)</span></p>` +
+        `<table><thead>${entetesAct}</thead><tbody>${sansPhase.map(ligneAct).join('')}</tbody></table>`;
+    }
   }
+
   const planifHtml = `
     <h2>2. Planification</h2>
     <h3>2.1 Phases</h3>${S.phases.length ? `<table><thead><tr><th>Phase</th><th>Début prévu</th><th>Fin prévue</th><th>Statut</th></tr></thead><tbody>${phasesLignes}</tbody></table>` : '<p class="muted">Aucune phase enregistrée.</p>'}
-    <h3>2.2 Jalons</h3>${S.jalons.length ? `<table><thead><tr><th>Jalon</th><th>Date prévue</th><th>Statut</th></tr></thead><tbody>${jalonsLignes}</tbody></table>` : '<p class="muted">Aucun jalon enregistré.</p>'}
-    <h3>2.3 Planning visuel</h3>${ganttImg}
+    <h3>2.2 Jalons</h3>${S.jalons.length ? `<table><thead><tr><th>Jalon</th><th>Phase</th><th>Date prévue</th><th>Statut</th></tr></thead><tbody>${jalonsLignes}</tbody></table>` : '<p class="muted">Aucun jalon enregistré.</p>'}
+    <h3>2.3 Activités par phase</h3>
+    <p class="muted">Activités classées par phase et triées par code WBS. Le planning visuel figure en annexe.</p>
+    ${activitesHtml}
     <h3>2.4 Livrables</h3>${S.livrables.length ? `<table><thead><tr><th>Livrable</th><th>Phase</th><th>Échéance</th><th>Statut</th></tr></thead><tbody>${livrablesLignes}</tbody></table>` : '<p class="muted">Aucun livrable enregistré.</p>'}`;
 
   /* ---- 3. Budget ---- */
@@ -2004,14 +2322,32 @@ async function genererRapportProjetHtml() {
     ${fiche5WordHtml()}
     <h3>5.1 Indicateurs de pilotage</h3>${S.indicateurs.length ? `<table><thead><tr><th>Indicateur</th><th>Cible</th><th>Dernière mesure</th><th>Date</th><th>Statut</th></tr></thead><tbody>${indicLignes}</tbody></table>` : '<p class="muted">Aucun indicateur renseigné.</p>'}`;
 
+  /* ---- Annexe : planning visuel ---- */
+  const avecPlan = construirePlanningItems();
+  let ganttImg = '<p class="muted">Aucune date renseignée pour afficher le planning.</p>';
+  let periode = '';
+  if (avecPlan.length) {
+    const { html: ganttMarkup, min: ganttMin, max: ganttMax } = ganttHtml(avecPlan);
+    periode = `<p class="muted">Période du ${fdate(ganttMin)} au ${fdate(ganttMax)}. Une couleur par phase : la phase et ses activités partagent la même teinte.</p>`;
+    const dataUrl = await capturerHtmlEnImage(`<div style="padding:14px;font-family:Arial">${ganttMarkup}</div>`, 1400);
+    ganttImg = dataUrl ? `<img src="${dataUrl}" alt="Planning visuel">`
+      : ('<p class="muted">Planning du ' + fdate(ganttMin) + ' au ' + fdate(ganttMax) + ' (image indisponible hors ligne).</p>');
+  }
+  const annexeHtml = `
+    <h2>Annexe — Planning visuel</h2>
+    ${periode}
+    ${ganttImg}`;
+
   return `
     <h1>Rapport de présentation de projet</h1>
     <p class="sub">${ech(p.denomination)} — ${ech(p.id_projet)}${p.code_projet ? ' / ' + ech(p.code_projet) : ''} · D2MG Pilotage — ANADER · Édité le ${fdate(auj())}</p>
+    ${resumeExecutifHtml()}
     ${cadrageHtml}
     ${planifHtml}
     ${budgetHtml}
     ${risquesHtml}
-    ${performanceHtml}`;
+    ${performanceHtml}
+    ${annexeHtml}`;
 }
 async function telechargerRapportProjetWord() {
   toast('Génération du rapport en cours…', 'ok');
