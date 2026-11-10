@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vérification d'un certificat — D2MG Pilotage, ANADER</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+body{font-family:"Segoe UI",Arial,sans-serif;background:#F4F6F8;color:#1C2529;margin:0;display:grid;place-items:center;min-height:100vh;padding:20px}
+.b{background:#fff;border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.08);padding:28px;max-width:520px;width:100%}
+h1{font-size:19px;color:#1E7B34;margin:0 0 4px} p{margin:0 0 12px;color:#3E4C54}
+input{font-size:18px;padding:10px 12px;border:1px solid #C9D3D8;border-radius:9px;width:100%;box-sizing:border-box;text-transform:uppercase;letter-spacing:2px}
+button{margin-top:10px;background:#1E7B34;color:#fff;border:0;border-radius:9px;padding:10px 16px;font-size:15px;font-weight:600;cursor:pointer;width:100%}
+.r{margin-top:16px;border-radius:10px;padding:14px 16px} .ok{background:#E3F1E6} .ko{background:#FBEAE8} .att{background:#FDF1E7}
+.r b.t{font-size:17px;display:block;margin-bottom:6px} table{width:100%;border-collapse:collapse} td{padding:3px 0;vertical-align:top} td:first-child{color:#6B7A82;width:42%}
+small{color:#6B7A82}
+</style></head><body><div class="b">
+<h1>Vérification d'un certificat ou d'une attestation</h1>
+<p>Mon parcours SMQ — processus PS3 « Gérer le patrimoine », ANADER.</p>
+<input id="code" placeholder="XXXX-XXXX" maxlength="9" autocomplete="off">
+<button id="go">Vérifier</button>
+<div id="res"></div>
+<p style="margin-top:16px"><small>Seuls le numéro, le nom du titulaire, les dates et le statut sont affichés.</small></p>
+</div>
+<script>
+const sb = window.supabase.createClient('https://tcirboephslicjmhokbh.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjaXJib2VwaHNsaWNqbWhva2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNjYxNjUsImV4cCI6MjEwMDg0MjE2NX0.e3f1B__NmDVL5G1Cze1p115ya2Rs-ErzzTUr25UCKEg');
+const ech = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const d = x => x ? new Date(x+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}) : '—';
+async function verifier(){
+  const code = document.getElementById('code').value.trim(), res = document.getElementById('res');
+  if(!code){ res.innerHTML=''; return; }
+  res.innerHTML = '<div class="r att">Vérification…</div>';
+  const { data, error } = await sb.rpc('formation_verifier', { p_code: code });
+  if(error){ res.innerHTML = '<div class="r ko">Vérification impossible pour le moment. Réessayez plus tard.</div>'; return; }
+  if(data.statut==='inconnu'){ res.innerHTML = '<div class="r ko"><b class="t">✖ Code inconnu</b>Aucun document ne correspond à ce code. Vérifiez la saisie.</div>'; return; }
+  const type = data.type==='certificat' ? 'Certificat' : 'Attestation de participation';
+  const lib = { valide:['ok','✔ Document authentique et valide'], expire:['att','⚠ Document authentique, mais arrivé à échéance'], annule:['ko','✖ Document annulé'] }[data.statut];
+  res.innerHTML = '<div class="r '+lib[0]+'"><b class="t">'+lib[1]+'</b><table><tr><td>Document</td><td><b>'+type+'</b></td></tr><tr><td>Numéro</td><td>'+ech(data.numero)+'</td></tr><tr><td>Titulaire</td><td><b>'+ech(data.nom)+'</b></td></tr><tr><td>Délivré le</td><td>'+d(data.date_emission)+'</td></tr>'+(data.date_echeance?'<tr><td>Valable jusqu\'au</td><td>'+d(data.date_echeance)+'</td></tr>':'')+'</table></div>';
+}
+document.getElementById('go').onclick = verifier;
+document.getElementById('code').addEventListener('keydown', e => { if(e.key==='Enter') verifier(); });
+const c = new URLSearchParams(location.search).get('code'); if(c){ document.getElementById('code').value = c; verifier(); }
+</script></body></html>

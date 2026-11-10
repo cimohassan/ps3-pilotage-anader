@@ -71,6 +71,7 @@
   .apercu-bloc.courriers{border-top-color:#0B6E4F} .apercu-bloc.courriers h4{color:#075039}
   .apercu-bloc.operations{border-top-color:#A85736} .apercu-bloc.operations h4{color:#7A3D22}
   .apercu-bloc.contrats{border-top-color:#0C8B8E} .apercu-bloc.contrats h4{color:#075E60}
+  .apercu-bloc.formation{border-top-color:#5B3A8C} .apercu-bloc.formation h4{color:#3F2766}
   .apercu-tete{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
   .apercu-tete h4{font-size:13.5px}
   .apercu-pastille{display:inline-block;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap}
@@ -118,6 +119,7 @@
   .modules-onglets button.courriers.active{background:#0B6E4F;border-color:#0B6E4F}
   .modules-onglets button.operations.active{background:#A85736;border-color:#A85736}
   .modules-onglets button.contrats.active{background:#0C8B8E;border-color:#0C8B8E}
+  .modules-onglets button.formation.active{background:#5B3A8C;border-color:#5B3A8C}
   .modules-onglets .cpt{font-size:11px;opacity:.8;font-weight:400}
 
   .acces-ligne{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:16px;font-size:13px}
@@ -426,9 +428,12 @@ const CHAMBRES = [
     href:'operations.html' },
   { module:'contrats', cl:'contrats', ic:'📑', titre:'Gestion des contrats fournisseurs',
     desc:"Registre des contrats fournisseurs D2MG, échéances de préavis, clauses SLA, avenants, revues périodiques, avis juridiques, grille d'évaluation fournisseur, rapports périodiques.",
-    href:'contrats.html' }
+    href:'contrats.html' },
+  { module:'formation', cl:'formation', ic:'🎓', titre:'Formation — Mon parcours SMQ',
+    desc:"Parcours en ligne des acteurs du PS3 : dix modules à déblocage progressif, capsules, quiz, carnet, test de certification, certificat ou attestation.",
+    href:'formation.html' }
 ];
-const LIB_MODULE = { ps3:'PS3', projets:'Gestion de projet', courriers:'Gestion des courriers', operations:'Gestion des opérations (D2MG)', contrats:'Gestion des contrats fournisseurs' };
+const LIB_MODULE = { ps3:'PS3', projets:'Gestion de projet', courriers:'Gestion des courriers', operations:'Gestion des opérations (D2MG)', contrats:'Gestion des contrats fournisseurs', formation:'Formation — Mon parcours SMQ' };
 
 let moi=null, mesAcces=[], acteurs=[], tousAcces=[], catalogue=[], tousDroits=[];
 let profilActif=null, moduleActif='ps3', vueActive='accueil', paramTabActif='utilisateurs';
@@ -630,6 +635,21 @@ async function statsContrats(){
   const nonAffectes = contrats.filter(c=>!c.proprietaire_id && (c.statut==='BROUILLON'||c.statut==='EN_NEGOCIATION')).length;
   return { kpis:[['Contrats actifs',actifs.length],['Échéance dépassée',enRetard],['Non affectés',nonAffectes]], retard: enRetard, alerte: nonAffectes };
 }
+async function statsFormation(){
+  const { data: e, error } = await sb.rpc('formation_etat', { p_parcours:'SMQ-PS3' });
+  if(error) throw error;
+  if(!e.inscrit && !e.gestionnaire) return null;
+  if(e.inscrit){
+    const et = e.etapes||[], ok = et.filter(x=>x.validee).length;
+    const mods = (e.modules||[]).filter(m=>et.filter(x=>x.module_rang===m.rang).every(x=>x.validee)).length;
+    const certifie = e.inscription.statut==='certifie';
+    return { kpis:[['Progression', Math.round(ok*100/et.length)+' %'],['Modules validés', mods+'/10'],['Certification', certifie?'Obtenue':(e.certification.tentatives? e.certification.tentatives+'/3 tent.':'—')]],
+             retard:0, alerte:0, note: certifie ? 'Vous êtes certifié(e).' : 'Parcours en cours.' };
+  }
+  const { data: s } = await sb.rpc('formation_suivi', { p_parcours:'SMQ-PS3' });
+  const L = (s||[]).filter(x=>x.statut!=='desinscrit');
+  return { kpis:[['Inscrits', L.length],['En cours', L.filter(x=>x.statut==='en_cours' && x.validees>0).length],['Certifiés', L.filter(x=>x.statut==='certifie').length]], retard:0, alerte:0 };
+}
 async function chargerApercuModules(){
   const aAcces = m => mesAcces.some(a=>a.module===m);
   const blocs = [];
@@ -658,6 +678,13 @@ async function chargerApercuModules(){
     try{ blocs.push(rendreBlocModule('contrats','📑','Gestion des contrats fournisseurs', await statsContrats(), 'contrats.html')); }
     catch(e){ blocs.push(rendreBlocModule('contrats','📑','Gestion des contrats fournisseurs', { kpis:[['—','']], retard:0, alerte:0, note:'Données indisponibles pour le moment.' }, 'contrats.html')); }
   } else blocs.push(rendreBlocVerrouille('contrats','📑','Gestion des contrats fournisseurs'));
+
+  // Formation : l'espace s'ouvre aux acteurs inscrits au parcours, et au Pilote / co-pilotes
+  try{
+    const sf = await statsFormation();
+    blocs.push(sf ? rendreBlocModule('formation','🎓','Formation — Mon parcours SMQ', sf, 'formation.html')
+                  : rendreBlocVerrouille('formation','🎓','Formation — Mon parcours SMQ'));
+  }catch(e){ blocs.push(rendreBlocVerrouille('formation','🎓','Formation — Mon parcours SMQ')); }
 
   $('#apercuModules').innerHTML = blocs.join('');
   $$('#apercuModules [data-href]').forEach(b=>b.addEventListener('click',()=>{ window.location.href = b.dataset.href; }));
