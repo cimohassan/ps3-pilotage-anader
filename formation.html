@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Formation — Mon parcours SMQ — D2MG Pilotage</title>
+<title>Formation — D2MG Pilotage</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
@@ -109,6 +109,19 @@ table.liste th{background:var(--gris-100);font-size:12px;color:var(--gris-700);p
 .toast{background:var(--gris-900);color:#fff;padding:10px 14px;border-radius:9px;box-shadow:var(--ombre);max-width:380px;font-size:13px}
 .toast.ok{background:var(--vert)} .toast.err{background:var(--rouge)}
 
+
+/* ---- La chambre : cartes des parcours ---- */
+.grille-parcours{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.carte-parcours{background:#fff;border:1px solid var(--gris-200);border-top:5px solid var(--c);border-radius:var(--radius);box-shadow:var(--ombre);padding:16px 18px;display:flex;flex-direction:column}
+.carte-parcours h2{color:var(--c);margin:8px 0 4px}
+.carte-parcours .liens{margin-top:auto !important;padding-top:12px}
+.cp-tete{display:flex;justify-content:space-between;align-items:center}
+.cp-ic{font-size:28px}
+.form-grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 16px;margin-bottom:10px}
+label.bloc,.form-grille label{display:block;font-size:12.5px;font-weight:600;color:var(--gris-700);margin:6px 0}
+label.bloc input,label.bloc select,label.bloc textarea,.form-grille input{display:block;width:100%;margin-top:4px;border:1px solid var(--gris-300);border-radius:8px;padding:7px 9px;font-weight:400;color:var(--gris-900)}
+table.liste select{border:1px solid var(--gris-300);border-radius:7px;padding:4px 6px}
+
 /* ---- Certificat / attestation à imprimer ---- */
 #impression{display:none}
 .doc-a4{width:297mm;height:210mm;background:#fff;margin:0 auto;padding:9mm;position:relative}
@@ -136,19 +149,35 @@ table.liste th{background:var(--gris-100);font-size:12px;color:var(--gris-700);p
   .app,.toasts,#ecranAcces,#ecranChargement{display:none !important}
   #impression{display:block !important}
 }
-@media (max-width:800px){
-  .app{flex-direction:column} .barre{width:100%;height:auto;position:static;flex:none}
-  .contenu{padding:16px} .ligne{padding-left:16px}
+@media (max-width:900px){ .ligne{padding-left:16px} }
+/* ---- Bande latérale rétractable (bureau) / tiroir (tablette, smartphone) ---- */
+.btnMenu{display:none;position:fixed;top:14px;left:14px;z-index:220;width:36px;height:36px;border:none;border-radius:9px;background:var(--violet);color:#fff;font-size:17px;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25);align-items:center;justify-content:center}
+body:has(#app:not(.hidden)) .btnMenu{display:flex}
+.fondMenu{display:none;position:fixed;inset:0;background:rgba(15,23,32,.45);z-index:210}
+.fondMenu.visible{display:block}
+.barre .logo{margin-top:44px}
+.barre{transition:width .22s ease,flex-basis .22s ease,padding .22s ease,transform .22s ease}
+.barre.menuReplie{width:0 !important;flex:0 0 0 !important;padding:0 !important;overflow:hidden}
+.barre.menuReplie ~ .contenu{padding-left:64px}
+@media (max-width:900px){
+  .barre{position:fixed;top:0;left:0;height:100vh;z-index:215;width:236px;flex:none;transform:translateX(-101%)}
+  .barre.menuOuvert{transform:translateX(0);box-shadow:0 0 26px rgba(0,0,0,.3)}
+  .barre.menuReplie{width:236px !important;flex:none !important;padding:14px 0 !important;overflow:visible}
+  .contenu,.barre.menuReplie ~ .contenu{padding:60px 16px 40px}
 }
+@media print{ .btnMenu,.fondMenu{display:none !important} }
+
 </style>
 </head>
 <body>
-<div id="ecranChargement" class="ecran"><div class="boiteEcran"><h2>Mon parcours SMQ</h2><p>Chargement…</p></div></div>
-<div id="ecranAcces" class="ecran hidden"><div class="boiteEcran"><h2>Formation — Mon parcours SMQ</h2><p id="msgAcces"></p><p><a href="index.html">Retour à l'accueil D2MG Pilotage</a></p></div></div>
+<div id="ecranChargement" class="ecran"><div class="boiteEcran"><h2>🎓 Formation</h2><p>Chargement…</p></div></div>
+<div id="ecranAcces" class="ecran hidden"><div class="boiteEcran"><h2>🎓 Formation</h2><p id="msgAcces"></p><p><a href="index.html">Retour à l'accueil D2MG Pilotage</a></p></div></div>
 
+<button type="button" class="btnMenu" id="btnMenu" onclick="toggleMenuLateral()" title="Afficher/masquer le menu" aria-label="Afficher/masquer le menu">☰</button>
+<div class="fondMenu" id="fondMenu" onclick="fermerMenuMobile()"></div>
 <div id="app" class="app hidden">
   <aside class="barre">
-    <div class="logo"><b>🎓 Formation</b><span>Mon parcours SMQ — PS3 « Gérer le patrimoine »</span></div>
+    <div class="logo"><b>🎓 Formation</b><span>Les parcours de formation de D2MG Pilotage</span></div>
     <div class="qui" id="qui"></div>
     <ul class="menu" id="menu"></ul>
     <div class="bas">
@@ -160,6 +189,38 @@ table.liste th{background:var(--gris-100);font-size:12px;color:var(--gris-700);p
 </div>
 <div id="impression"></div>
 <div class="toasts" id="toasts"></div>
+<script>
+(function(){
+  function cote(){ return document.querySelector('.barre'); }
+  function fond(){ return document.getElementById('fondMenu'); }
+  function estMobile(){ return window.matchMedia('(max-width:900px)').matches; }
+  window.appliquerEtatMenu = function(){
+    var c = cote(); if (!c) return;
+    var replie = false;
+    try { replie = localStorage.getItem('d2mgMenuReplie') === '1'; } catch(e){}
+    c.classList.toggle('menuReplie', replie && !estMobile());
+    c.classList.remove('menuOuvert');
+    var f = fond(); if (f) f.classList.remove('visible');
+  };
+  window.toggleMenuLateral = function(){
+    var c = cote(); if (!c) return;
+    if (estMobile()){
+      var ouvert = c.classList.toggle('menuOuvert');
+      var f = fond(); if (f) f.classList.toggle('visible', ouvert);
+    } else {
+      var replie = c.classList.toggle('menuReplie');
+      try { localStorage.setItem('d2mgMenuReplie', replie ? '1' : '0'); } catch(e){}
+    }
+  };
+  window.fermerMenuMobile = function(){
+    var c = cote(); if (!c) return;
+    c.classList.remove('menuOuvert');
+    var f = fond(); if (f) f.classList.remove('visible');
+  };
+  document.addEventListener('DOMContentLoaded', appliquerEtatMenu);
+  window.addEventListener('resize', appliquerEtatMenu);
+})();
+</script>
 <script src="formation-app.js"></script>
 </body>
 </html>

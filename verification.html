@@ -13,7 +13,7 @@ button{margin-top:10px;background:#1E7B34;color:#fff;border:0;border-radius:9px;
 small{color:#6B7A82}
 </style></head><body><div class="b">
 <h1>Vérification d'un certificat ou d'une attestation</h1>
-<p>Mon parcours SMQ — processus PS3 « Gérer le patrimoine », ANADER.</p>
+<p>Formations de la plateforme D2MG Pilotage, ANADER.</p>
 <input id="code" placeholder="XXXX-XXXX" maxlength="9" autocomplete="off">
 <button id="go">Vérifier</button>
 <div id="res"></div>
@@ -32,7 +32,7 @@ async function verifier(){
   if(data.statut==='inconnu'){ res.innerHTML = '<div class="r ko"><b class="t">✖ Code inconnu</b>Aucun document ne correspond à ce code. Vérifiez la saisie.</div>'; return; }
   const type = data.type==='certificat' ? 'Certificat' : 'Attestation de participation';
   const lib = { valide:['ok','✔ Document authentique et valide'], expire:['att','⚠ Document authentique, mais arrivé à échéance'], annule:['ko','✖ Document annulé'] }[data.statut];
-  res.innerHTML = '<div class="r '+lib[0]+'"><b class="t">'+lib[1]+'</b><table><tr><td>Document</td><td><b>'+type+'</b></td></tr><tr><td>Numéro</td><td>'+ech(data.numero)+'</td></tr><tr><td>Titulaire</td><td><b>'+ech(data.nom)+'</b></td></tr><tr><td>Délivré le</td><td>'+d(data.date_emission)+'</td></tr>'+(data.date_echeance?'<tr><td>Valable jusqu\'au</td><td>'+d(data.date_echeance)+'</td></tr>':'')+'</table></div>';
+  res.innerHTML = '<div class="r '+lib[0]+'"><b class="t">'+lib[1]+'</b><table><tr><td>Document</td><td><b>'+type+'</b></td></tr><tr><td>Numéro</td><td>'+ech(data.numero)+'</td></tr>'+(data.parcours?'<tr><td>Formation</td><td>'+ech(data.parcours)+'</td></tr>':'')+'<tr><td>Titulaire</td><td><b>'+ech(data.nom)+'</b></td></tr><tr><td>Délivré le</td><td>'+d(data.date_emission)+'</td></tr>'+(data.date_echeance?'<tr><td>Valable jusqu\'au</td><td>'+d(data.date_echeance)+'</td></tr>':'')+'</table></div>';
 }
 document.getElementById('go').onclick = verifier;
 document.getElementById('code').addEventListener('keydown', e => { if(e.key==='Enter') verifier(); });

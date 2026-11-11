@@ -392,6 +392,7 @@
             <option value="Acteur du processus">3. Acteur du processus</option>
             <option value="Agents D2MG">4. Agents D2MG</option>
             <option value="Autres">5. Autres</option>
+            <option value="Apprenant">6. Apprenant (Formation uniquement)</option>
           </select>
         </div>
       </div>
@@ -429,11 +430,11 @@ const CHAMBRES = [
   { module:'contrats', cl:'contrats', ic:'📑', titre:'Gestion des contrats fournisseurs',
     desc:"Registre des contrats fournisseurs D2MG, échéances de préavis, clauses SLA, avenants, revues périodiques, avis juridiques, grille d'évaluation fournisseur, rapports périodiques.",
     href:'contrats.html' },
-  { module:'formation', cl:'formation', ic:'🎓', titre:'Formation — Mon parcours SMQ',
-    desc:"Parcours en ligne des acteurs du PS3 : dix modules à déblocage progressif, capsules, quiz, carnet, test de certification, certificat ou attestation.",
+  { module:'formation', cl:'formation', ic:'🎓', titre:'Formation',
+    desc:"Chambre des parcours de formation (Mon parcours SMQ – PS3, Gestion de projet…) : modules à déblocage progressif, capsules, quiz, test de certification, certificat ou attestation.",
     href:'formation.html' }
 ];
-const LIB_MODULE = { ps3:'PS3', projets:'Gestion de projet', courriers:'Gestion des courriers', operations:'Gestion des opérations (D2MG)', contrats:'Gestion des contrats fournisseurs', formation:'Formation — Mon parcours SMQ' };
+const LIB_MODULE = { ps3:'PS3', projets:'Gestion de projet', courriers:'Gestion des courriers', operations:'Gestion des opérations (D2MG)', contrats:'Gestion des contrats fournisseurs', formation:'Formation' };
 
 let moi=null, mesAcces=[], acteurs=[], tousAcces=[], catalogue=[], tousDroits=[];
 let profilActif=null, moduleActif='ps3', vueActive='accueil', paramTabActif='utilisateurs';
@@ -570,7 +571,7 @@ function rendreBlocModule(cl, ic, titre, stats, href){
     ${href ? `<button type="button" class="apercu-lien" data-href="${href}">Entrer dans l'espace →</button>` : ''}
   </div>`;
 }
-function rendreBlocVerrouille(cl, ic, titre){
+function rendreBlocVerrouille0(cl, ic, titre){
   return `<div class="apercu-bloc ${cl} verrouille"><div>${ic}</div>
     <div style="font-size:12.5px;margin-top:6px">${ech(titre)}</div>
     <div style="font-size:11px;margin-top:4px">Espace non ouvert pour votre compte.</div></div>`;
@@ -636,23 +637,27 @@ async function statsContrats(){
   return { kpis:[['Contrats actifs',actifs.length],['Échéance dépassée',enRetard],['Non affectés',nonAffectes]], retard: enRetard, alerte: nonAffectes };
 }
 async function statsFormation(){
-  const { data: e, error } = await sb.rpc('formation_etat', { p_parcours:'SMQ-PS3' });
+  const { data: c, error } = await sb.rpc('formation_catalogue');
   if(error) throw error;
-  if(!e.inscrit && !e.gestionnaire) return null;
-  if(e.inscrit){
-    const et = e.etapes||[], ok = et.filter(x=>x.validee).length;
-    const mods = (e.modules||[]).filter(m=>et.filter(x=>x.module_rang===m.rang).every(x=>x.validee)).length;
-    const certifie = e.inscription.statut==='certifie';
-    return { kpis:[['Progression', Math.round(ok*100/et.length)+' %'],['Modules validés', mods+'/10'],['Certification', certifie?'Obtenue':(e.certification.tentatives? e.certification.tentatives+'/3 tent.':'—')]],
-             retard:0, alerte:0, note: certifie ? 'Vous êtes certifié(e).' : 'Parcours en cours.' };
+  const L = c.parcours||[];
+  if(!L.length && !c.admin) return null;
+  const mes = L.filter(x=>x.inscription), certifs = (c.documents||[]).filter(d=>d.type==='certificat' && d.statut==='valide').length;
+  const geres = L.filter(x=>x.peut_gerer && x.stats);
+  if(geres.length){
+    const ins = geres.reduce((s,x)=>s+x.stats.inscrits,0), cer = geres.reduce((s,x)=>s+x.stats.certifies,0);
+    return { kpis:[['Parcours', L.length],['Apprenants', ins],['Certifiés', cer]], retard:0, alerte:0,
+             note: mes.length ? 'Vous suivez '+mes.length+' parcours.' : '' };
   }
-  const { data: s } = await sb.rpc('formation_suivi', { p_parcours:'SMQ-PS3' });
-  const L = (s||[]).filter(x=>x.statut!=='desinscrit');
-  return { kpis:[['Inscrits', L.length],['En cours', L.filter(x=>x.statut==='en_cours' && x.validees>0).length],['Certifiés', L.filter(x=>x.statut==='certifie').length]], retard:0, alerte:0 };
+  const enCours = mes.filter(x=>x.inscription.statut==='en_cours');
+  const pct = enCours.length ? Math.round(enCours.reduce((s,x)=>s+(x.nb_etapes? x.inscription.validees*100/x.nb_etapes:0),0)/enCours.length) : null;
+  return { kpis:[['Mes parcours', mes.length],['Progression', pct==null?'—':pct+' %'],['Certificats', certifs]], retard:0, alerte:0 };
 }
 async function chargerApercuModules(){
   const aAcces = m => mesAcces.some(a=>a.module===m);
   const blocs = [];
+  // un Apprenant ne voit que la chambre Formation : pas de blocs verrouillés pour les autres modules
+  const apprenant = !!(moi && moi.role==='Apprenant');
+  const rendreBlocVerrouille = (cl, ic, titre) => apprenant && cl!=='formation' ? '' : rendreBlocVerrouille0(cl, ic, titre);
 
   if(aAcces('ps3')){
     try{ blocs.push(rendreBlocModule('ps3','🧭','PS3', await statsPS3(), 'ps3.html')); }
@@ -682,9 +687,9 @@ async function chargerApercuModules(){
   // Formation : l'espace s'ouvre aux acteurs inscrits au parcours, et au Pilote / co-pilotes
   try{
     const sf = await statsFormation();
-    blocs.push(sf ? rendreBlocModule('formation','🎓','Formation — Mon parcours SMQ', sf, 'formation.html')
-                  : rendreBlocVerrouille('formation','🎓','Formation — Mon parcours SMQ'));
-  }catch(e){ blocs.push(rendreBlocVerrouille('formation','🎓','Formation — Mon parcours SMQ')); }
+    blocs.push(sf ? rendreBlocModule('formation','🎓','Formation', sf, 'formation.html')
+                  : rendreBlocVerrouille('formation','🎓','Formation'));
+  }catch(e){ blocs.push(rendreBlocVerrouille('formation','🎓','Formation')); }
 
   $('#apercuModules').innerHTML = blocs.join('');
   $$('#apercuModules [data-href]').forEach(b=>b.addEventListener('click',()=>{ window.location.href = b.dataset.href; }));
