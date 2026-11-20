@@ -659,7 +659,7 @@ function htmlDocument(d){
   const refs = cert ? [['Numéro', d.numero], ['Délivré le', dateFr(d.date_emission)], ['Valable jusqu\'au', dateFr(d.date_echeance) + ' (' + (d.validite_mois || 36) + ' mois)']]
                     : [['Numéro', d.numero], ['Délivrée le', dateFr(d.date_emission)], ['Parcours', d.parcours_titre + ', ' + nbMod + ' modules']];
   return '<div class="doc-a4">' + (d.statut === 'annule' ? '<div class="doc-annule">ANNULÉ</div>' : '') + '<div class="doc-cadre">' +
-    '<div class="doc-tete"><div>MINISTÈRE D\'ÉTAT<br>MINISTÈRE DE L\'AGRICULTURE, DU DÉVELOPPEMENT RURAL<br>ET DES PRODUCTIONS VIVRIÈRES</div><div><img src="' + LOGO + '" alt="ANADER">AGENCE NATIONALE D\'APPUI AU DÉVELOPPEMENT RURAL</div><div>RÉPUBLIQUE DE CÔTE D\'IVOIRE<br><i style="font-weight:400">Union - Discipline - Travail</i></div></div>' +
+    '<div class="doc-tete"><div>MINISTÈRE DE L\'AGRICULTURE, DU DÉVELOPPEMENT RURAL<br>ET DES PRODUCTIONS VIVRIÈRES</div><div><img src="' + LOGO + '" alt="ANADER">AGENCE NATIONALE D\'APPUI AU DÉVELOPPEMENT RURAL</div><div>RÉPUBLIQUE DE CÔTE D\'IVOIRE<br><i style="font-weight:400">Union - Discipline - Travail</i></div></div>' +
     corps +
     '<div class="doc-pied"><div class="doc-qr"><div class="qr"></div>Vérifier l\'authenticité : scanner ce code<br>ou saisir le code <b>' + ech(d.code_verification) + '</b> sur D2MG Pilotage</div>' +
     '<table class="doc-ref">' + refs.map(r => '<tr><td>' + r[0] + '</td><td>' + ech(r[1]) + '</td></tr>').join('') + '</table>' +
